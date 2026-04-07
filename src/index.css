@@ -1,0 +1,206 @@
+@import '@fontsource/outfit/400.css';
+@import '@fontsource/outfit/500.css';
+@import '@fontsource/outfit/600.css';
+@import '@fontsource/outfit/700.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 25% 97%;
+    --foreground: 200 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 200 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 200 25% 15%;
+
+    --primary: 165 60% 35%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 35 90% 55%;
+    --secondary-foreground: 200 25% 15%;
+
+    --muted: 200 10% 92%;
+    --muted-foreground: 200 15% 45%;
+
+    --accent: 35 90% 55%;
+    --accent-foreground: 200 25% 15%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 200 15% 85%;
+    --input: 200 15% 85%;
+    --ring: 165 60% 35%;
+
+    --radius: 0.75rem;
+
+    /* Custom colors */
+    --emerald: 165 60% 35%;
+    --emerald-light: 165 50% 45%;
+    --emerald-dark: 165 70% 25%;
+    --amber: 35 90% 55%;
+    --amber-light: 35 90% 65%;
+    --amber-dark: 35 90% 45%;
+    --slate-warm: 200 10% 30%;
+    --cream: 40 25% 97%;
+
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(165 60% 35% / 0.9), hsl(165 70% 25% / 0.8));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(40 25% 97%));
+    --gradient-accent: linear-gradient(135deg, hsl(35 90% 55%), hsl(25 85% 50%));
+    --gradient-glass: linear-gradient(135deg, hsl(0 0% 100% / 0.9), hsl(0 0% 100% / 0.7));
+
+    /* Shadows */
+    --shadow-sm: 0 2px 8px hsl(200 25% 15% / 0.06);
+    --shadow-md: 0 4px 16px hsl(200 25% 15% / 0.08);
+    --shadow-lg: 0 8px 32px hsl(200 25% 15% / 0.12);
+    --shadow-glow: 0 0 40px hsl(165 60% 35% / 0.2);
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 200 25% 15%;
+    --sidebar-primary: 165 60% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 165 50% 95%;
+    --sidebar-accent-foreground: 165 60% 35%;
+    --sidebar-border: 200 15% 90%;
+    --sidebar-ring: 165 60% 35%;
+  }
+
+  .dark {
+    --background: 200 25% 10%;
+    --foreground: 40 25% 95%;
+
+    --card: 200 25% 14%;
+    --card-foreground: 40 25% 95%;
+
+    --popover: 200 25% 14%;
+    --popover-foreground: 40 25% 95%;
+
+    --primary: 165 55% 45%;
+    --primary-foreground: 200 25% 10%;
+
+    --secondary: 35 85% 55%;
+    --secondary-foreground: 200 25% 10%;
+
+    --muted: 200 20% 20%;
+    --muted-foreground: 200 15% 60%;
+
+    --accent: 35 85% 55%;
+    --accent-foreground: 200 25% 10%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 200 20% 25%;
+    --input: 200 20% 25%;
+    --ring: 165 55% 45%;
+
+    --sidebar-background: 200 25% 12%;
+    --sidebar-foreground: 40 25% 95%;
+    --sidebar-primary: 165 55% 45%;
+    --sidebar-primary-foreground: 200 25% 10%;
+    --sidebar-accent: 200 20% 18%;
+    --sidebar-accent-foreground: 165 55% 45%;
+    --sidebar-border: 200 20% 20%;
+    --sidebar-ring: 165 55% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Outfit', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', system-ui, sans-serif;
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/80 backdrop-blur-xl border border-white/20;
+  }
+
+  .glass-dark {
+    @apply bg-black/40 backdrop-blur-xl border border-white/10;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-emerald-light;
+  }
+
+  .text-gradient-accent {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-secondary to-amber-light;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.6s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.5s ease-out forwards;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
