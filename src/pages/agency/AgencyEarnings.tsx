@@ -1,54 +1,107 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AgencyLayout } from "@/components/agency/AgencyLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DollarSign, TrendingUp, ArrowDownToLine, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { useBookingsStore, type Booking } from "@/stores/bookingsStore";
 
-const summaryStats = [
-  { label: "Total Revenue", value: "$24,890", icon: DollarSign, sub: "Lifetime" },
-  { label: "Platform Commission (15%)", value: "$3,734", icon: TrendingUp, sub: "Total deducted" },
-  { label: "Net Earnings", value: "$21,156", icon: ArrowDownToLine, sub: "After commission" },
-  { label: "Pending Payout", value: "$4,218", icon: Clock, sub: "Next payout: Apr 5" },
-];
+const money = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
 
-interface Transaction {
-  id: string;
-  booking: string;
-  activity: string;
-  customer: string;
-  date: string;
-  gross: number;
-  commission: number;
-  net: number;
-  status: "paid" | "pending" | "processing";
+function sumPaid(bookings: Booking[], pick: (b: Booking) => number): number {
+  return bookings.filter((b) => b.payment_status === "paid").reduce((acc, b) => acc + pick(b), 0);
 }
 
-const transactions: Transaction[] = [
-  { id: "TXN-001", booking: "BK-001", activity: "Everest Base Camp Trek", customer: "John Smith", date: "2026-03-20", gross: 3798, commission: 569.7, net: 3228.3, status: "paid" },
-  { id: "TXN-002", booking: "BK-003", activity: "Chitwan Safari Experience", customer: "Mike Chen", date: "2026-03-15", gross: 1800, commission: 270, net: 1530, status: "paid" },
-  { id: "TXN-003", booking: "BK-005", activity: "Everest Base Camp Trek", customer: "Alex Turner", date: "2026-02-15", gross: 3798, commission: 569.7, net: 3228.3, status: "paid" },
-  { id: "TXN-004", booking: "BK-002", activity: "Paragliding Over Pokhara", customer: "Sarah Lee", date: "2026-03-28", gross: 120, commission: 18, net: 102, status: "pending" },
-  { id: "TXN-005", booking: "BK-004", activity: "Langtang Valley Trek", customer: "Emma Wilson", date: "2026-03-29", gross: 3297, commission: 494.55, net: 2802.45, status: "processing" },
-];
+function pendingPayoutSum(bookings: Booking[]): number {
+  return bookings
+    .filter((b) => b.status === "confirmed" && b.payment_status === "paid")
+    .reduce((acc, b) => acc + b.net_payout, 0);
+}
 
-const statusStyle: Record<string, string> = {
+type RowStatus = "paid" | "pending" | "refunded";
+
+function paymentDisplayStatus(p: Booking["payment_status"]): RowStatus {
+  if (p === "paid") return "paid";
+  if (p === "refunded") return "refunded";
+  return "pending";
+}
+
+const statusStyle: Record<RowStatus, string> = {
   paid: "bg-primary/10 text-primary",
   pending: "bg-amber-100 text-amber-700",
-  processing: "bg-muted text-muted-foreground",
+  refunded: "bg-muted text-muted-foreground",
 };
 
 export default function AgencyEarnings() {
+  const { agencyBookings, isLoading, fetchAgencyBookings } = useBookingsStore();
   const [payoutDialogOpen, setPayoutDialogOpen] = useState(false);
   const [payoutRequested, setPayoutRequested] = useState(false);
+
+  useEffect(() => {
+    if (agencyBookings.length === 0) {
+      void fetchAgencyBookings();
+    }
+  }, [agencyBookings.length, fetchAgencyBookings]);
+
+  const stats = useMemo(() => {
+    const totalRevenue = sumPaid(agencyBookings, (b) => b.total_amount);
+    const platformCommission = sumPaid(agencyBookings, (b) => b.commission_amount);
+    const netEarnings = sumPaid(agencyBookings, (b) => b.net_payout);
+    const pendingPayout = pendingPayoutSum(agencyBookings);
+    return {
+      totalRevenue,
+      platformCommission,
+      netEarnings,
+      pendingPayout,
+    };
+  }, [agencyBookings]);
+
+  const summaryStats = useMemo(
+    () => [
+      { label: "Total Revenue", value: money.format(stats.totalRevenue), icon: DollarSign, sub: "Lifetime (paid)" },
+      { label: "Platform Commission (15%)", value: money.format(stats.platformCommission), icon: TrendingUp, sub: "Total deducted" },
+      { label: "Net Earnings", value: money.format(stats.netEarnings), icon: ArrowDownToLine, sub: "After commission" },
+      {
+        label: "Pending Payout",
+        value: money.format(stats.pendingPayout),
+        icon: Clock,
+        sub: "Confirmed & paid — not yet transferred",
+      },
+    ],
+    [stats]
+  );
+
+  const transactions = useMemo(
+    () =>
+      agencyBookings.map((b) => ({
+        id: b.id,
+        booking_ref: b.booking_ref,
+        activity: b.listing?.title ?? "—",
+        customer: b.traveler_name ?? "—",
+        date: b.created_at.split("T")[0],
+        gross: b.total_amount,
+        commission: b.commission_amount,
+        net: b.net_payout,
+        payment_status: b.payment_status,
+        rowStatus: paymentDisplayStatus(b.payment_status),
+      })),
+    [agencyBookings]
+  );
+
+  const showStatsSkeleton = isLoading && agencyBookings.length === 0;
 
   const handleRequestPayout = () => {
     setPayoutDialogOpen(false);
     setPayoutRequested(true);
-    toast.success("Payout request submitted. You'll receive $4,218 within 3–5 business days.");
+    toast.success("Your request has been submitted and will be processed within 3–5 business days.");
   };
 
   return (
@@ -61,7 +114,11 @@ export default function AgencyEarnings() {
               <CardContent className="p-5 flex items-start justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">{s.label}</p>
-                  <p className="text-2xl font-bold text-foreground mt-1">{s.value}</p>
+                  {showStatsSkeleton ? (
+                    <Skeleton className="h-9 w-28 mt-1" />
+                  ) : (
+                    <p className="text-2xl font-bold text-foreground mt-1">{s.value}</p>
+                  )}
                   <span className="text-xs text-muted-foreground">{s.sub}</span>
                 </div>
                 <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -80,12 +137,14 @@ export default function AgencyEarnings() {
               <p className="text-sm text-muted-foreground">
                 {payoutRequested
                   ? "Your payout request is being processed. Expected within 3–5 business days."
-                  : "You have $4,218 available for withdrawal. Payouts are processed within 3–5 business days."}
+                  : showStatsSkeleton
+                    ? "Loading your balance…"
+                    : `You have ${money.format(stats.pendingPayout)} available for withdrawal. Payouts are processed within 3–5 business days.`}
               </p>
             </div>
             <Button
               className="gap-2 whitespace-nowrap"
-              disabled={payoutRequested}
+              disabled={payoutRequested || showStatsSkeleton || stats.pendingPayout <= 0}
               onClick={() => setPayoutDialogOpen(true)}
             >
               <ArrowDownToLine className="h-4 w-4" />
@@ -99,7 +158,7 @@ export default function AgencyEarnings() {
             <AlertDialogHeader>
               <AlertDialogTitle>Request Payout</AlertDialogTitle>
               <AlertDialogDescription>
-                You are about to request a payout of <strong>$4,218</strong> to your registered bank account. This will be processed within 3–5 business days.
+                You are about to request a payout of <strong>{money.format(stats.pendingPayout)}</strong> to your registered bank account. This will be processed within 3–5 business days.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -128,21 +187,36 @@ export default function AgencyEarnings() {
                   </tr>
                 </thead>
                 <tbody>
-                  {transactions.map((t) => (
-                    <tr key={t.id} className="border-b last:border-0">
-                      <td className="py-3 font-medium text-foreground">{t.id}</td>
-                      <td className="py-3 text-foreground">{t.activity}</td>
-                      <td className="py-3 text-muted-foreground">{t.customer}</td>
-                      <td className="py-3 text-muted-foreground">{t.date}</td>
-                      <td className="py-3 text-right font-medium">${t.gross.toFixed(2)}</td>
-                      <td className="py-3 text-right text-destructive">-${t.commission.toFixed(2)}</td>
-                      <td className="py-3 text-right font-bold text-foreground">${t.net.toFixed(2)}</td>
-                      <td className="py-3"><Badge variant="secondary" className={statusStyle[t.status]}>{t.status}</Badge></td>
-                    </tr>
-                  ))}
+                  {showStatsSkeleton
+                    ? Array.from({ length: 4 }).map((_, i) => (
+                        <tr key={i} className="border-b last:border-0">
+                          <td className="py-3" colSpan={8}>
+                            <Skeleton className="h-8 w-full" />
+                          </td>
+                        </tr>
+                      ))
+                    : transactions.map((t) => (
+                        <tr key={t.id} className="border-b last:border-0">
+                          <td className="py-3 font-medium text-foreground">{t.booking_ref}</td>
+                          <td className="py-3 text-foreground">{t.activity}</td>
+                          <td className="py-3 text-muted-foreground">{t.customer}</td>
+                          <td className="py-3 text-muted-foreground">{t.date}</td>
+                          <td className="py-3 text-right font-medium">${t.gross.toFixed(2)}</td>
+                          <td className="py-3 text-right text-destructive">-${t.commission.toFixed(2)}</td>
+                          <td className="py-3 text-right font-bold text-foreground">${t.net.toFixed(2)}</td>
+                          <td className="py-3">
+                            <Badge variant="secondary" className={statusStyle[t.rowStatus]}>
+                              {t.payment_status}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
                 </tbody>
               </table>
             </div>
+            {!showStatsSkeleton && transactions.length === 0 && (
+              <p className="text-center py-8 text-muted-foreground text-sm">No bookings yet.</p>
+            )}
           </CardContent>
         </Card>
       </div>

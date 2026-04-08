@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import AgencyLanding from "./pages/AgencyLanding";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminAgencies from "./pages/admin/Agencies";
+import AdminListings from "./pages/admin/Listings";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AgencyDashboard from "./pages/agency/AgencyDashboard";
 import AgencyListings from "./pages/agency/AgencyListings";
@@ -82,6 +83,7 @@ const App = () => (
           <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/agencies" element={<AdminAgencies />} />
+            <Route path="/admin/listings" element={<AdminListings />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

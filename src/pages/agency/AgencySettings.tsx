@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AgencyLayout } from "@/components/agency/AgencyLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,28 +7,43 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Save, Upload } from "lucide-react";
+import { Save, Upload, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
+import { supabase } from "@/lib/supabase";
+
+type BankDetailsMeta = {
+  account_holder_name?: string;
+  bank_name?: string;
+  account_number?: string;
+  routing_swift?: string;
+};
+
+function readBankDetails(meta: Record<string, unknown> | undefined): BankDetailsMeta {
+  const raw = meta?.bank_details;
+  if (!raw || typeof raw !== "object") return {};
+  return raw as BankDetailsMeta;
+}
 
 export default function AgencySettings() {
   const { user } = useAuthStore();
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Agency profile state
-  const [agencyName, setAgencyName] = useState(user?.agencyName ?? "Himalayan Expeditions");
-  const [licenseNumber, setLicenseNumber] = useState("NTB-2024-1234");
-  const [email, setEmail] = useState(user?.email ?? "info@himalayanexp.com");
-  const [phone, setPhone] = useState("+977 1-4444567");
-  const [address, setAddress] = useState("Thamel, Kathmandu, Nepal");
-  const [about, setAbout] = useState("Leading adventure travel company in Nepal since 2010. We specialize in high-altitude trekking and cultural expeditions.");
+  const [agencyName, setAgencyName] = useState(user?.agencyName ?? "");
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const [email, setEmail] = useState(user?.email ?? "");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [about, setAbout] = useState("");
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
-  // Payout state
-  const [bankName, setBankName] = useState("Nepal Rastra Bank");
+  // Bank / payout state
+  const [accountHolder, setAccountHolder] = useState("");
+  const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
-  const [accountHolder, setAccountHolder] = useState("Himalayan Expeditions Pvt Ltd");
-  const [swiftCode, setSwiftCode] = useState("NRBINPKA");
+  const [routingSwift, setRoutingSwift] = useState("");
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
 
   // Notification state
   const [notifications, setNotifications] = useState({
@@ -39,6 +54,23 @@ export default function AgencySettings() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getUser().then(({ data: { user: authUser } }) => {
+      if (cancelled) return;
+      if (authUser?.user_metadata) {
+        const b = readBankDetails(authUser.user_metadata as Record<string, unknown>);
+        setAccountHolder(b.account_holder_name ?? "");
+        setBankName(b.bank_name ?? "");
+        setAccountNumber(b.account_number ?? "");
+        setRoutingSwift(b.routing_swift ?? "");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -52,11 +84,30 @@ export default function AgencySettings() {
   };
 
   const handleSave = async () => {
-    if (!agencyName.trim()) { toast.error("Agency name is required."); return; }
-    if (!email.trim()) { toast.error("Email is required."); return; }
+    if (!agencyName.trim()) {
+      toast.error("Agency name is required.");
+      return;
+    }
+    if (!email.trim()) {
+      toast.error("Email is required.");
+      return;
+    }
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 600));
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        bank_details: {
+          account_holder_name: accountHolder.trim(),
+          bank_name: bankName.trim(),
+          account_number: accountNumber.trim(),
+          routing_swift: routingSwift.trim(),
+        },
+      },
+    });
     setIsLoading(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Settings saved successfully.");
   };
 
@@ -85,7 +136,7 @@ export default function AgencySettings() {
               <div className="h-16 w-16 rounded-lg bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary overflow-hidden">
                 {logoPreview
                   ? <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" />
-                  : initials}
+                  : initials || "—"}
               </div>
               <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
               <Button variant="outline" size="sm" className="gap-2" onClick={() => logoInputRef.current?.click()}>
@@ -121,32 +172,57 @@ export default function AgencySettings() {
           </CardContent>
         </Card>
 
-        {/* Payout Settings */}
+        {/* Bank Account / Payout Details */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Payout Settings</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Bank Account / Payout Details</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Bank Name</Label>
-                <Input value={bankName} onChange={(e) => setBankName(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Account Number</Label>
+                <Label>Account holder name</Label>
                 <Input
-                  type="password"
-                  placeholder="Enter account number"
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
+                  value={accountHolder}
+                  onChange={(e) => setAccountHolder(e.target.value)}
+                  placeholder="Legal name on the account"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Account Holder</Label>
-                <Input value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} />
+                <Label>Bank name</Label>
+                <Input
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  placeholder="e.g. Nepal Investment Bank"
+                />
               </div>
-              <div className="space-y-2">
-                <Label>SWIFT Code</Label>
-                <Input value={swiftCode} onChange={(e) => setSwiftCode(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Account number</Label>
+              <div className="flex gap-2">
+                <Input
+                  className="flex-1"
+                  type={showAccountNumber ? "text" : "password"}
+                  autoComplete="off"
+                  placeholder="Account number"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label={showAccountNumber ? "Hide account number" : "Show account number"}
+                  onClick={() => setShowAccountNumber((v) => !v)}
+                >
+                  {showAccountNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Routing / SWIFT code</Label>
+              <Input
+                value={routingSwift}
+                onChange={(e) => setRoutingSwift(e.target.value)}
+                placeholder="Routing or SWIFT/BIC"
+              />
             </div>
           </CardContent>
         </Card>

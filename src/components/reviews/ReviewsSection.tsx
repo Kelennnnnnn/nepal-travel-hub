@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,17 +11,35 @@ import {
 import { ReviewCard } from "./ReviewCard";
 import { ReviewSummary } from "./ReviewSummary";
 import { WriteReviewDialog } from "./WriteReviewDialog";
-import { getReviewsForActivity, getAverageRating, Review } from "@/data/reviews";
+import { useReviewsStore, Review } from "@/stores/reviewsStore";
 
 interface ReviewsSectionProps {
   activityId: string;
   activityTitle: string;
 }
 
+function computeSummary(reviews: Review[]) {
+  if (reviews.length === 0) return { average: 0, count: 0, distribution: [0, 0, 0, 0, 0] };
+  const distribution = [0, 0, 0, 0, 0];
+  let total = 0;
+  reviews.forEach((r) => {
+    total += r.rating;
+    distribution[r.rating - 1]++;
+  });
+  return { average: total / reviews.length, count: reviews.length, distribution };
+}
+
 export function ReviewsSection({ activityId, activityTitle }: ReviewsSectionProps) {
   const [sortBy, setSortBy] = useState("newest");
-  const reviews = getReviewsForActivity(activityId);
-  const { average, count, distribution } = getAverageRating(activityId);
+  const { reviews, canReview, isLoading, fetchReviewsForListing, checkCanReview } =
+    useReviewsStore();
+
+  useEffect(() => {
+    void fetchReviewsForListing(activityId);
+    void checkCanReview(activityId);
+  }, [activityId, fetchReviewsForListing, checkCanReview]);
+
+  const { average, count, distribution } = computeSummary(reviews);
 
   const sortedReviews = [...reviews].sort((a: Review, b: Review) => {
     if (sortBy === "newest") return new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -31,6 +49,18 @@ export function ReviewsSection({ activityId, activityTitle }: ReviewsSectionProp
     return 0;
   });
 
+  const writeReviewButton = canReview ? (
+    <WriteReviewDialog
+      activityId={activityId}
+      activityTitle={activityTitle}
+      trigger={<Button>Write a Review</Button>}
+      onSuccess={() => {
+        void fetchReviewsForListing(activityId);
+        void checkCanReview(activityId);
+      }}
+    />
+  ) : null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -38,13 +68,12 @@ export function ReviewsSection({ activityId, activityTitle }: ReviewsSectionProp
           <MessageSquare className="h-5 w-5" />
           Reviews & Ratings
         </h2>
-        <WriteReviewDialog
-          activityTitle={activityTitle}
-          trigger={<Button>Write a Review</Button>}
-        />
+        {writeReviewButton}
       </div>
 
-      {count > 0 ? (
+      {isLoading ? (
+        <div className="text-center py-12 text-muted-foreground text-sm">Loading reviews…</div>
+      ) : count > 0 ? (
         <>
           <ReviewSummary average={average} count={count} distribution={distribution} />
 
@@ -78,10 +107,17 @@ export function ReviewsSection({ activityId, activityTitle }: ReviewsSectionProp
           <p className="text-sm text-muted-foreground mb-4">
             Be the first to share your experience!
           </p>
-          <WriteReviewDialog
-            activityTitle={activityTitle}
-            trigger={<Button variant="outline">Write a Review</Button>}
-          />
+          {canReview && (
+            <WriteReviewDialog
+              activityId={activityId}
+              activityTitle={activityTitle}
+              trigger={<Button variant="outline">Write a Review</Button>}
+              onSuccess={() => {
+                void fetchReviewsForListing(activityId);
+                void checkCanReview(activityId);
+              }}
+            />
+          )}
         </div>
       )}
     </div>

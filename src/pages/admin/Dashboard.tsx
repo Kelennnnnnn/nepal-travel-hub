@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Building2,
@@ -15,48 +15,41 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useAgencyStore } from "@/stores/agencyStore";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
-const recentBookings = [
-  {
-    id: "BK001",
-    activity: "Everest Base Camp Trek",
-    customer: "Sarah Mitchell",
-    agency: "Himalayan Expeditions",
-    amount: 1899,
-    status: "confirmed",
-    date: "2024-01-15",
-  },
-  {
-    id: "BK002",
-    activity: "Paragliding Over Pokhara",
-    customer: "James Wilson",
-    agency: "Sky Riders Nepal",
-    amount: 120,
-    status: "pending",
-    date: "2024-01-15",
-  },
-  {
-    id: "BK003",
-    activity: "Chitwan Safari Experience",
-    customer: "Emma Thompson",
-    agency: "Nepal Wildlife Tours",
-    amount: 450,
-    status: "confirmed",
-    date: "2024-01-14",
-  },
-  {
-    id: "BK004",
-    activity: "Annapurna Circuit Trek",
-    customer: "Michael Chen",
-    agency: "Mountain Trail Nepal",
-    amount: 1599,
-    status: "cancelled",
-    date: "2024-01-14",
-  },
-];
+const money = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
+interface RecentBookingRow {
+  id: string;
+  booking_ref: string;
+  agency_id: string;
+  total_amount: number;
+  status: string;
+  created_at: string;
+  traveler_name: string | null;
+  listing: { title: string } | { title: string }[] | null;
+}
+
+function listingTitle(listing: RecentBookingRow["listing"]): string {
+  if (!listing) return "—";
+  if (Array.isArray(listing)) return listing[0]?.title ?? "—";
+  return listing.title ?? "—";
+}
+
+function badgeVariant(status: string): "default" | "secondary" | "destructive" {
+  if (status === "confirmed" || status === "completed") return "default";
+  if (status === "cancelled") return "destructive";
+  return "secondary";
+}
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -68,11 +61,109 @@ export default function AdminDashboard() {
     updateApplicationStatus,
   } = useAgencyStore();
 
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [totalBookings, setTotalBookings] = useState(0);
+  const [listedActivities, setListedActivities] = useState(0);
+
+  const [recentLoading, setRecentLoading] = useState(true);
+  const [recentRows, setRecentRows] = useState<RecentBookingRow[]>([]);
+
   useEffect(() => {
     fetchAllApplications();
     const unsubscribe = subscribeToAllApplications();
     return unsubscribe;
   }, [fetchAllApplications, subscribeToAllApplications]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDashboardStats() {
+      setStatsLoading(true);
+      setRecentLoading(true);
+
+      const paidBookingsPromise = supabase
+        .from("bookings")
+        .select("total_amount")
+        .eq("payment_status", "paid");
+
+      const bookingsCountPromise = supabase
+        .from("bookings")
+        .select("*", { count: "exact", head: true });
+
+      const listingsCountPromise = supabase
+        .from("listings")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "published");
+
+      const recentPromise = supabase
+        .from("bookings")
+        .select(
+          `
+          id,
+          booking_ref,
+          agency_id,
+          total_amount,
+          status,
+          created_at,
+          traveler_name,
+          listing:listings ( title )
+        `
+        )
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      try {
+        const [paidRes, bookingsCountRes, listingsCountRes, recentRes] = await Promise.all([
+          paidBookingsPromise,
+          bookingsCountPromise,
+          listingsCountPromise,
+          recentPromise,
+        ]);
+
+        if (cancelled) return;
+
+        if (paidRes.error) {
+          console.error(paidRes.error.message);
+        }
+        const revenue =
+          paidRes.data?.reduce((acc, row) => acc + Number(row.total_amount ?? 0), 0) ?? 0;
+        setTotalRevenue(Number.isFinite(revenue) ? revenue : 0);
+
+        if (bookingsCountRes.error) {
+          console.error(bookingsCountRes.error.message);
+          setTotalBookings(0);
+        } else {
+          setTotalBookings(bookingsCountRes.count ?? 0);
+        }
+
+        if (listingsCountRes.error) {
+          console.error(listingsCountRes.error.message);
+          setListedActivities(0);
+        } else {
+          setListedActivities(listingsCountRes.count ?? 0);
+        }
+
+        if (recentRes.error) {
+          console.error(recentRes.error.message);
+          toast.error("Could not load recent bookings.");
+          setRecentRows([]);
+        } else {
+          setRecentRows((recentRes.data ?? []) as RecentBookingRow[]);
+        }
+      } finally {
+        if (!cancelled) {
+          setStatsLoading(false);
+          setRecentLoading(false);
+        }
+      }
+    }
+
+    void loadDashboardStats();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const pendingApps = allApplications.filter(
     (a) => a.status === "pending" || a.status === "in_review"
@@ -91,37 +182,56 @@ export default function AdminDashboard() {
   };
 
   const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString("en-US", {
+    new Date(dateStr).toLocaleDateString(undefined, {
       month: "short",
       day: "numeric",
     });
 
-  const stats = [
-    {
-      title: "Total Revenue",
-      value: "$124,500",
-      change: "+12.5%",
-      icon: DollarSign,
-    },
-    {
-      title: "Active Agencies",
-      value: String(verifiedCount),
-      change: `${pendingApps.length} pending`,
-      icon: Building2,
-    },
-    {
-      title: "Total Bookings",
-      value: "2,847",
-      change: "+23.1%",
-      icon: Calendar,
-    },
-    {
-      title: "Listed Activities",
-      value: "432",
-      change: "+15 new",
-      icon: MapPin,
-    },
-  ];
+  const stats = useMemo(
+    () => [
+      {
+        title: "Total Revenue",
+        value: money.format(totalRevenue),
+        change: "Paid bookings",
+        icon: DollarSign,
+      },
+      {
+        title: "Active Agencies",
+        value: String(verifiedCount),
+        change: `${pendingApps.length} pending`,
+        icon: Building2,
+      },
+      {
+        title: "Total Bookings",
+        value: totalBookings.toLocaleString(),
+        change: "All statuses",
+        icon: Calendar,
+      },
+      {
+        title: "Listed Activities",
+        value: listedActivities.toLocaleString(),
+        change: "Published",
+        icon: MapPin,
+      },
+    ],
+    [totalRevenue, verifiedCount, pendingApps.length, totalBookings, listedActivities]
+  );
+
+  const recentBookings = useMemo(
+    () =>
+      recentRows.map((row) => ({
+        id: row.id,
+        booking_ref: row.booking_ref,
+        activity: listingTitle(row.listing),
+        customer: row.traveler_name?.trim() || "—",
+        agency:
+          allApplications.find((a) => a.user_id === row.agency_id)?.company_name ?? "—",
+        amount: Number(row.total_amount ?? 0),
+        status: row.status,
+        date: row.created_at.split("T")[0],
+      })),
+    [recentRows, allApplications]
+  );
 
   return (
     <AdminLayout>
@@ -144,7 +254,11 @@ export default function AdminDashboard() {
                     <p className="text-sm text-muted-foreground">
                       {stat.title}
                     </p>
-                    <p className="text-2xl font-bold mt-1">{stat.value}</p>
+                    {statsLoading ? (
+                      <Skeleton className="h-8 w-28 mt-1" />
+                    ) : (
+                      <p className="text-2xl font-bold mt-1">{stat.value}</p>
+                    )}
                     <div className="flex items-center gap-1 mt-2">
                       <TrendingUp className="h-4 w-4 text-primary" />
                       <span className="text-sm text-primary">
@@ -172,39 +286,59 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {recentBookings.map((booking) => (
-                  <div
-                    key={booking.id}
-                    className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{booking.activity}</span>
-                        <Badge
-                          variant={
-                            booking.status === "confirmed"
-                              ? "default"
-                              : booking.status === "pending"
-                              ? "secondary"
-                              : "destructive"
-                          }
-                          className="text-xs"
-                        >
-                          {booking.status}
-                        </Badge>
+                {recentLoading ? (
+                  <>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                      >
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-5 w-48" />
+                          <Skeleton className="h-4 w-64" />
+                        </div>
+                        <div className="text-right space-y-2">
+                          <Skeleton className="h-5 w-16 ml-auto" />
+                          <Skeleton className="h-4 w-12 ml-auto" />
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {booking.customer} • {booking.agency}
-                      </p>
+                    ))}
+                  </>
+                ) : recentBookings.length === 0 ? (
+                  <p className="text-center py-8 text-sm text-muted-foreground">
+                    No bookings yet.
+                  </p>
+                ) : (
+                  recentBookings.map((booking) => (
+                    <div
+                      key={booking.id}
+                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{booking.activity}</span>
+                          <Badge
+                            variant={badgeVariant(booking.status)}
+                            className="text-xs"
+                          >
+                            {booking.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          <span className="font-mono text-xs">{booking.booking_ref}</span>
+                          {" · "}
+                          {booking.customer} • {booking.agency}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">${booking.amount.toFixed(2)}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatDate(booking.date)}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold">${booking.amount}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {booking.date}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -315,6 +449,7 @@ export default function AdminDashboard() {
               <Button
                 variant="outline"
                 className="h-auto py-4 flex flex-col gap-2"
+                onClick={() => navigate("/admin/listings")}
               >
                 <MapPin className="h-6 w-6" />
                 <span>Moderate Listings</span>

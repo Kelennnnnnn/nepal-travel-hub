@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AgencyLayout } from "@/components/agency/AgencyLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,17 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Trash2, Loader2 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useListingsStore } from "@/stores/listingsStore";
 import { useAuthStore } from "@/stores/authStore";
+
+const priceFormatter = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
 
 export default function AgencyAvailability() {
   const { user } = useAuthStore();
@@ -30,6 +37,11 @@ export default function AgencyAvailability() {
   const [selectedListing, setSelectedListing] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isSaving, setIsSaving] = useState(false);
+
+  const activeListing = useMemo(
+    () => myListings.find((l) => l.id === selectedListing),
+    [myListings, selectedListing]
+  );
 
   // Fetch listings on mount if empty
   useEffect(() => {
@@ -77,17 +89,16 @@ export default function AgencyAvailability() {
       date: dateStr,
       spots_total: spots,
       spots_remaining: spots,
-      price_override: price || null,
+      price_override:
+        price !== undefined && Number.isFinite(price) ? price : null,
       blocked: false,
     });
 
     setIsSaving(false);
     if (error) {
-      toast({ title: "Error", description: error, variant: "destructive" });
+      toast.error(error);
     } else {
-      toast({ title: "Availability added", description: `${spots} spots on ${dateStr}` });
-      // Re-fetch to sync calendar
-      fetchMyAvailability(selectedListing);
+      toast.success(`${spots} spots on ${dateStr}`);
     }
   };
 
@@ -99,9 +110,7 @@ export default function AgencyAvailability() {
     });
     setIsSaving(false);
     if (error) {
-      toast({ title: "Error", description: error, variant: "destructive" });
-    } else {
-      fetchMyAvailability(selectedListing);
+      toast.error(error);
     }
   };
 
@@ -110,10 +119,9 @@ export default function AgencyAvailability() {
     const { error } = await deleteAvailability(id);
     setIsSaving(false);
     if (error) {
-      toast({ title: "Error", description: error, variant: "destructive" });
+      toast.error(error);
     } else {
-      toast({ title: "Slot removed" });
-      fetchMyAvailability(selectedListing);
+      toast.success("Slot removed");
     }
   };
 
@@ -172,7 +180,14 @@ export default function AgencyAvailability() {
             {selectedDate && (
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-base">{selectedDate.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</CardTitle>
+                  <CardTitle className="text-base">
+                    {selectedDate.toLocaleDateString(undefined, {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </CardTitle>
                   {!selectedSlot && (
                     <Dialog>
                       <DialogTrigger asChild>
@@ -181,7 +196,17 @@ export default function AgencyAvailability() {
                       <DialogContent className="max-w-sm">
                         <DialogHeader><DialogTitle>Add Availability</DialogTitle></DialogHeader>
                         <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); handleAddSlot(selectedDate, Number(fd.get("spots")), fd.get("price") ? Number(fd.get("price")) : undefined); }} className="space-y-4">
-                          <div className="space-y-2"><Label>Available Spots</Label><Input name="spots" type="number" defaultValue={10} required /></div>
+                          <div className="space-y-2">
+                            <Label>Available Spots</Label>
+                            <Input
+                              key={`spots-${selectedListing}`}
+                              name="spots"
+                              type="number"
+                              min={1}
+                              defaultValue={activeListing?.max_participants ?? ""}
+                              required
+                            />
+                          </div>
                           <div className="space-y-2"><Label>Price Override (optional)</Label><Input name="price" type="number" placeholder="Leave blank for default" /></div>
                           <Button type="submit" className="w-full" disabled={isSaving}>
                             {isSaving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : "Add Availability"}
@@ -205,7 +230,9 @@ export default function AgencyAvailability() {
                       {selectedSlot.price_override && (
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-muted-foreground">Price Override</span>
-                          <span className="font-medium text-foreground">${selectedSlot.price_override}</span>
+                          <span className="font-medium text-foreground">
+                            {priceFormatter.format(selectedSlot.price_override)}
+                          </span>
                         </div>
                       )}
                       <div className="flex items-center justify-between">
@@ -239,10 +266,17 @@ export default function AgencyAvailability() {
                       <div key={slot.id} className="flex items-center justify-between py-2 border-b last:border-0">
                         <div>
                           <p className="text-sm font-medium text-foreground">
-                            {new Date(slot.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            {new Date(slot.date + "T00:00:00").toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {slot.spots_remaining}/{slot.spots_total} spots{slot.price_override ? ` · $${slot.price_override}` : ""}
+                            {slot.spots_remaining}/{slot.spots_total} spots
+                            {slot.price_override != null
+                              ? ` · ${priceFormatter.format(slot.price_override)}`
+                              : ""}
                           </p>
                         </div>
                         <Badge variant="secondary" className="bg-primary/10 text-primary">Open</Badge>

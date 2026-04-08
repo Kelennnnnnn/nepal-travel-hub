@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 const adminNavItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Agencies", href: "/admin/agencies", icon: Building2 },
-  { name: "Activities", href: "/admin/activities", icon: MapPin },
+  { name: "Listings", href: "/admin/listings", icon: MapPin },
   { name: "Bookings", href: "/admin/bookings", icon: Calendar },
   { name: "Payments", href: "/admin/payments", icon: CreditCard },
   { name: "Users", href: "/admin/users", icon: Users },

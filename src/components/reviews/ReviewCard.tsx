@@ -1,5 +1,5 @@
 import { Star, ThumbsUp, BadgeCheck } from "lucide-react";
-import { Review } from "@/data/reviews";
+import { Review } from "@/stores/reviewsStore";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
