@@ -12,6 +12,7 @@ import AgencyLanding from "./pages/AgencyLanding";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminAgencies from "./pages/admin/Agencies";
 import AdminListings from "./pages/admin/Listings";
+import AdminUsers from "./pages/admin/Users";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AgencyDashboard from "./pages/agency/AgencyDashboard";
 import AgencyListings from "./pages/agency/AgencyListings";
@@ -25,6 +26,10 @@ import AgencyVerificationStatus from "./pages/agency/AgencyVerificationStatus";
 import AgencyLogin from "./pages/agency/AgencyLogin";
 import BookingPayment from "./pages/BookingPayment";
 import BookingConfirmation from "./pages/BookingConfirmation";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import TermsOfService from "./pages/TermsOfService";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useAuthStore } from "./stores/authStore";
@@ -58,6 +63,10 @@ const App = () => (
           <Route path="/agency" element={<AgencyLanding />} />
           <Route path="/agency/login" element={<AgencyLogin />} />
           <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
 
           {/* Traveler Booking Routes (Protected) */}
           <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
@@ -84,6 +93,7 @@ const App = () => (
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/agencies" element={<AdminAgencies />} />
             <Route path="/admin/listings" element={<AdminListings />} />
+            <Route path="/admin/users" element={<AdminUsers />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

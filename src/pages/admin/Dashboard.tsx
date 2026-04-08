@@ -464,6 +464,7 @@ export default function AdminDashboard() {
               <Button
                 variant="outline"
                 className="h-auto py-4 flex flex-col gap-2"
+                onClick={() => navigate("/admin/users")}
               >
                 <Users className="h-6 w-6" />
                 <span>Manage Users</span>
