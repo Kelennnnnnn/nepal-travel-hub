@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Layout } from "@/components/layout/Layout";
 import { useAgencyStore } from "@/stores/agencyStore";
 import { useAuthStore } from "@/stores/authStore";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
 const STEPS = [
@@ -35,6 +36,11 @@ export default function AgencyOnboarding() {
   const authUser = useAuthStore((s) => s.user);
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploading, setUploading] = useState({
+    licenseFile: false,
+    panFile: false,
+    insuranceFile: false,
+  });
 
   const [form, setForm] = useState({
     companyName: authUser?.agencyName ?? "",
@@ -56,6 +62,28 @@ export default function AgencyOnboarding() {
 
   const update = (field: string, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
+
+  const handleFileUpload = async (key: string, label: string, file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File must be under 5MB");
+      return;
+    }
+    const ext = file.name.split(".").pop();
+    const filePath = `${authUser?.id}/${key}-${Date.now()}.${ext}`;
+    setUploading((prev) => ({ ...prev, [key]: true }));
+    const { error } = await supabase.storage
+      .from("agency-docs")
+      .upload(filePath, file, { upsert: true });
+    setUploading((prev) => ({ ...prev, [key]: false }));
+    if (error) {
+      toast.error(error.message);
+      update(key, "");
+      return;
+    }
+    update(key, filePath);
+    toast.success(`${label.replace(" *", "")} uploaded successfully`);
+  };
 
   const canProceed = () => {
     if (step === 1) {
@@ -304,40 +332,50 @@ export default function AgencyOnboarding() {
                         desc: "Business liability insurance (recommended)",
                       },
                     ].map((doc) => (
-                      <div
-                        key={doc.key}
-                        className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer hover:border-primary/50 ${
-                          form[doc.key as keyof typeof form]
-                            ? "border-primary bg-primary/5"
-                            : "border-border"
-                        }`}
-                        onClick={() => {
-                          // Simulate file selection
-                          update(
-                            doc.key,
-                            `${doc.label.replace(" *", "")}.pdf`
-                          );
-                          toast.success(
-                            `${doc.label.replace(" *", "")} uploaded`
-                          );
-                        }}
-                      >
-                        {form[doc.key as keyof typeof form] ? (
-                          <div className="flex items-center justify-center gap-2 text-primary">
-                            <Check className="h-5 w-5" />
-                            <span className="font-medium">
-                              {form[doc.key as keyof typeof form]}
-                            </span>
-                          </div>
-                        ) : (
-                          <>
-                            <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                            <p className="font-medium">{doc.label}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {doc.desc}
-                            </p>
-                          </>
-                        )}
+                      <div key={doc.key}>
+                        <input
+                          type="file"
+                          id={`file-${doc.key}`}
+                          accept="image/jpeg,image/png,application/pdf"
+                          className="hidden"
+                          onChange={(e) =>
+                            handleFileUpload(doc.key, doc.label, e.target.files?.[0])
+                          }
+                        />
+                        <div
+                          className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer hover:border-primary/50 ${
+                            form[doc.key as keyof typeof form]
+                              ? "border-primary bg-primary/5"
+                              : "border-border"
+                          }`}
+                          onClick={() =>
+                            document.getElementById(`file-${doc.key}`)?.click()
+                          }
+                        >
+                          {uploading[doc.key as keyof typeof uploading] ? (
+                            <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                              <span>Uploading...</span>
+                            </div>
+                          ) : form[doc.key as keyof typeof form] ? (
+                            <div className="flex items-center justify-center gap-2 text-primary">
+                              <Check className="h-5 w-5" />
+                              <span className="font-medium">
+                                {(form[doc.key as keyof typeof form] as string)
+                                  .split("/")
+                                  .pop()}
+                              </span>
+                            </div>
+                          ) : (
+                            <>
+                              <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                              <p className="font-medium">{doc.label}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {doc.desc}
+                              </p>
+                            </>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -409,11 +447,11 @@ export default function AgencyOnboarding() {
                       <div className="space-y-1 text-sm">
                         <div className="flex items-center gap-2">
                           <Check className="h-4 w-4 text-primary" />
-                          Tourism License: {form.licenseFile || "Not uploaded"}
+                          Tourism License: {form.licenseFile ? form.licenseFile.split("/").pop() : "Not uploaded"}
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="h-4 w-4 text-primary" />
-                          PAN Certificate: {form.panFile || "Not uploaded"}
+                          PAN Certificate: {form.panFile ? form.panFile.split("/").pop() : "Not uploaded"}
                         </div>
                         <div className="flex items-center gap-2">
                           {form.insuranceFile ? (
@@ -422,7 +460,7 @@ export default function AgencyOnboarding() {
                             <span className="h-4 w-4 rounded-full border border-muted-foreground inline-block" />
                           )}
                           Insurance:{" "}
-                          {form.insuranceFile || "Not uploaded (optional)"}
+                          {form.insuranceFile ? form.insuranceFile.split("/").pop() : "Not uploaded (optional)"}
                         </div>
                       </div>
                     </div>

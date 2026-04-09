@@ -13,6 +13,9 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import AdminAgencies from "./pages/admin/Agencies";
 import AdminListings from "./pages/admin/Listings";
 import AdminUsers from "./pages/admin/Users";
+import AdminBookings from "./pages/admin/Bookings";
+import AdminPayments from "./pages/admin/Payments";
+import AdminSettings from "./pages/admin/Settings";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AgencyDashboard from "./pages/agency/AgencyDashboard";
 import AgencyListings from "./pages/agency/AgencyListings";
@@ -30,6 +33,11 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Contact from "./pages/Contact";
+import FAQ from "./pages/FAQ";
+import About from "./pages/About";
+import CancellationPolicy from "./pages/CancellationPolicy";
+import CookiePolicy from "./pages/CookiePolicy";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useAuthStore } from "./stores/authStore";
@@ -67,6 +75,11 @@ const App = () => (
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/cancellation" element={<CancellationPolicy />} />
+          <Route path="/cookies" element={<CookiePolicy />} />
 
           {/* Traveler Booking Routes (Protected) */}
           <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
@@ -94,6 +107,9 @@ const App = () => (
             <Route path="/admin/agencies" element={<AdminAgencies />} />
             <Route path="/admin/listings" element={<AdminListings />} />
             <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/bookings" element={<AdminBookings />} />
+            <Route path="/admin/payments" element={<AdminPayments />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

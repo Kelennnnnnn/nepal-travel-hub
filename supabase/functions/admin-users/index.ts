@@ -1,12 +1,32 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
+
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": allowedOrigin,
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
+
+async function verifyJWT(token: string, secret: string): Promise<Record<string, unknown> | null> {
+  try {
+    const [headerB64, payloadB64, sigB64] = token.split(".");
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secret);
+    const key = await crypto.subtle.importKey(
+      "raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]
+    );
+    const data = encoder.encode(`${headerB64}.${payloadB64}`);
+    const sig = Uint8Array.from(atob(sigB64.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+    const valid = await crypto.subtle.verify("HMAC", key, sig, data);
+    if (!valid) return null;
+    return JSON.parse(atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/")));
+  } catch {
+    return null;
+  }
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -18,6 +38,22 @@ function json(body: unknown, status = 200) {
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  // JWT verification — admin only
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return json({ error: "Missing or invalid Authorization header" }, 401);
+  }
+  const token = authHeader.slice(7);
+  const jwtSecret = Deno.env.get("SUPABASE_JWT_SECRET") ?? "";
+  const payload = await verifyJWT(token, jwtSecret);
+  if (!payload) {
+    return json({ error: "Invalid or expired token" }, 401);
+  }
+  const role = (payload as { user_metadata?: { role?: string } }).user_metadata?.role;
+  if (role !== "admin") {
+    return json({ error: "Admin access required" }, 401);
   }
 
   const supabaseAdmin = createClient(

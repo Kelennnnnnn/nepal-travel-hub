@@ -15,6 +15,7 @@ import {
   Loader2,
   Clock,
   AlertTriangle,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,7 @@ import {
   useAgencyStore,
   type AgencyApplication,
 } from "@/stores/agencyStore";
+import { supabase } from "@/lib/supabase";
 
 export default function AdminAgencies() {
   const {
@@ -144,6 +146,17 @@ export default function AdminAgencies() {
       default:
         return null;
     }
+  };
+
+  const handleViewDocument = async (storagePath: string) => {
+    const { data, error } = await supabase.storage
+      .from("agency-docs")
+      .createSignedUrl(storagePath, 300);
+    if (error || !data?.signedUrl) {
+      toast.error("Could not load document. Please try again.");
+      return;
+    }
+    window.open(data.signedUrl, "_blank");
   };
 
   const formatDate = (dateStr: string) => {
@@ -463,34 +476,39 @@ export default function AdminAgencies() {
                     <FileText className="h-4 w-4 text-primary" />
                     Documents
                   </h4>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex items-center gap-2">
-                      {selectedAgency.license_url ? (
-                        <CheckCircle className="h-4 w-4 text-primary" />
-                      ) : (
-                        <AlertTriangle className="h-4 w-4 text-amber-500" />
-                      )}
-                      Tourism License:{" "}
-                      {selectedAgency.license_url || "Not uploaded"}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {selectedAgency.pan_url ? (
-                        <CheckCircle className="h-4 w-4 text-primary" />
-                      ) : (
-                        <AlertTriangle className="h-4 w-4 text-amber-500" />
-                      )}
-                      PAN Certificate:{" "}
-                      {selectedAgency.pan_url || "Not uploaded"}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {selectedAgency.insurance_url ? (
-                        <CheckCircle className="h-4 w-4 text-primary" />
-                      ) : (
-                        <span className="h-4 w-4 rounded-full border border-muted-foreground inline-block" />
-                      )}
-                      Insurance:{" "}
-                      {selectedAgency.insurance_url || "Not uploaded (optional)"}
-                    </div>
+                  <div className="space-y-2">
+                    {[
+                      { label: "Tourism License", url: selectedAgency.license_url, required: true },
+                      { label: "PAN Certificate", url: selectedAgency.pan_url, required: true },
+                      { label: "Insurance Certificate", url: selectedAgency.insurance_url, required: false },
+                    ].map((doc) => (
+                      <div key={doc.label} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          {doc.url ? (
+                            <CheckCircle className="h-4 w-4 text-primary" />
+                          ) : doc.required ? (
+                            <AlertTriangle className="h-4 w-4 text-amber-500" />
+                          ) : (
+                            <span className="h-4 w-4 rounded-full border border-muted-foreground inline-block" />
+                          )}
+                          <span>{doc.label}</span>
+                        </div>
+                        {doc.url ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewDocument(doc.url!)}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                            View Document
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">
+                            {doc.required ? "Not uploaded" : "Not uploaded (optional)"}
+                          </span>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
 
