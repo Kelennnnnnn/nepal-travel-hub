@@ -80,7 +80,7 @@ interface AgencyStore {
 export const useAgencyStore = create<AgencyStore>((set, get) => ({
   application: null,
   verificationStatus: "unregistered",
-  isLoading: false,
+  isLoading: true,
   allApplications: [],
   isLoadingAll: false,
 

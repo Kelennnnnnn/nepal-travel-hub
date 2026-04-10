@@ -38,6 +38,7 @@ import FAQ from "./pages/FAQ";
 import About from "./pages/About";
 import CancellationPolicy from "./pages/CancellationPolicy";
 import CookiePolicy from "./pages/CookiePolicy";
+import AgencyProfile from "./pages/AgencyProfile";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useAuthStore } from "./stores/authStore";
@@ -75,6 +76,7 @@ const App = () => (
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/agency/profile/:agencyId" element={<AgencyProfile />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/faq" element={<FAQ />} />
           <Route path="/about" element={<About />} />

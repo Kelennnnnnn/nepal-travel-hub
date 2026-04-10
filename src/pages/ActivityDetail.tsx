@@ -7,6 +7,7 @@ import {
   Star,
   Calendar,
   Shield,
+  ShieldCheck,
   Check,
   ChevronLeft,
   Share2,
@@ -41,6 +42,7 @@ export default function ActivityDetail() {
   const [travelerName, setTravelerName] = useState("");
   const [travelerEmail, setTravelerEmail] = useState("");
   const [isBooking, setIsBooking] = useState(false);
+  const [agencyName, setAgencyName] = useState("");
 
   // Fetch listing on mount
   useEffect(() => {
@@ -56,6 +58,21 @@ export default function ActivityDetail() {
       setTravelerEmail(user.email || "");
     }
   }, [user]);
+
+  // Fetch agency name when listing loads
+  useEffect(() => {
+    if (listing?.agency_id) {
+      supabase
+        .from("agency_applications")
+        .select("company_name")
+        .eq("user_id", listing.agency_id)
+        .eq("status", "verified")
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.company_name) setAgencyName(data.company_name);
+        });
+    }
+  }, [listing?.agency_id]);
 
   // Loading state
   if (isLoadingPublished) {
@@ -328,19 +345,25 @@ export default function ActivityDetail() {
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
                       <span className="text-2xl font-bold text-primary">
-                        A
+                        {agencyName
+                          ? agencyName.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
+                          : "A"}
                       </span>
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold">Verified Agency</h3>
+                      <h3 className="font-semibold">
+                        {agencyName || "Verified Agency"}
+                      </h3>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Shield className="h-4 w-4 text-primary" />
+                        <ShieldCheck className="h-4 w-4 text-primary" />
                         <span>Verified Partner</span>
                       </div>
                     </div>
-                    <Button variant="outline" size="sm">
-                      View Profile
-                    </Button>
+                    <Link to={`/agency/profile/${listing.agency_id}`}>
+                      <Button variant="outline" size="sm">
+                        View Profile
+                      </Button>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>
