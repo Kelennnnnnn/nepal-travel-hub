@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Mountain, User, LogIn, LayoutDashboard, LogOut } from "lucide-react";
+import { Menu, X, Mountain, User, LogIn, LayoutDashboard, LogOut, BookOpen, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -138,11 +138,29 @@ export function Header() {
                       </DropdownMenuItem>
                     </Link>
                   )}
-                  
-                  <DropdownMenuItem className="cursor-pointer">
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Profile Settings</span>
-                  </DropdownMenuItem>
+
+                  {user?.role === "user" && (
+                    <>
+                      <Link to="/my-bookings">
+                        <DropdownMenuItem className="cursor-pointer">
+                          <BookOpen className="mr-2 h-4 w-4" />
+                          <span>My Bookings</span>
+                        </DropdownMenuItem>
+                      </Link>
+                      <Link to="/wishlist">
+                        <DropdownMenuItem className="cursor-pointer">
+                          <Heart className="mr-2 h-4 w-4" />
+                          <span>Saved</span>
+                        </DropdownMenuItem>
+                      </Link>
+                      <Link to="/account">
+                        <DropdownMenuItem className="cursor-pointer">
+                          <User className="mr-2 h-4 w-4" />
+                          <span>My Account</span>
+                        </DropdownMenuItem>
+                      </Link>
+                    </>
+                  )}
                   
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
@@ -232,6 +250,29 @@ export function Header() {
                           {user?.role === 'admin' ? 'Admin Dashboard' : 'Agency Dashboard'}
                         </Button>
                       </Link>
+                    )}
+
+                    {user?.role === "user" && (
+                      <>
+                        <Link to="/my-bookings" onClick={() => setIsMobileMenuOpen(false)}>
+                          <Button variant="outline" className="w-full justify-start">
+                            <BookOpen className="mr-2 h-4 w-4" />
+                            My Bookings
+                          </Button>
+                        </Link>
+                        <Link to="/wishlist" onClick={() => setIsMobileMenuOpen(false)}>
+                          <Button variant="outline" className="w-full justify-start">
+                            <Heart className="mr-2 h-4 w-4" />
+                            Saved
+                          </Button>
+                        </Link>
+                        <Link to="/account" onClick={() => setIsMobileMenuOpen(false)}>
+                          <Button variant="outline" className="w-full justify-start">
+                            <User className="mr-2 h-4 w-4" />
+                            My Account
+                          </Button>
+                        </Link>
+                      </>
                     )}
                     
                     <Button onClick={() => {

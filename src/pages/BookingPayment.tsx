@@ -43,23 +43,41 @@ function PaymentForm({ clientSecret, bookingId }: { clientSecret: string; bookin
     }
 
     if (paymentIntent?.status === "succeeded") {
-      // Update booking status to 'confirmed' and payment to 'paid'
-      const { error: updateError } = await supabase
-        .from("bookings")
-        .update({
-          status: "confirmed",
-          payment_status: "paid",
-        })
-        .eq("id", bookingId);
+      toast.success("Payment received! Confirming your booking...");
 
-      if (updateError) {
-        console.error("Failed to update booking status:", updateError.message);
-        // Payment succeeded but DB update failed — still navigate to confirmation
-        toast.error("Payment succeeded but we had trouble updating your booking. Please contact support.");
-      }
+      // Poll for webhook confirmation instead of client-side update
+      let attempts = 0;
+      const maxAttempts = 15;
+      const pollInterval = 2000; // 2 seconds
 
-      toast.success("Payment successful! Your booking is confirmed.");
-      navigate(`/booking/confirmation?id=${encodeURIComponent(bookingId)}`);
+      const pollBookingStatus = async (): Promise<boolean> => {
+        const { data } = await supabase
+          .from("bookings")
+          .select("status, payment_status")
+          .eq("id", bookingId)
+          .single();
+        return data?.payment_status === "paid";
+      };
+
+      const waitForConfirmation = async () => {
+        while (attempts < maxAttempts) {
+          const confirmed = await pollBookingStatus();
+          if (confirmed) {
+            toast.success("Booking confirmed!");
+            navigate(`/booking/confirmation?id=${encodeURIComponent(bookingId)}`);
+            return;
+          }
+          attempts++;
+          await new Promise((r) => setTimeout(r, pollInterval));
+        }
+        // Webhook hasn't fired after 30s — navigate anyway
+        toast.warning(
+          "Payment received but confirmation is taking longer than expected. You'll receive an email shortly."
+        );
+        navigate(`/booking/confirmation?id=${encodeURIComponent(bookingId)}`);
+      };
+
+      await waitForConfirmation();
     } else {
       setErrorMessage("Payment was not completed. Please try again.");
       setIsProcessing(false);

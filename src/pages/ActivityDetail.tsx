@@ -44,6 +44,10 @@ export default function ActivityDetail() {
   const [isBooking, setIsBooking] = useState(false);
   const [agencyName, setAgencyName] = useState("");
 
+  const [availableSpots, setAvailableSpots] = useState<number | null>(null);
+  const [availabilityId, setAvailabilityId] = useState<string | null>(null);
+  const [priceOverride, setPriceOverride] = useState<number | null>(null);
+
   // Fetch listing on mount
   useEffect(() => {
     if (id) {
@@ -58,6 +62,48 @@ export default function ActivityDetail() {
       setTravelerEmail(user.email || "");
     }
   }, [user]);
+
+  // Check availability when date changes
+  useEffect(() => {
+    if (!listing?.id || !selectedDate) {
+      setAvailableSpots(null);
+      setAvailabilityId(null);
+      setPriceOverride(null);
+      return;
+    }
+
+    const checkAvailability = async () => {
+      const { data } = await supabase
+        .from("availability")
+        .select("id, spots_remaining, blocked, price_override")
+        .eq("listing_id", listing.id)
+        .eq("date", selectedDate)
+        .maybeSingle();
+
+      if (!data) {
+        setAvailableSpots(listing.max_participants);
+        setAvailabilityId(null);
+        setPriceOverride(null);
+      } else if (data.blocked) {
+        setAvailableSpots(0);
+        setAvailabilityId(null);
+        setPriceOverride(null);
+      } else {
+        setAvailableSpots(data.spots_remaining);
+        setAvailabilityId(data.id);
+        setPriceOverride(data.price_override);
+      }
+    };
+
+    checkAvailability();
+  }, [listing?.id, listing?.max_participants, selectedDate]);
+
+  // Clamp participants when available spots change
+  useEffect(() => {
+    if (availableSpots !== null && participants > availableSpots) {
+      setParticipants(Math.max(1, availableSpots));
+    }
+  }, [availableSpots, participants]);
 
   // Fetch agency name when listing loads
   useEffect(() => {
@@ -100,9 +146,10 @@ export default function ActivityDetail() {
     );
   }
 
-  const price = Number(listing.price);
+  const price = priceOverride !== null ? priceOverride : Number(listing.price);
   const rating = Number(listing.rating);
   const maxParticipants = listing.max_participants;
+  const spotsLeft = availableSpots ?? maxParticipants;
   const totalPrice = price * participants;
   const heroImage = listing.images?.[0] || "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&h=600&fit=crop";
 
@@ -110,6 +157,10 @@ export default function ActivityDetail() {
     // Validate inputs
     if (!selectedDate) {
       toast.error("Please select a date");
+      return;
+    }
+    if (availableSpots === 0) {
+      toast.error("This date is unavailable. Please choose another date.");
       return;
     }
     if (participants < 1) {
@@ -149,6 +200,7 @@ export default function ActivityDetail() {
             total_amount: totalPrice,
             traveler_name: travelerName.trim(),
             traveler_email: travelerEmail.trim(),
+            availability_id: availabilityId,
           },
         }
       );
@@ -401,6 +453,12 @@ export default function ActivityDetail() {
                         disabled={isBooking}
                       />
                     </div>
+                    {selectedDate && availableSpots === 0 && (
+                      <p className="text-xs text-destructive mt-1">This date is unavailable.</p>
+                    )}
+                    {selectedDate && availableSpots !== null && availableSpots > 0 && availableSpots <= 5 && (
+                      <p className="text-xs text-orange-500 mt-1">Only {availableSpots} spot{availableSpots > 1 ? "s" : ""} left!</p>
+                    )}
                   </div>
 
                   {/* Participants */}
@@ -423,18 +481,16 @@ export default function ActivityDetail() {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() =>
-                          setParticipants(
-                            Math.min(maxParticipants, participants + 1)
-                          )
-                        }
-                        disabled={participants >= maxParticipants || isBooking}
+                        onClick={() => setParticipants(Math.min(spotsLeft, participants + 1))}
+                        disabled={participants >= spotsLeft || isBooking}
                       >
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Maximum {maxParticipants} participants
+                      {selectedDate && availableSpots !== null
+                        ? `${spotsLeft} of ${maxParticipants} spots available`
+                        : `Maximum ${maxParticipants} participants`}
                     </p>
                   </div>
 
@@ -492,7 +548,7 @@ export default function ActivityDetail() {
                     size="xl"
                     className="w-full"
                     onClick={handleBooking}
-                    disabled={isBooking}
+                    disabled={isBooking || availableSpots === 0}
                   >
                     {isBooking ? (
                       <>

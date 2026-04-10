@@ -1,47 +1,64 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import Activities from "./pages/Activities";
-import ActivityDetail from "./pages/ActivityDetail";
-import Login from "./pages/Login";
-import AgencyLanding from "./pages/AgencyLanding";
-import AdminDashboard from "./pages/admin/Dashboard";
-import AdminAgencies from "./pages/admin/Agencies";
-import AdminListings from "./pages/admin/Listings";
-import AdminUsers from "./pages/admin/Users";
-import AdminBookings from "./pages/admin/Bookings";
-import AdminPayments from "./pages/admin/Payments";
-import AdminSettings from "./pages/admin/Settings";
-import AdminLogin from "./pages/admin/AdminLogin";
-import AgencyDashboard from "./pages/agency/AgencyDashboard";
-import AgencyListings from "./pages/agency/AgencyListings";
-import AgencyListingForm from "./pages/agency/AgencyListingForm";
-import AgencyBookings from "./pages/agency/AgencyBookings";
-import AgencyAvailability from "./pages/agency/AgencyAvailability";
-import AgencyEarnings from "./pages/agency/AgencyEarnings";
-import AgencySettings from "./pages/agency/AgencySettings";
-import AgencyOnboarding from "./pages/agency/AgencyOnboarding";
-import AgencyVerificationStatus from "./pages/agency/AgencyVerificationStatus";
-import AgencyLogin from "./pages/agency/AgencyLogin";
-import BookingPayment from "./pages/BookingPayment";
-import BookingConfirmation from "./pages/BookingConfirmation";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import TermsOfService from "./pages/TermsOfService";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import Contact from "./pages/Contact";
-import FAQ from "./pages/FAQ";
-import About from "./pages/About";
-import CancellationPolicy from "./pages/CancellationPolicy";
-import CookiePolicy from "./pages/CookiePolicy";
-import AgencyProfile from "./pages/AgencyProfile";
-import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useAuthStore } from "./stores/authStore";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+
+// Lazy-loaded pages
+const Account = lazy(() => import("./pages/Account"));
+const MyBookings = lazy(() => import("./pages/MyBookings"));
+const Wishlist = lazy(() => import("./pages/Wishlist"));
+const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
+const Index = lazy(() => import("./pages/Index"));
+const Activities = lazy(() => import("./pages/Activities"));
+const ActivityDetail = lazy(() => import("./pages/ActivityDetail"));
+const Login = lazy(() => import("./pages/Login"));
+const AgencyLanding = lazy(() => import("./pages/AgencyLanding"));
+const AgencyProfile = lazy(() => import("./pages/AgencyProfile"));
+const BookingPayment = lazy(() => import("./pages/BookingPayment"));
+const BookingConfirmation = lazy(() => import("./pages/BookingConfirmation"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const Contact = lazy(() => import("./pages/Contact"));
+const FAQ = lazy(() => import("./pages/FAQ"));
+const About = lazy(() => import("./pages/About"));
+const CancellationPolicy = lazy(() => import("./pages/CancellationPolicy"));
+const CookiePolicy = lazy(() => import("./pages/CookiePolicy"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+// Agency pages
+const AgencyLogin = lazy(() => import("./pages/agency/AgencyLogin"));
+const AgencyOnboarding = lazy(() => import("./pages/agency/AgencyOnboarding"));
+const AgencyVerificationStatus = lazy(() => import("./pages/agency/AgencyVerificationStatus"));
+const AgencyDashboard = lazy(() => import("./pages/agency/AgencyDashboard"));
+const AgencyListings = lazy(() => import("./pages/agency/AgencyListings"));
+const AgencyListingForm = lazy(() => import("./pages/agency/AgencyListingForm"));
+const AgencyBookings = lazy(() => import("./pages/agency/AgencyBookings"));
+const AgencyAvailability = lazy(() => import("./pages/agency/AgencyAvailability"));
+const AgencyEarnings = lazy(() => import("./pages/agency/AgencyEarnings"));
+const AgencySettings = lazy(() => import("./pages/agency/AgencySettings"));
+
+// Admin pages
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
+const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const AdminAgencies = lazy(() => import("./pages/admin/Agencies"));
+const AdminListings = lazy(() => import("./pages/admin/Listings"));
+const AdminUsers = lazy(() => import("./pages/admin/Users"));
+const AdminBookings = lazy(() => import("./pages/admin/Bookings"));
+const AdminPayments = lazy(() => import("./pages/admin/Payments"));
+const AdminSettings = lazy(() => import("./pages/admin/Settings"));
+
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+  </div>
+);
 
 const queryClient = new QueryClient();
 
@@ -57,68 +74,80 @@ function AuthInitializer() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthInitializer />
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<Index />} />
-          <Route path="/activities" element={<Activities />} />
-          <Route path="/activities/:id" element={<ActivityDetail />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/agency" element={<AgencyLanding />} />
-          <Route path="/agency/login" element={<AgencyLogin />} />
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/terms" element={<TermsOfService />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/agency/profile/:agencyId" element={<AgencyProfile />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/faq" element={<FAQ />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/cancellation" element={<CancellationPolicy />} />
-          <Route path="/cookies" element={<CookiePolicy />} />
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthInitializer />
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<Index />} />
+              <Route path="/activities" element={<Activities />} />
+              <Route path="/activities/:id" element={<ActivityDetail />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/agency" element={<AgencyLanding />} />
+              <Route path="/agency/login" element={<AgencyLogin />} />
+              <Route path="/admin/login" element={<AdminLogin />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/terms" element={<TermsOfService />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/agency/profile/:agencyId" element={<AgencyProfile />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/faq" element={<FAQ />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/cancellation" element={<CancellationPolicy />} />
+              <Route path="/cookies" element={<CookiePolicy />} />
+              <Route path="/verify-email" element={<VerifyEmail />} />
 
-          {/* Traveler Booking Routes (Protected) */}
-          <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
-            <Route path="/booking/payment" element={<BookingPayment />} />
-            <Route path="/booking/confirmation" element={<BookingConfirmation />} />
-          </Route>
+              {/* Traveler Routes (Protected) */}
+              <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
+                <Route path="/account" element={<Account />} />
+                <Route path="/my-bookings" element={<MyBookings />} />
+                <Route path="/wishlist" element={<Wishlist />} />
+                <Route path="/booking/payment" element={<BookingPayment />} />
+                <Route path="/booking/confirmation" element={<BookingConfirmation />} />
+              </Route>
 
-          {/* Agency Routes (Protected) */}
-          <Route element={<ProtectedRoute allowedRoles={["agency"]} />}>
-            <Route path="/agency/dashboard" element={<AgencyDashboard />} />
-            <Route path="/agency/listings" element={<AgencyListings />} />
-            <Route path="/agency/listings/new" element={<AgencyListingForm />} />
-            <Route path="/agency/listings/:id/edit" element={<AgencyListingForm />} />
-            <Route path="/agency/bookings" element={<AgencyBookings />} />
-            <Route path="/agency/availability" element={<AgencyAvailability />} />
-            <Route path="/agency/earnings" element={<AgencyEarnings />} />
-            <Route path="/agency/settings" element={<AgencySettings />} />
-            <Route path="/agency/onboarding" element={<AgencyOnboarding />} />
-            <Route path="/agency/onboarding/status" element={<AgencyVerificationStatus />} />
-          </Route>
+              {/* Agency Onboarding (user or agency role — pre-approval flow) */}
+              <Route element={<ProtectedRoute allowedRoles={["user", "agency"]} />}>
+                <Route path="/agency/onboarding" element={<AgencyOnboarding />} />
+                <Route path="/agency/onboarding/status" element={<AgencyVerificationStatus />} />
+              </Route>
 
-          {/* Admin Routes (Protected) */}
-          <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/agencies" element={<AdminAgencies />} />
-            <Route path="/admin/listings" element={<AdminListings />} />
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/bookings" element={<AdminBookings />} />
-            <Route path="/admin/payments" element={<AdminPayments />} />
-            <Route path="/admin/settings" element={<AdminSettings />} />
-          </Route>
+              {/* Agency Routes (verified agency only) */}
+              <Route element={<ProtectedRoute allowedRoles={["agency"]} />}>
+                <Route path="/agency/dashboard" element={<AgencyDashboard />} />
+                <Route path="/agency/listings" element={<AgencyListings />} />
+                <Route path="/agency/listings/new" element={<AgencyListingForm />} />
+                <Route path="/agency/listings/:id/edit" element={<AgencyListingForm />} />
+                <Route path="/agency/bookings" element={<AgencyBookings />} />
+                <Route path="/agency/availability" element={<AgencyAvailability />} />
+                <Route path="/agency/earnings" element={<AgencyEarnings />} />
+                <Route path="/agency/settings" element={<AgencySettings />} />
+              </Route>
 
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+              {/* Admin Routes (Protected) */}
+              <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/admin/agencies" element={<AdminAgencies />} />
+                <Route path="/admin/listings" element={<AdminListings />} />
+                <Route path="/admin/users" element={<AdminUsers />} />
+                <Route path="/admin/bookings" element={<AdminBookings />} />
+                <Route path="/admin/payments" element={<AdminPayments />} />
+                <Route path="/admin/settings" element={<AdminSettings />} />
+              </Route>
+
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

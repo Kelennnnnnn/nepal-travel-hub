@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Mountain, Mail, Lock, User, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
+import { loginSchema, signUpSchema, type LoginFormData, type SignUpFormData } from "@/lib/validations";
 
 function GoogleIcon() {
   return (
@@ -23,32 +26,26 @@ export default function Login() {
   const navigate = useNavigate();
   const { signIn, signUp, signInWithGoogle } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  // Login
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const loginForm = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
 
-  // Signup
-  const [name, setName] = useState("");
-  const [signupEmail, setSignupEmail] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
+  const signUpForm = useForm<SignUpFormData>({
+    resolver: zodResolver(signUpSchema),
+  });
 
   const handleGoogleSignIn = async () => {
-    setIsLoading(true);
+    setIsGoogleLoading(true);
     const { error } = await signInWithGoogle();
-    setIsLoading(false);
+    setIsGoogleLoading(false);
     if (error) toast.error(error);
     // on success Supabase redirects the browser — no navigate() needed
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    const { error, role } = await signIn(email, password);
-
-    setIsLoading(false);
+  const handleLogin = async (data: LoginFormData) => {
+    const { error, role } = await signIn(data.email, data.password);
 
     if (error) {
       toast.error(error);
@@ -65,18 +62,13 @@ export default function Login() {
     navigate("/");
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
+  const handleSignup = async (data: SignUpFormData) => {
     const { error, requiresConfirmation } = await signUp({
-      name,
-      email: signupEmail,
-      password: signupPassword,
+      name: data.name,
+      email: data.email,
+      password: data.password,
       role: "user",
     });
-
-    setIsLoading(false);
 
     if (error) {
       toast.error(error);
@@ -84,7 +76,7 @@ export default function Login() {
     }
 
     if (requiresConfirmation) {
-      toast.success("Account created! Check your email to confirm your address before signing in.");
+      navigate(`/verify-email?email=${encodeURIComponent(data.email)}`);
       return;
     }
 
@@ -154,7 +146,7 @@ export default function Login() {
             </TabsList>
 
             <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
                 <div>
                   <Label htmlFor="email">Email</Label>
                   <div className="relative mt-1">
@@ -164,20 +156,18 @@ export default function Login() {
                       type="email"
                       placeholder="you@example.com"
                       className="pl-10"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
+                      {...loginForm.register("email")}
                     />
                   </div>
+                  {loginForm.formState.errors.email && (
+                    <p className="text-xs text-destructive mt-1">{loginForm.formState.errors.email.message}</p>
+                  )}
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <Label htmlFor="password">Password</Label>
-                    <Link
-                      to="/forgot-password"
-                      className="text-sm text-primary hover:underline"
-                    >
+                    <Link to="/forgot-password" className="text-sm text-primary hover:underline">
                       Forgot password?
                     </Link>
                   </div>
@@ -188,26 +178,23 @@ export default function Login() {
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       className="pl-10 pr-10"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
+                      {...loginForm.register("password")}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  {loginForm.formState.errors.password && (
+                    <p className="text-xs text-destructive mt-1">{loginForm.formState.errors.password.message}</p>
+                  )}
                 </div>
 
-                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : "Sign In"}
+                <Button type="submit" className="w-full" size="lg" disabled={loginForm.formState.isSubmitting}>
+                  {loginForm.formState.isSubmitting ? "Signing in..." : "Sign In"}
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
 
@@ -220,7 +207,7 @@ export default function Login() {
                   </div>
                 </div>
 
-                <Button type="button" variant="outline" className="w-full" size="lg" disabled={isLoading} onClick={handleGoogleSignIn}>
+                <Button type="button" variant="outline" className="w-full" size="lg" disabled={isGoogleLoading} onClick={handleGoogleSignIn}>
                   <GoogleIcon />
                   <span className="ml-2">Continue with Google</span>
                 </Button>
@@ -236,7 +223,7 @@ export default function Login() {
             </TabsContent>
 
             <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-4">
+              <form onSubmit={signUpForm.handleSubmit(handleSignup)} className="space-y-4">
                 <div>
                   <Label htmlFor="name">Full Name</Label>
                   <div className="relative mt-1">
@@ -246,11 +233,12 @@ export default function Login() {
                       type="text"
                       placeholder="John Doe"
                       className="pl-10"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      required
+                      {...signUpForm.register("name")}
                     />
                   </div>
+                  {signUpForm.formState.errors.name && (
+                    <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.name.message}</p>
+                  )}
                 </div>
 
                 <div>
@@ -262,11 +250,12 @@ export default function Login() {
                       type="email"
                       placeholder="you@example.com"
                       className="pl-10"
-                      value={signupEmail}
-                      onChange={(e) => setSignupEmail(e.target.value)}
-                      required
+                      {...signUpForm.register("email")}
                     />
                   </div>
+                  {signUpForm.formState.errors.email && (
+                    <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.email.message}</p>
+                  )}
                 </div>
 
                 <div>
@@ -278,27 +267,23 @@ export default function Login() {
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       className="pl-10 pr-10"
-                      value={signupPassword}
-                      onChange={(e) => setSignupPassword(e.target.value)}
-                      required
-                      minLength={6}
+                      {...signUpForm.register("password")}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  {signUpForm.formState.errors.password && (
+                    <p className="text-xs text-destructive mt-1">{signUpForm.formState.errors.password.message}</p>
+                  )}
                 </div>
 
-                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-                  {isLoading ? "Creating account..." : "Create Account"}
+                <Button type="submit" className="w-full" size="lg" disabled={signUpForm.formState.isSubmitting}>
+                  {signUpForm.formState.isSubmitting ? "Creating account..." : "Create Account"}
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
 
@@ -311,20 +296,16 @@ export default function Login() {
                   </div>
                 </div>
 
-                <Button type="button" variant="outline" className="w-full" size="lg" disabled={isLoading} onClick={handleGoogleSignIn}>
+                <Button type="button" variant="outline" className="w-full" size="lg" disabled={isGoogleLoading} onClick={handleGoogleSignIn}>
                   <GoogleIcon />
                   <span className="ml-2">Sign up with Google</span>
                 </Button>
 
                 <p className="text-xs text-center text-muted-foreground">
                   By creating an account, you agree to our{" "}
-                  <Link to="/terms" className="text-primary hover:underline">
-                    Terms of Service
-                  </Link>{" "}
+                  <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link>{" "}
                   and{" "}
-                  <Link to="/privacy" className="text-primary hover:underline">
-                    Privacy Policy
-                  </Link>
+                  <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>
                 </p>
                 <div className="mt-4 pt-4 border-t border-border flex flex-col items-center">
                   <span className="text-xs text-muted-foreground mb-2">Are you an Agency?</span>

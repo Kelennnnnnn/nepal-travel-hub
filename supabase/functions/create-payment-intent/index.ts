@@ -73,6 +73,7 @@ serve(async (req: Request) => {
       traveler_email,
       traveler_phone,
       special_requests,
+      availability_id,
     } = await req.json();
 
     // Validate required fields
@@ -81,6 +82,43 @@ serve(async (req: Request) => {
         JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Initialize Supabase admin early (needed for availability check)
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    // Server-side availability check
+    if (availability_id) {
+      const { data: slot, error: slotError } = await supabaseAdmin
+        .from("availability")
+        .select("spots_remaining, blocked")
+        .eq("id", availability_id)
+        .single();
+
+      if (slotError || !slot) {
+        return new Response(
+          JSON.stringify({ error: "Availability slot not found" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (slot.blocked) {
+        return new Response(
+          JSON.stringify({ error: "This date is blocked and unavailable" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (slot.spots_remaining < guests) {
+        return new Response(
+          JSON.stringify({ error: `Only ${slot.spots_remaining} spots available` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Initialize Stripe
@@ -103,12 +141,6 @@ serve(async (req: Request) => {
     });
 
     // Insert booking record with status 'pending_payment'
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-
     const { data: booking, error: dbError } = await supabaseAdmin
       .from("bookings")
       .insert({

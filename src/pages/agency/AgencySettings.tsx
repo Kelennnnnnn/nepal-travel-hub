@@ -12,27 +12,14 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import { supabase } from "@/lib/supabase";
 
-type BankDetailsMeta = {
-  account_holder_name?: string;
-  bank_name?: string;
-  account_number?: string;
-  routing_swift?: string;
-};
-
-function readBankDetails(meta: Record<string, unknown> | undefined): BankDetailsMeta {
-  const raw = meta?.bank_details;
-  if (!raw || typeof raw !== "object") return {};
-  return raw as BankDetailsMeta;
-}
-
 export default function AgencySettings() {
   const { user } = useAuthStore();
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Agency profile state
-  const [agencyName, setAgencyName] = useState(user?.agencyName ?? "");
+  const [agencyName, setAgencyName] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
-  const [email, setEmail] = useState(user?.email ?? "");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [about, setAbout] = useState("");
@@ -55,21 +42,46 @@ export default function AgencySettings() {
 
   const [isLoading, setIsLoading] = useState(false);
 
+  // Load all data on mount
   useEffect(() => {
     let cancelled = false;
-    void supabase.auth.getUser().then(({ data: { user: authUser } }) => {
-      if (cancelled) return;
-      if (authUser?.user_metadata) {
-        const b = readBankDetails(authUser.user_metadata as Record<string, unknown>);
-        setAccountHolder(b.account_holder_name ?? "");
-        setBankName(b.bank_name ?? "");
-        setAccountNumber(b.account_number ?? "");
-        setRoutingSwift(b.routing_swift ?? "");
+    const load = async () => {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (cancelled || !authUser) return;
+
+      // Load agency profile from agency_applications
+      const { data: appData } = await supabase
+        .from("agency_applications")
+        .select("company_name, registration_number, email, phone, address, description")
+        .eq("user_id", authUser.id)
+        .maybeSingle();
+
+      if (!cancelled && appData) {
+        setAgencyName(appData.company_name ?? "");
+        setLicenseNumber(appData.registration_number ?? "");
+        setEmail(appData.email ?? "");
+        setPhone(appData.phone ?? "");
+        setAddress(appData.address ?? "");
+        setAbout(appData.description ?? "");
       }
-    });
-    return () => {
-      cancelled = true;
+
+      // Load bank details
+      const { data: bankData } = await supabase
+        .from("agency_bank_details")
+        .select("account_holder_name, bank_name, account_number_encrypted, routing_swift")
+        .eq("agency_user_id", authUser.id)
+        .maybeSingle();
+
+      if (!cancelled && bankData) {
+        setAccountHolder(bankData.account_holder_name ?? "");
+        setBankName(bankData.bank_name ?? "");
+        setAccountNumber(bankData.account_number_encrypted ?? "");
+        setRoutingSwift(bankData.routing_swift ?? "");
+      }
     };
+
+    void load();
+    return () => { cancelled = true; };
   }, []);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,21 +105,53 @@ export default function AgencySettings() {
       return;
     }
     setIsLoading(true);
-    const { error } = await supabase.auth.updateUser({
-      data: {
-        bank_details: {
-          account_holder_name: accountHolder.trim(),
-          bank_name: bankName.trim(),
-          account_number: accountNumber.trim(),
-          routing_swift: routingSwift.trim(),
-        },
-      },
-    });
-    setIsLoading(false);
-    if (error) {
-      toast.error(error.message);
+
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) {
+      toast.error("Not authenticated.");
+      setIsLoading(false);
       return;
     }
+
+    // Update agency profile in agency_applications
+    const { error: profileError } = await supabase
+      .from("agency_applications")
+      .update({
+        company_name: agencyName.trim(),
+        registration_number: licenseNumber.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        description: about.trim(),
+      })
+      .eq("user_id", authUser.id);
+
+    if (profileError) {
+      toast.error(profileError.message);
+      setIsLoading(false);
+      return;
+    }
+
+    // Upsert bank details
+    if (accountHolder.trim() || bankName.trim() || accountNumber.trim() || routingSwift.trim()) {
+      const { error: bankError } = await supabase
+        .from("agency_bank_details")
+        .upsert({
+          agency_user_id: authUser.id,
+          account_holder_name: accountHolder.trim(),
+          bank_name: bankName.trim(),
+          account_number_encrypted: accountNumber.trim(),
+          routing_swift: routingSwift.trim(),
+        }, { onConflict: "agency_user_id" });
+
+      if (bankError) {
+        toast.error(bankError.message);
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    setIsLoading(false);
     toast.success("Settings saved successfully.");
   };
 
@@ -128,6 +172,7 @@ export default function AgencySettings() {
   return (
     <AgencyLayout title="Settings">
       <div className="max-w-2xl space-y-6">
+
         {/* Agency Profile */}
         <Card>
           <CardHeader><CardTitle className="text-base">Agency Profile</CardTitle></CardHeader>

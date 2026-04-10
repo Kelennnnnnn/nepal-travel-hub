@@ -36,14 +36,17 @@ export default function AgencyLogin() {
       return;
     }
 
-    if (role !== "agency") {
+    if (role === "agency") {
+      toast.success("Welcome back to your Agency Dashboard!");
+      navigate("/agency/dashboard");
+    } else if (role === "user") {
+      // New agency — not yet approved, send to onboarding/status
+      toast.success("Signed in! Complete your agency application below.");
+      navigate("/agency/onboarding");
+    } else {
       toast.error("No agency account found for this email. Please register your agency.");
       await useAuthStore.getState().logout();
-      return;
     }
-
-    toast.success("Welcome back to your Agency Dashboard!");
-    navigate("/agency/dashboard");
   };
 
   const handleSignup = async (e: React.FormEvent) => {

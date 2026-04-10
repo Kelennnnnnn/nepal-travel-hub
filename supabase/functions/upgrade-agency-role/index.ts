@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendEmail } from "../_shared/email.ts";
+import {
+  agencyApprovedEmail,
+  agencyRejectedEmail,
+} from "../_shared/emailTemplates.ts";
 
 const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
 
@@ -94,6 +99,28 @@ serve(async (req: Request) => {
         JSON.stringify({ error: error.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Fetch agency details for email
+    const { data: agency } = await supabaseAdmin
+      .from("agency_applications")
+      .select("company_name, email")
+      .eq("user_id", user_id)
+      .maybeSingle();
+
+    if (agency?.email) {
+      if (action === "approve") {
+        const { subject, html } = agencyApprovedEmail({
+          agencyName: agency.company_name ?? "Agency",
+          email: agency.email,
+        });
+        await sendEmail({ to: agency.email, subject, html });
+      } else {
+        const { subject, html } = agencyRejectedEmail({
+          agencyName: agency.company_name ?? "Agency",
+        });
+        await sendEmail({ to: agency.email, subject, html });
+      }
     }
 
     return new Response(

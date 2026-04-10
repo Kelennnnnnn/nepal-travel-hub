@@ -104,7 +104,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       email,
       password,
       options: {
-        data: { name, role, agency_name: agencyName ?? null },
+        data: { name, agency_name: agencyName ?? null },
         emailRedirectTo: `${window.location.origin}/`,
       },
     });
@@ -124,7 +124,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
     if (data.session) {
       set({
-        user: { id: data.user.id, name, email, role, agencyName },
+        user: { id: data.user.id, name, email, role: "user", agencyName },
         isAuthenticated: true,
       });
     }

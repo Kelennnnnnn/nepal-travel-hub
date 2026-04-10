@@ -239,6 +239,11 @@ export default function BookingConfirmation() {
                     Browse More Activities
                   </Button>
                 </Link>
+                <Link to="/my-bookings" className="flex-1">
+                  <Button variant="outline" className="w-full">
+                    View All Bookings
+                  </Button>
+                </Link>
                 <Link to="/" className="flex-1">
                   <Button className="w-full gap-2">
                     Back to Home
