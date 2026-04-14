@@ -24,18 +24,16 @@ export function useWishlistIds() {
 }
 
 // ── Toggle wishlist ───────────────────────────────────────────
+// Caller passes { listingId, isSaved } so we know the ORIGINAL state
+// before any optimistic update has run.
 
 export function useToggleWishlist() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (listingId: string) => {
+    mutationFn: async ({ listingId, isSaved }: { listingId: string; isSaved: boolean }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Please log in to save activities.");
-
-      // Check current state from cache
-      const cached = queryClient.getQueryData<Set<string>>(["wishlist"]);
-      const isSaved = cached?.has(listingId) ?? false;
 
       if (isSaved) {
         const { error } = await supabase
@@ -54,14 +52,14 @@ export function useToggleWishlist() {
       return { listingId, removed: isSaved };
     },
 
-    // Optimistic update
-    onMutate: async (listingId) => {
+    // Optimistic update — runs before mutationFn
+    onMutate: async ({ listingId, isSaved }) => {
       await queryClient.cancelQueries({ queryKey: ["wishlist"] });
       const previous = queryClient.getQueryData<Set<string>>(["wishlist"]);
 
       queryClient.setQueryData<Set<string>>(["wishlist"], (old = new Set()) => {
         const next = new Set(old);
-        if (next.has(listingId)) {
+        if (isSaved) {
           next.delete(listingId);
         } else {
           next.add(listingId);
@@ -72,8 +70,7 @@ export function useToggleWishlist() {
       return { previous };
     },
 
-    onError: (err, _listingId, context) => {
-      // Roll back on error
+    onError: (err, _vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData(["wishlist"], context.previous);
       }

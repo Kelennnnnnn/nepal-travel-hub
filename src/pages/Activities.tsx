@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { usePublishedListings } from "@/lib/queries";
+import { SEO } from "@/components/SEO";
 import { categories, locations } from "@/data/activities";
 import type { Listing } from "@/stores/listingsStore";
 import type { Activity } from "@/components/activities/ActivityCard";
@@ -219,6 +220,10 @@ export default function Activities() {
 
   return (
     <Layout>
+      <SEO
+        title="Explore Nepal Activities"
+        description="Browse 100+ authentic Nepal travel experiences — trekking, cultural tours, wildlife, rafting and more. Filter by category, price and availability."
+      />
       {/* Header */}
       <section className="pt-24 md:pt-32 pb-8 bg-muted/30">
         <div className="container mx-auto px-4">

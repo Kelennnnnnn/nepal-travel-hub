@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { SEO } from "@/components/SEO";
 import {
   MapPin,
   Phone,
@@ -182,6 +183,10 @@ export default function AgencyProfile() {
 
   return (
     <Layout>
+      <SEO
+        title={agency.company_name}
+        description={agency.description || `Explore tours and activities by ${agency.company_name}, a verified Nepal travel agency.`}
+      />
       <div className="pt-20 md:pt-24 pb-16">
         <div className="container mx-auto px-4 max-w-5xl">
 

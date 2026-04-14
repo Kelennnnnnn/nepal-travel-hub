@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { SEO } from "@/components/SEO";
 import { Search, ChevronRight, Shield, Users, Clock, Award, MapPin, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,6 +105,10 @@ export default function Index() {
 
   return (
     <Layout>
+      <SEO
+        title="Nepal Travel Experiences"
+        description="Book authentic Nepal trekking, rafting, cultural tours and adventures with verified local agencies. Best prices, instant confirmation."
+      />
       {/* Hero Section */}
       <section className="relative min-h-[90vh] flex items-center">
         {/* Background Image */}

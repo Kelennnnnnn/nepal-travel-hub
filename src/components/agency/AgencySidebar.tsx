@@ -7,7 +7,9 @@ import {
   Settings,
   Mountain,
   LogOut,
+  MessageSquare,
 } from "lucide-react";
+import { useUnreadCount } from "@/hooks/useMessages";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
@@ -31,6 +33,7 @@ const mainItems = [
   { title: "Dashboard", url: "/agency/dashboard", icon: LayoutDashboard },
   { title: "Listings", url: "/agency/listings", icon: ListChecks },
   { title: "Bookings", url: "/agency/bookings", icon: BookOpen },
+  { title: "Messages", url: "/agency/messages", icon: MessageSquare },
   { title: "Availability", url: "/agency/availability", icon: CalendarDays },
   { title: "Earnings", url: "/agency/earnings", icon: DollarSign },
   { title: "Settings", url: "/agency/settings", icon: Settings },
@@ -42,6 +45,7 @@ export function AgencySidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuthStore();
+  const { data: unreadCount = 0 } = useUnreadCount();
   const isActive = (path: string) => location.pathname.startsWith(path);
 
   const handleLogout = async () => {
@@ -78,7 +82,16 @@ export function AgencySidebar() {
                       activeClassName="bg-primary/10 text-primary font-medium"
                     >
                       <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
+                      {!collapsed && (
+                        <span className="flex-1 flex items-center justify-between">
+                          {item.title}
+                          {item.url === "/agency/messages" && unreadCount > 0 && (
+                            <span className="bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">
+                              {unreadCount}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

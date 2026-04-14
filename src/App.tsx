@@ -7,11 +7,13 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useAuthStore } from "./stores/authStore";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { CookieConsent } from "./components/CookieConsent";
 
 // Lazy-loaded pages
 const Account = lazy(() => import("./pages/Account"));
 const MyBookings = lazy(() => import("./pages/MyBookings"));
 const Wishlist = lazy(() => import("./pages/Wishlist"));
+const Messages = lazy(() => import("./pages/Messages"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
 const Index = lazy(() => import("./pages/Index"));
 const Activities = lazy(() => import("./pages/Activities"));
@@ -33,6 +35,7 @@ const CookiePolicy = lazy(() => import("./pages/CookiePolicy"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Agency pages
+const AgencyMessages = lazy(() => import("./pages/agency/AgencyMessages"));
 const AgencyLogin = lazy(() => import("./pages/agency/AgencyLogin"));
 const AgencyOnboarding = lazy(() => import("./pages/agency/AgencyOnboarding"));
 const AgencyVerificationStatus = lazy(() => import("./pages/agency/AgencyVerificationStatus"));
@@ -81,6 +84,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthInitializer />
+          <CookieConsent />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Public Routes */}
@@ -108,6 +112,7 @@ const App = () => (
                 <Route path="/account" element={<Account />} />
                 <Route path="/my-bookings" element={<MyBookings />} />
                 <Route path="/wishlist" element={<Wishlist />} />
+                <Route path="/messages" element={<Messages />} />
                 <Route path="/booking/payment" element={<BookingPayment />} />
                 <Route path="/booking/confirmation" element={<BookingConfirmation />} />
               </Route>
@@ -120,6 +125,7 @@ const App = () => (
 
               {/* Agency Routes (verified agency only) */}
               <Route element={<ProtectedRoute allowedRoles={["agency"]} />}>
+                <Route path="/agency/messages" element={<AgencyMessages />} />
                 <Route path="/agency/dashboard" element={<AgencyDashboard />} />
                 <Route path="/agency/listings" element={<AgencyListings />} />
                 <Route path="/agency/listings/new" element={<AgencyListingForm />} />

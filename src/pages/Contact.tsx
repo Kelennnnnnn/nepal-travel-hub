@@ -1,28 +1,39 @@
 import { useState } from "react";
 import { Mail, Phone, MapPin } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
+import { SEO } from "@/components/SEO";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 export default function Contact() {
-  const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [sending, setSending] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSending(true);
-    await new Promise((r) => setTimeout(r, 600));
-    setSending(false);
-    toast.success("Message sent! We'll reply within 24 hours.");
-    setForm({ name: "", email: "", message: "" });
+    try {
+      const { error } = await supabase.functions.invoke("contact-form", {
+        body: form,
+      });
+      if (error) throw error;
+      toast.success("Message sent! We'll reply within one business day.");
+      setForm({ name: "", email: "", subject: "", message: "" });
+    } catch {
+      toast.error("Failed to send message. Please try again.");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
     <Layout>
+      <SEO title="Contact Us" description="Get in touch with the Yatra Nepal team. We're here to help with your Nepal travel questions." />
       <div className="pt-24 pb-16 min-h-screen bg-muted/30">
         <div className="container mx-auto px-4 max-w-5xl">
           <div className="text-center mb-12">
@@ -57,6 +68,15 @@ export default function Contact() {
                       value={form.email}
                       onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
                       required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="subject">Subject</Label>
+                    <Input
+                      id="subject"
+                      placeholder="How can we help?"
+                      value={form.subject}
+                      onChange={(e) => setForm((p) => ({ ...p, subject: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-1.5">

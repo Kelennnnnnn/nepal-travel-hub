@@ -41,7 +41,7 @@ export function ActivityCard({ activity, className }: ActivityCardProps) {
       toast.error("Please log in to save activities.");
       return;
     }
-    toggleWishlist(activity.id);
+    toggleWishlist({ listingId: activity.id, isSaved });
   };
 
   return (

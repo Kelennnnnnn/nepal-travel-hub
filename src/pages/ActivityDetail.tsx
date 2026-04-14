@@ -27,9 +27,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ReviewsSection } from "@/components/reviews/ReviewsSection";
+import { ActivityCard } from "@/components/activities/ActivityCard";
+import type { Activity } from "@/components/activities/ActivityCard";
 import { useListingsStore } from "@/stores/listingsStore";
 import { useAuthStore } from "@/stores/authStore";
 import { supabase } from "@/lib/supabase";
+import { useWishlistIds, useToggleWishlist } from "@/hooks/useWishlist";
+import { startConversation } from "@/hooks/useMessages";
+import { SEO } from "@/components/SEO";
+import { Helmet } from "react-helmet-async";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { MessageSquare } from "lucide-react";
 
 export default function ActivityDetail() {
   const { id } = useParams();
@@ -44,9 +59,17 @@ export default function ActivityDetail() {
   const [isBooking, setIsBooking] = useState(false);
   const [agencyName, setAgencyName] = useState("");
 
+  const { data: wishlistIds = new Set<string>() } = useWishlistIds();
+  const { mutate: toggleWishlist, isPending: isTogglingWishlist } = useToggleWishlist();
+
+  const [askDialogOpen, setAskDialogOpen] = useState(false);
+  const [askMessage, setAskMessage] = useState("");
+  const [isSendingQuestion, setIsSendingQuestion] = useState(false);
+
   const [availableSpots, setAvailableSpots] = useState<number | null>(null);
   const [availabilityId, setAvailabilityId] = useState<string | null>(null);
   const [priceOverride, setPriceOverride] = useState<number | null>(null);
+  const [relatedActivities, setRelatedActivities] = useState<Activity[]>([]);
 
   // Fetch listing on mount
   useEffect(() => {
@@ -104,6 +127,44 @@ export default function ActivityDetail() {
       setParticipants(Math.max(1, availableSpots));
     }
   }, [availableSpots, participants]);
+
+  // Fetch related activities when listing loads
+  useEffect(() => {
+    if (!listing?.id) return;
+
+    const fetchRelated = async () => {
+      const { data } = await supabase
+        .from("listings")
+        .select("id, title, description, images, location, duration, price, rating, review_count, category, agency_id, max_participants, featured")
+        .eq("status", "published")
+        .neq("id", listing.id)
+        .or(`category.eq.${listing.category},location.eq.${listing.location}`)
+        .order("rating", { ascending: false })
+        .limit(4);
+
+      if (data) {
+        setRelatedActivities(
+          data.map((l) => ({
+            id: l.id,
+            title: l.title,
+            description: l.description,
+            image: l.images?.[0] ?? "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&h=600&fit=crop",
+            location: l.location,
+            duration: l.duration,
+            price: Number(l.price),
+            rating: Number(l.rating),
+            reviewCount: l.review_count,
+            category: l.category,
+            agency: l.agency_id,
+            maxParticipants: l.max_participants,
+            featured: l.featured,
+          }))
+        );
+      }
+    };
+
+    void fetchRelated();
+  }, [listing?.id, listing?.category, listing?.location]);
 
   // Fetch agency name when listing loads
   useEffect(() => {
@@ -242,8 +303,37 @@ export default function ActivityDetail() {
         "24/7 emergency support",
       ];
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "TouristTrip",
+    name: listing.title,
+    description: listing.description,
+    touristType: listing.category,
+    offers: {
+      "@type": "Offer",
+      price: listing.price,
+      priceCurrency: "USD",
+    },
+    ...(listing.review_count > 0 && {
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: Number(listing.rating).toFixed(1),
+        reviewCount: listing.review_count,
+      },
+    }),
+  };
+
   return (
     <Layout>
+      <SEO
+        title={listing.title}
+        description={`${listing.description.slice(0, 155)}…`}
+        image={listing.images?.[0]}
+        type="article"
+      />
+      <Helmet>
+        <script type="application/ld+json">{JSON.stringify(jsonLd)}</script>
+      </Helmet>
       {/* Breadcrumb */}
       <div className="pt-20 md:pt-24 bg-muted/30">
         <div className="container mx-auto px-4 py-4">
@@ -271,8 +361,19 @@ export default function ActivityDetail() {
           <Button variant="glass" size="icon">
             <Share2 className="h-5 w-5" />
           </Button>
-          <Button variant="glass" size="icon">
-            <Heart className="h-5 w-5" />
+          <Button
+            variant="glass"
+            size="icon"
+            disabled={isTogglingWishlist}
+            onClick={() => {
+              if (!isAuthenticated) {
+                toast.error("Please log in to save activities.");
+                return;
+              }
+              toggleWishlist({ listingId: listing.id, isSaved: wishlistIds.has(listing.id) });
+            }}
+          >
+            <Heart className={`h-5 w-5 transition-colors ${wishlistIds.has(listing.id) ? "fill-red-500 text-red-500" : ""}`} />
           </Button>
         </div>
 
@@ -393,7 +494,7 @@ export default function ActivityDetail() {
                 <CardHeader>
                   <CardTitle className="text-lg">Operated by</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
                       <span className="text-2xl font-bold text-primary">
@@ -417,8 +518,69 @@ export default function ActivityDetail() {
                       </Button>
                     </Link>
                   </div>
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2"
+                    onClick={() => {
+                      if (!isAuthenticated) {
+                        toast.error("Please log in to message the agency.");
+                        navigate(`/login?redirect=/activities/${listing.id}`);
+                        return;
+                      }
+                      setAskDialogOpen(true);
+                    }}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    Ask a Question
+                  </Button>
                 </CardContent>
               </Card>
+
+              {/* Ask a Question Dialog */}
+              <Dialog open={askDialogOpen} onOpenChange={setAskDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Ask {agencyName || "the Agency"} a Question</DialogTitle>
+                  </DialogHeader>
+                  <p className="text-sm text-muted-foreground">About: <span className="font-medium text-foreground">{listing.title}</span></p>
+                  <Textarea
+                    placeholder="What would you like to know? (e.g. group size, gear, difficulty, custom dates…)"
+                    value={askMessage}
+                    onChange={(e) => setAskMessage(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                  />
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setAskDialogOpen(false)}>Cancel</Button>
+                    <Button
+                      disabled={!askMessage.trim() || isSendingQuestion}
+                      onClick={async () => {
+                        if (!user) return;
+                        setIsSendingQuestion(true);
+                        try {
+                          await startConversation({
+                            travelerId: user.id,
+                            agencyId: listing.agency_id,
+                            listingId: listing.id,
+                            content: askMessage.trim(),
+                          });
+                          setAskDialogOpen(false);
+                          setAskMessage("");
+                          toast.success("Message sent!", {
+                            action: { label: "View Messages", onClick: () => navigate("/messages") },
+                          });
+                        } catch (err) {
+                          toast.error((err as Error).message);
+                        } finally {
+                          setIsSendingQuestion(false);
+                        }
+                      }}
+                    >
+                      {isSendingQuestion ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Sending…</> : "Send Message"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
               {/* Reviews Section */}
               <ReviewsSection activityId={listing.id} activityTitle={listing.title} />
@@ -575,6 +737,20 @@ export default function ActivityDetail() {
               </Card>
             </div>
           </div>
+
+          {/* Related Activities */}
+          {relatedActivities.length > 0 && (
+            <div className="mt-12 pt-10 border-t border-border">
+              <h2 className="text-xl font-semibold mb-6">You Might Also Like</h2>
+              <div className="flex gap-5 overflow-x-auto pb-4 -mx-1 px-1 snap-x snap-mandatory">
+                {relatedActivities.map((activity) => (
+                  <div key={activity.id} className="w-72 flex-shrink-0 snap-start">
+                    <ActivityCard activity={activity} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </Layout>

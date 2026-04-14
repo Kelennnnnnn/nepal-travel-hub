@@ -1,4 +1,5 @@
 import { Layout } from "@/components/layout/Layout";
+import { SEO } from "@/components/SEO";
 import {
   Accordion,
   AccordionContent,
@@ -44,6 +45,7 @@ const FAQS = [
 export default function FAQ() {
   return (
     <Layout>
+      <SEO title="Frequently Asked Questions" description="Find answers to common questions about booking Nepal travel experiences, cancellations, payments and more." />
       <div className="pt-24 pb-16 min-h-screen bg-muted/30">
         <div className="container mx-auto px-4 max-w-3xl">
           <div className="text-center mb-12">

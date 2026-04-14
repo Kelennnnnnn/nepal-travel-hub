@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Mountain, User, LogIn, LayoutDashboard, LogOut, BookOpen, Heart } from "lucide-react";
+import { Menu, X, Mountain, User, LogIn, LayoutDashboard, LogOut, BookOpen, Heart, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,6 +13,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
+import { useUnreadCount } from "@/hooks/useMessages";
 import { toast } from "sonner";
 
 const navigation = [
@@ -28,6 +29,7 @@ export function Header() {
   const isHome = location.pathname === "/";
   
   const { user, isAuthenticated, logout } = useAuthStore();
+  const { data: unreadCount = 0 } = useUnreadCount();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -141,6 +143,17 @@ export function Header() {
 
                   {user?.role === "user" && (
                     <>
+                      <Link to="/messages">
+                        <DropdownMenuItem className="cursor-pointer">
+                          <MessageSquare className="mr-2 h-4 w-4" />
+                          <span>Messages</span>
+                          {unreadCount > 0 && (
+                            <span className="ml-auto bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">
+                              {unreadCount}
+                            </span>
+                          )}
+                        </DropdownMenuItem>
+                      </Link>
                       <Link to="/my-bookings">
                         <DropdownMenuItem className="cursor-pointer">
                           <BookOpen className="mr-2 h-4 w-4" />

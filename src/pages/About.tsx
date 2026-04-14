@@ -1,5 +1,6 @@
 import { Mountain, Shield, Users, Globe } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
+import { SEO } from "@/components/SEO";
 import { Card, CardContent } from "@/components/ui/card";
 
 const VALUES = [
@@ -34,6 +35,7 @@ const TEAM = [
 export default function About() {
   return (
     <Layout>
+      <SEO title="About Us" description="Learn about Yatra Nepal — our mission to connect travelers with authentic Nepal experiences through verified local agencies." />
       <div className="pt-24 pb-16 min-h-screen">
         {/* Hero */}
         <div className="bg-muted/30 py-16 mb-16">

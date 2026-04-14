@@ -2,6 +2,7 @@ import { Star, ThumbsUp, BadgeCheck } from "lucide-react";
 import { Review } from "@/stores/reviewsStore";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 interface ReviewCardProps {
   review: Review;
@@ -27,14 +28,35 @@ function StarRating({ rating, size = "sm" }: { rating: number; size?: "sm" | "md
 
 export { StarRating };
 
+const HELPFUL_KEY = "review_helpful_votes";
+
+function getVotedReviews(): Set<string> {
+  try {
+    const raw = localStorage.getItem(HELPFUL_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function markVoted(reviewId: string) {
+  const voted = getVotedReviews();
+  voted.add(reviewId);
+  localStorage.setItem(HELPFUL_KEY, JSON.stringify([...voted]));
+}
+
 export function ReviewCard({ review }: ReviewCardProps) {
   const [helpfulCount, setHelpfulCount] = useState(review.helpful);
-  const [hasVoted, setHasVoted] = useState(false);
+  const [hasVoted, setHasVoted] = useState(() => getVotedReviews().has(review.id));
 
-  const handleHelpful = () => {
+  const handleHelpful = async () => {
     if (hasVoted) return;
+    // Optimistic update
     setHelpfulCount((c) => c + 1);
     setHasVoted(true);
+    markVoted(review.id);
+    // Persist to DB
+    await supabase.rpc("increment_review_helpful", { review_id: review.id });
   };
 
   return (
