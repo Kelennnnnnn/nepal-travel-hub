@@ -38,6 +38,7 @@ interface AgencyPublicProfile {
   status: string;
   created_at: string;
   registration_number: string;
+  logo_url: string;
 }
 
 function listingToActivity(l: Listing): Activity {
@@ -82,7 +83,7 @@ export default function AgencyProfile() {
       const { data: agencyData, error: agencyErr } = await supabase
         .from("agency_applications")
         .select(
-          "user_id, company_name, description, city, district, address, phone, email, website, status, created_at, registration_number"
+          "user_id, company_name, description, city, district, address, phone, email, website, status, created_at, registration_number, logo_url"
         )
         .eq("user_id", agencyId)
         .eq("status", "verified")
@@ -207,8 +208,10 @@ export default function AgencyProfile() {
               {/* Identity card */}
               <Card>
                 <CardContent className="p-6 text-center">
-                  <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl font-bold text-primary mx-auto mb-4">
-                    {initials}
+                  <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl font-bold text-primary mx-auto mb-4 overflow-hidden">
+                    {agency.logo_url
+                      ? <img src={agency.logo_url} alt={agency.company_name} className="w-full h-full object-cover" />
+                      : initials}
                   </div>
                   <h1 className="text-lg font-bold text-foreground leading-tight mb-2">
                     {agency.company_name}

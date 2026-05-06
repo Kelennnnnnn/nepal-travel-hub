@@ -40,6 +40,7 @@ export default function AgencySettings() {
     review: true,
   });
 
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Load all data on mount
@@ -52,7 +53,7 @@ export default function AgencySettings() {
       // Load agency profile from agency_applications
       const { data: appData } = await supabase
         .from("agency_applications")
-        .select("company_name, registration_number, email, phone, address, description")
+        .select("company_name, registration_number, email, phone, address, description, logo_url")
         .eq("user_id", authUser.id)
         .maybeSingle();
 
@@ -63,6 +64,7 @@ export default function AgencySettings() {
         setPhone(appData.phone ?? "");
         setAddress(appData.address ?? "");
         setAbout(appData.description ?? "");
+        if (appData.logo_url) setLogoPreview(appData.logo_url);
       }
 
       // Load bank details
@@ -87,6 +89,7 @@ export default function AgencySettings() {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setLogoFile(file);
     const reader = new FileReader();
     reader.onload = (ev) => {
       if (ev.target?.result) setLogoPreview(ev.target.result as string);
@@ -113,6 +116,29 @@ export default function AgencySettings() {
       return;
     }
 
+    // Upload logo to storage if a new file was selected
+    let savedLogoUrl: string | undefined;
+    if (logoFile) {
+      const ext = logoFile.name.split(".").pop() ?? "jpg";
+      const path = `${authUser.id}/logo.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("agency-logos")
+        .upload(path, logoFile, { upsert: true });
+      if (uploadError) {
+        toast.error(`Logo upload failed: ${uploadError.message}`);
+        setIsLoading(false);
+        return;
+      }
+      const { data: { publicUrl } } = supabase.storage
+        .from("agency-logos")
+        .getPublicUrl(path);
+      savedLogoUrl = publicUrl;
+      setLogoFile(null);
+    }
+
+    // Sync agency_name to auth user_metadata
+    await supabase.auth.updateUser({ data: { agency_name: agencyName.trim() } });
+
     // Update agency profile in agency_applications
     const { error: profileError } = await supabase
       .from("agency_applications")
@@ -123,6 +149,7 @@ export default function AgencySettings() {
         phone: phone.trim(),
         address: address.trim(),
         description: about.trim(),
+        ...(savedLogoUrl !== undefined ? { logo_url: savedLogoUrl } : {}),
       })
       .eq("user_id", authUser.id);
 

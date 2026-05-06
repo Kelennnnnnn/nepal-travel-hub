@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS public.wishlists (
 
 ALTER TABLE public.wishlists ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "users_manage_own_wishlist" ON public.wishlists;
 CREATE POLICY "users_manage_own_wishlist"
   ON public.wishlists FOR ALL
   USING (auth.uid() = user_id)

@@ -5,6 +5,7 @@
 DROP POLICY IF EXISTS "travelers_update_own_bookings" ON public.bookings;
 
 -- Travelers can only cancel their own pending/confirmed bookings
+DROP POLICY IF EXISTS "travelers_cancel_own_bookings" ON public.bookings;
 CREATE POLICY "travelers_cancel_own_bookings"
   ON public.bookings
   FOR UPDATE

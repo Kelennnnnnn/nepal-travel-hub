@@ -10,36 +10,37 @@ interface ImageUploaderProps {
   maxSizeMB?: number;
 }
 
-async function compressImage(file: File, maxSizeMB: number): Promise<string> {
-  // Skip compression if already small enough
-  if (file.size <= maxSizeMB * 1024 * 1024 * 0.8) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target!.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
+async function compressImage(file: File, maxWidth = 1200, quality = 0.8): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
       const canvas = document.createElement("canvas");
-      const maxWidth = 1200;
-      let { width, height } = img;
-      if (width > maxWidth) {
-        height = Math.round((height * maxWidth) / width);
-        width = maxWidth;
-      }
-      canvas.width = width;
-      canvas.height = height;
-      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", 0.82));
+      const ratio = Math.min(maxWidth / img.width, 1);
+      canvas.width = Math.round(img.width * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Compression failed"))),
+        "image/jpeg",
+        quality,
+      );
     };
-    img.onerror = reject;
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to load image"));
+    };
     img.src = url;
+  });
+}
+
+function blobToDataURL(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
   });
 }
 
@@ -85,8 +86,9 @@ export function ImageUploader({
 
     setCompressing(true);
     try {
-      const compressed = await Promise.all(valid.map((f) => compressImage(f, maxSizeMB)));
-      onChange([...images, ...compressed]);
+      const blobs = await Promise.all(valid.map((f) => compressImage(f)));
+      const dataUrls = await Promise.all(blobs.map(blobToDataURL));
+      onChange([...images, ...dataUrls]);
     } catch {
       setErrors(["Failed to process one or more images."]);
     } finally {
@@ -111,7 +113,7 @@ export function ImageUploader({
     onChange(images.filter((_, i) => i !== index));
   };
 
-  const promoteTocover = (index: number) => {
+  const promoteToCover = (index: number) => {
     const next = [...images];
     const [item] = next.splice(index, 1);
     next.unshift(item);
@@ -140,7 +142,7 @@ export function ImageUploader({
 
   return (
     <div className="space-y-3">
-      {/* Drop zone (shown when no images or always as an add-more strip) */}
+      {/* Drop zone (shown when no images) */}
       {images.length === 0 && (
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -150,7 +152,7 @@ export function ImageUploader({
           className={cn(
             "border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center gap-3 cursor-pointer transition-colors",
             dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30",
-            disabled && "opacity-50 cursor-not-allowed"
+            disabled && "opacity-50 cursor-not-allowed",
           )}
         >
           {compressing ? (
@@ -171,83 +173,86 @@ export function ImageUploader({
 
       {/* Image grid */}
       {images.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {images.map((src, i) => (
-            <div
-              key={i}
-              draggable={!disabled}
-              onDragStart={(e) => handleDragStart(e, i)}
-              onDragOver={(e) => handleDragOver(e, i)}
-              onDragEnd={handleDragEnd}
-              className={cn(
-                "relative aspect-[4/3] rounded-lg overflow-hidden group border-2 transition-all",
-                dragIndex === i ? "border-primary opacity-60 scale-95" : "border-transparent",
-                !disabled && "cursor-grab active:cursor-grabbing"
-              )}
-            >
-              <img src={src} alt="" className="w-full h-full object-cover" draggable={false} />
+        <>
+          <p className="text-xs text-muted-foreground">
+            Drag to reorder · First image is the cover
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {images.map((src, i) => (
+              <div
+                key={i}
+                draggable={!disabled}
+                onDragStart={(e) => handleDragStart(e, i)}
+                onDragOver={(e) => handleDragOver(e, i)}
+                onDragEnd={handleDragEnd}
+                className={cn(
+                  "relative aspect-[4/3] rounded-lg overflow-hidden group border-2 transition-all",
+                  dragIndex === i ? "border-primary opacity-60 scale-95" : "border-transparent",
+                  !disabled && "cursor-grab active:cursor-grabbing",
+                )}
+              >
+                <img src={src} alt="" className="w-full h-full object-cover" draggable={false} />
 
-              {/* Cover badge */}
-              {i === 0 && (
-                <div className="absolute top-1.5 left-1.5 bg-primary text-primary-foreground text-[10px] font-semibold px-1.5 py-0.5 rounded">
-                  COVER
-                </div>
-              )}
+                {/* Cover badge */}
+                {i === 0 && (
+                  <div className="absolute top-1.5 left-1.5 bg-primary text-primary-foreground text-[10px] font-semibold px-1.5 py-0.5 rounded">
+                    COVER
+                  </div>
+                )}
 
-              {/* Actions (shown on hover) */}
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-start justify-end p-1.5 gap-1">
-                {/* Promote to cover */}
-                {i > 0 && (
+                {/* Actions (shown on hover) */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-start justify-end p-1.5 gap-1">
+                  {i > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => promoteToCover(i)}
+                      disabled={disabled}
+                      title="Set as cover"
+                      className="w-6 h-6 rounded-full bg-black/60 hover:bg-yellow-500 text-white flex items-center justify-center transition-colors"
+                    >
+                      <Star className="h-3 w-3" />
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => promoteTocover(i)}
+                    onClick={() => removeImage(i)}
                     disabled={disabled}
-                    title="Set as cover"
-                    className="w-6 h-6 rounded-full bg-black/60 hover:bg-yellow-500 text-white flex items-center justify-center transition-colors"
+                    title="Remove"
+                    className="w-6 h-6 rounded-full bg-black/60 hover:bg-destructive text-white flex items-center justify-center transition-colors"
                   >
-                    <Star className="h-3 w-3" />
+                    <X className="h-3 w-3" />
                   </button>
-                )}
-                {/* Remove */}
-                <button
-                  type="button"
-                  onClick={() => removeImage(i)}
-                  disabled={disabled}
-                  title="Remove"
-                  className="w-6 h-6 rounded-full bg-black/60 hover:bg-destructive text-white flex items-center justify-center transition-colors"
-                >
-                  <X className="h-3 w-3" />
-                </button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {/* Add more tile */}
-          {canAddMore && (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              disabled={disabled || compressing}
-              className={cn(
-                "aspect-[4/3] rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1.5 text-muted-foreground transition-colors",
-                dragOver ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/50 hover:text-primary",
-                (disabled || compressing) && "opacity-50 cursor-not-allowed"
-              )}
-            >
-              {compressing ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <>
-                  <ImagePlus className="h-5 w-5" />
-                  <span className="text-xs">Add Photo</span>
-                </>
-              )}
-            </button>
-          )}
-        </div>
+            {/* Add more tile */}
+            {canAddMore && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                disabled={disabled || compressing}
+                className={cn(
+                  "aspect-[4/3] rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1.5 text-muted-foreground transition-colors",
+                  dragOver ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/50 hover:text-primary",
+                  (disabled || compressing) && "opacity-50 cursor-not-allowed",
+                )}
+              >
+                {compressing ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    <ImagePlus className="h-5 w-5" />
+                    <span className="text-xs">Add Photo</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </>
       )}
 
       {/* Errors */}

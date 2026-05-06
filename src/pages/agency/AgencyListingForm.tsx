@@ -10,12 +10,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Plus, X, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Save, Loader2, Eye } from "lucide-react";
 import { ImageUploader } from "@/components/uploads/ImageUploader";
+import { ListingPreviewDialog } from "@/components/agency/ListingPreviewDialog";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useListingsStore } from "@/stores/listingsStore";
+import { useAuthStore } from "@/stores/authStore";
 import type { ListingCategory, ListingDifficulty, ListingStatus } from "@/stores/listingsStore";
 import { listingFormSchema, type ListingFormData } from "@/lib/validations";
 
@@ -31,6 +33,7 @@ export default function AgencyListingForm() {
   const navigate = useNavigate();
 
   const { createListing, updateListing, fetchMyListings, myListings } = useListingsStore();
+  const { user } = useAuthStore();
 
   const [featured, setFeatured] = useState(false);
   const [itinerary, setItinerary] = useState<ItineraryDay[]>([]);
@@ -38,6 +41,7 @@ export default function AgencyListingForm() {
   const [newExclude, setNewExclude] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingEdit, setIsFetchingEdit] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const {
     register,
@@ -391,8 +395,11 @@ export default function AgencyListingForm() {
         </Card>
 
         {/* Actions */}
-        <div className="flex gap-3 justify-end">
+        <div className="flex flex-wrap gap-3 justify-end">
           <Button variant="outline" onClick={() => navigate("/agency/listings")} disabled={isLoading}>Cancel</Button>
+          <Button variant="outline" className="gap-2" onClick={() => setPreviewOpen(true)} disabled={isLoading}>
+            <Eye className="h-4 w-4" /> Preview
+          </Button>
           <Button variant="outline" onClick={handleSaveDraft} disabled={isLoading}>
             {isLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : "Save as Draft"}
           </Button>
@@ -401,6 +408,14 @@ export default function AgencyListingForm() {
           </Button>
         </div>
       </div>
+
+      <ListingPreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        data={getValues()}
+        itinerary={itinerary}
+        agencyName={user?.agencyName ?? user?.name ?? ""}
+      />
     </AgencyLayout>
   );
 }

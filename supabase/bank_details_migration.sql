@@ -16,19 +16,23 @@ CREATE TABLE IF NOT EXISTS public.agency_bank_details (
 ALTER TABLE public.agency_bank_details ENABLE ROW LEVEL SECURITY;
 
 -- Agency can read/update their own bank details
+DROP POLICY IF EXISTS "agency_read_own_bank" ON public.agency_bank_details;
 CREATE POLICY "agency_read_own_bank"
   ON public.agency_bank_details FOR SELECT
   USING (auth.uid() = agency_user_id);
 
+DROP POLICY IF EXISTS "agency_insert_own_bank" ON public.agency_bank_details;
 CREATE POLICY "agency_insert_own_bank"
   ON public.agency_bank_details FOR INSERT
   WITH CHECK (auth.uid() = agency_user_id);
 
+DROP POLICY IF EXISTS "agency_update_own_bank" ON public.agency_bank_details;
 CREATE POLICY "agency_update_own_bank"
   ON public.agency_bank_details FOR UPDATE
   USING (auth.uid() = agency_user_id);
 
 -- Admin can read all (for payout processing)
+DROP POLICY IF EXISTS "admin_read_all_bank" ON public.agency_bank_details;
 CREATE POLICY "admin_read_all_bank"
   ON public.agency_bank_details FOR SELECT
   USING (
