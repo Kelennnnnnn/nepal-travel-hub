@@ -63,17 +63,22 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Booking is already cancelled" }, 400);
     }
 
-    // Days until trip (whole days)
+    if (booking.status !== "confirmed") {
+      return json({ error: "Only confirmed bookings can be cancelled" }, 400);
+    }
+
     const daysUntilTrip = Math.floor(
       (new Date(booking.trip_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
     );
 
-    // Refund percentage: 100% if ≥7 days, 50% if ≥3 days, 0% otherwise
+    if (daysUntilTrip < 0) {
+      return json({ error: "Past trips cannot be cancelled" }, 400);
+    }
+
     let refundPercentage = 0;
     if (daysUntilTrip >= 7) refundPercentage = 100;
     else if (daysUntilTrip >= 3) refundPercentage = 50;
 
-    // total_amount is in dollars; refundPercentage is 0–100
     const refundAmountDollars = booking.total_amount * refundPercentage / 100;
     const refundAmountCents = Math.round(refundAmountDollars * 100);
 
@@ -82,11 +87,11 @@ Deno.serve(async (req: Request) => {
         .from("bookings")
         .update({
           status: "cancelled",
-          cancellation_reason: "Cancelled by traveler (no refund — less than 3 days notice)",
+          cancellation_reason: "Cancelled by traveler (no refund)",
         })
         .eq("id", booking_id);
 
-      return json({ success: true, refundAmount: 0, message: "Booking cancelled. No refund applicable." });
+      return json({ success: true, refundAmount: 0, refundPercentage, message: "Booking cancelled. No refund applicable." });
     }
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
@@ -98,7 +103,6 @@ Deno.serve(async (req: Request) => {
       amount: refundAmountCents,
     });
 
-    // Update immediately — Stripe webhook will also fire charge.refunded
     await supabaseAdmin
       .from("bookings")
       .update({

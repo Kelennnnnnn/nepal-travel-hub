@@ -22,6 +22,12 @@ CREATE TABLE IF NOT EXISTS public.messages (
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "users_select_own_conversations" ON public.conversations;
+DROP POLICY IF EXISTS "users_insert_conversations" ON public.conversations;
+DROP POLICY IF EXISTS "users_select_own_messages" ON public.messages;
+DROP POLICY IF EXISTS "users_insert_own_messages" ON public.messages;
+DROP POLICY IF EXISTS "users_update_read_status" ON public.messages;
+
 -- Participants can view their conversations
 CREATE POLICY "users_select_own_conversations" ON public.conversations
   FOR SELECT USING (auth.uid() IN (traveler_id, agency_id));
@@ -35,15 +41,33 @@ CREATE POLICY "users_select_own_messages" ON public.messages
   );
 
 CREATE POLICY "users_insert_own_messages" ON public.messages
-  FOR INSERT WITH CHECK (auth.uid() = sender_id);
+  FOR INSERT WITH CHECK (
+    auth.uid() = sender_id
+    AND EXISTS (
+      SELECT 1 FROM public.conversations c
+      WHERE c.id = conversation_id
+        AND auth.uid() IN (c.traveler_id, c.agency_id)
+    )
+  );
 
 CREATE POLICY "users_update_read_status" ON public.messages
   FOR UPDATE USING (
     EXISTS (SELECT 1 FROM public.conversations c WHERE c.id = conversation_id AND auth.uid() IN (c.traveler_id, c.agency_id))
   );
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON public.messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON public.messages(conversation_id, created_at DESC);
@@ -60,6 +84,8 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS on_message_inserted ON public.messages;
 
 CREATE TRIGGER on_message_inserted
   AFTER INSERT ON public.messages

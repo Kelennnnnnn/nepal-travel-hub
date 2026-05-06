@@ -23,8 +23,8 @@ export function CookieConsent() {
     setVisible(false);
   };
 
-  const dismiss = () => {
-    localStorage.setItem(STORAGE_KEY, "dismissed");
+  const managePreferences = () => {
+    localStorage.setItem(STORAGE_KEY, "preferences");
     setVisible(false);
   };
 
@@ -47,15 +47,15 @@ export function CookieConsent() {
           <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
         </p>
         <div className="flex gap-2 flex-shrink-0">
-          <Button variant="outline" size="sm" onClick={dismiss}>
-            Decline
+          <Button variant="outline" size="sm" onClick={managePreferences}>
+            Manage Preferences
           </Button>
           <Button size="sm" onClick={accept}>
-            Accept All
+            Accept
           </Button>
         </div>
         <button
-          onClick={dismiss}
+          onClick={managePreferences}
           className="absolute top-3 right-3 text-muted-foreground hover:text-foreground sm:hidden"
         >
           <X className="h-4 w-4" />

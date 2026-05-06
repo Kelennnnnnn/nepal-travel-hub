@@ -75,40 +75,49 @@ Deno.serve(async (req: Request) => {
       if (booking) {
         const activityTitle = (booking.listings as { title: string } | null)?.title ?? "Activity";
         const agencyId = (booking.listings as { agency_id: string } | null)?.agency_id;
+        const bookingRef = `YN-${booking.id.slice(0, 8).toUpperCase()}`;
 
-        // Email traveler
-        if (booking.traveler_email) {
-          const { subject, html } = bookingConfirmationEmail({
-            travelerName: booking.traveler_name ?? "Traveler",
-            activityTitle,
-            bookingDate: booking.booking_date,
-            participants: booking.participants,
-            totalAmount: booking.total_amount,
-            bookingId: booking.id,
-          });
-          await sendEmail({ to: booking.traveler_email, subject, html });
-        }
-
-        // Email agency
+        // Fetch agency name for traveler email
+        let agencyName = "Your Agency";
+        let agencyEmail: string | null = null;
         if (agencyId) {
           const { data: agency } = await supabaseAdmin
             .from("agency_applications")
             .select("company_name, email")
             .eq("user_id", agencyId)
             .maybeSingle();
+          agencyName = agency?.company_name ?? agencyName;
+          agencyEmail = agency?.email ?? null;
+        }
 
-          if (agency?.email) {
-            const { subject, html } = newBookingAgencyEmail({
-              agencyName: agency.company_name ?? "Agency",
-              activityTitle,
-              travelerName: booking.traveler_name ?? "A traveler",
-              bookingDate: booking.booking_date,
-              participants: booking.participants,
-              totalAmount: booking.total_amount,
-              bookingId: booking.id,
-            });
-            await sendEmail({ to: agency.email, subject, html });
-          }
+        // Email traveler
+        if (booking.traveler_email) {
+          const { subject, html } = bookingConfirmationEmail({
+            travelerName: booking.traveler_name ?? "Traveler",
+            bookingRef,
+            activityTitle,
+            tripDate: booking.booking_date,
+            guests: booking.participants,
+            totalAmount: booking.total_amount,
+            agencyName,
+          });
+          await sendEmail({ to: booking.traveler_email, subject, html });
+        }
+
+        // Email agency
+        if (agencyEmail) {
+          const netPayout = booking.total_amount * 0.9;
+          const { subject, html } = newBookingAgencyEmail({
+            agencyName,
+            bookingRef,
+            activityTitle,
+            travelerName: booking.traveler_name ?? "A traveler",
+            tripDate: booking.booking_date,
+            guests: booking.participants,
+            totalAmount: booking.total_amount,
+            netPayout,
+          });
+          await sendEmail({ to: agencyEmail, subject, html });
         }
       }
 

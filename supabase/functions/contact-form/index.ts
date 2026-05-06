@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
 
     // Send notification email to support inbox
     await sendEmail({
-      to: "dahalkelin456@gmail.com",
+      to: "hello@yatranepal.com",
       subject: subject ? `Contact: ${subject}` : `New message from ${name}`,
       html: `
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto">

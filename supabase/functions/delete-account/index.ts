@@ -17,24 +17,6 @@ function json(body: unknown, status = 200) {
   });
 }
 
-async function verifyJWT(token: string, secret: string): Promise<Record<string, unknown> | null> {
-  try {
-    const [headerB64, payloadB64, sigB64] = token.split(".");
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(secret);
-    const key = await crypto.subtle.importKey(
-      "raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]
-    );
-    const data = encoder.encode(`${headerB64}.${payloadB64}`);
-    const sig = Uint8Array.from(atob(sigB64.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
-    const valid = await crypto.subtle.verify("HMAC", key, sig, data);
-    if (!valid) return null;
-    return JSON.parse(atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/")));
-  } catch {
-    return null;
-  }
-}
-
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -46,22 +28,19 @@ serve(async (req: Request) => {
     return json({ error: "Missing or invalid Authorization header" }, 401);
   }
   const token = authHeader.slice(7);
-  const jwtSecret = Deno.env.get("SUPABASE_JWT_SECRET") ?? "";
-  const payload = await verifyJWT(token, jwtSecret);
-  if (!payload) {
-    return json({ error: "Invalid or expired token" }, 401);
-  }
-
-  const userId = payload.sub as string;
-  if (!userId) {
-    return json({ error: "Authentication required" }, 401);
-  }
 
   const supabaseAdmin = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
+
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !user) {
+    return json({ error: "Invalid or expired token" }, 401);
+  }
+
+  const userId = user.id;
 
   try {
     // Block deletion if upcoming confirmed bookings exist
@@ -85,7 +64,7 @@ serve(async (req: Request) => {
     await supabaseAdmin
       .from("reviews")
       .delete()
-      .eq("user_id", userId);
+      .eq("traveler_id", userId);
 
     // Cancel (archive) past bookings instead of hard-deleting
     await supabaseAdmin

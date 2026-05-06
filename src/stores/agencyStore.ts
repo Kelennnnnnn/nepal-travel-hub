@@ -329,7 +329,7 @@ export const useAgencyStore = create<AgencyStore>((set, get) => ({
       try {
         const { error: fnError } = await supabase.functions.invoke(
           "upgrade-agency-role",
-          { body: { user_id: targetApp.user_id, action } }
+          { body: { user_id: targetApp.user_id, action, reason: rejectionReason } }
         );
         if (fnError) {
           console.error("Role upgrade failed:", fnError.message);

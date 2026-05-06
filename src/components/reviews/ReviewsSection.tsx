@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +11,7 @@ import {
 import { ReviewCard } from "./ReviewCard";
 import { ReviewSummary } from "./ReviewSummary";
 import { WriteReviewDialog } from "./WriteReviewDialog";
-import { useReviewsStore, Review } from "@/stores/reviewsStore";
+import { useCanReviewListing, useListingReviews, type Review } from "@/lib/queries";
 
 interface ReviewsSectionProps {
   activityId: string;
@@ -31,20 +31,14 @@ function computeSummary(reviews: Review[]) {
 
 export function ReviewsSection({ activityId, activityTitle }: ReviewsSectionProps) {
   const [sortBy, setSortBy] = useState("newest");
-  const { reviews, canReview, isLoading, fetchReviewsForListing, checkCanReview } =
-    useReviewsStore();
-
-  useEffect(() => {
-    void fetchReviewsForListing(activityId);
-    void checkCanReview(activityId);
-  }, [activityId, fetchReviewsForListing, checkCanReview]);
+  const { data: reviews = [], isLoading } = useListingReviews(activityId);
+  const { data: canReview = false } = useCanReviewListing(activityId);
 
   const { average, count, distribution } = computeSummary(reviews);
 
   const sortedReviews = [...reviews].sort((a: Review, b: Review) => {
     if (sortBy === "newest") return new Date(b.date).getTime() - new Date(a.date).getTime();
     if (sortBy === "highest") return b.rating - a.rating;
-    if (sortBy === "lowest") return a.rating - b.rating;
     if (sortBy === "helpful") return b.helpful - a.helpful;
     return 0;
   });
@@ -54,10 +48,6 @@ export function ReviewsSection({ activityId, activityTitle }: ReviewsSectionProp
       activityId={activityId}
       activityTitle={activityTitle}
       trigger={<Button>Write a Review</Button>}
-      onSuccess={() => {
-        void fetchReviewsForListing(activityId);
-        void checkCanReview(activityId);
-      }}
     />
   ) : null;
 
@@ -86,9 +76,8 @@ export function ReviewsSection({ activityId, activityTitle }: ReviewsSectionProp
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="newest">Newest First</SelectItem>
+                <SelectItem value="newest">Most Recent</SelectItem>
                 <SelectItem value="highest">Highest Rated</SelectItem>
-                <SelectItem value="lowest">Lowest Rated</SelectItem>
                 <SelectItem value="helpful">Most Helpful</SelectItem>
               </SelectContent>
             </Select>
@@ -112,10 +101,6 @@ export function ReviewsSection({ activityId, activityTitle }: ReviewsSectionProp
               activityId={activityId}
               activityTitle={activityTitle}
               trigger={<Button variant="outline">Write a Review</Button>}
-              onSuccess={() => {
-                void fetchReviewsForListing(activityId);
-                void checkCanReview(activityId);
-              }}
             />
           )}
         </div>

@@ -1,45 +1,20 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail } from "../_shared/email.ts";
-import {
-  agencyApprovedEmail,
-  agencyRejectedEmail,
-} from "../_shared/emailTemplates.ts";
+import { agencyApprovedEmail, agencyRejectedEmail } from "../_shared/emailTemplates.ts";
 
 const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": allowedOrigin,
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-async function verifyJWT(token: string, secret: string): Promise<Record<string, unknown> | null> {
-  try {
-    const [headerB64, payloadB64, sigB64] = token.split(".");
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(secret);
-    const key = await crypto.subtle.importKey(
-      "raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]
-    );
-    const data = encoder.encode(`${headerB64}.${payloadB64}`);
-    const sig = Uint8Array.from(atob(sigB64.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
-    const valid = await crypto.subtle.verify("HMAC", key, sig, data);
-    if (!valid) return null;
-    return JSON.parse(atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/")));
-  } catch {
-    return null;
-  }
-}
-
-serve(async (req: Request) => {
-  // Handle CORS preflight
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  // JWT verification — admin only
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return new Response(
@@ -48,24 +23,30 @@ serve(async (req: Request) => {
     );
   }
   const token = authHeader.slice(7);
-  const jwtSecret = Deno.env.get("SUPABASE_JWT_SECRET") ?? "";
-  const payload = await verifyJWT(token, jwtSecret);
-  if (!payload) {
+
+  const supabaseAdmin = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
+  // Validate token and check admin role
+  const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !caller) {
     return new Response(
       JSON.stringify({ error: "Invalid or expired token" }),
       { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-  const role = (payload as { user_metadata?: { role?: string } }).user_metadata?.role;
-  if (role !== "admin") {
+  if (caller.user_metadata?.role !== "admin") {
     return new Response(
       JSON.stringify({ error: "Admin access required" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
   try {
-    const { user_id, action } = await req.json();
+    const { user_id, action, reason = "" } = await req.json();
 
     if (!user_id || !action) {
       return new Response(
@@ -81,13 +62,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Use service role key to bypass RLS and update auth metadata
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-
     const newRole = action === "approve" ? "agency" : "user";
 
     const { error } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
@@ -101,7 +75,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // Fetch agency details for email
+    // Send approval / rejection email
     const { data: agency } = await supabaseAdmin
       .from("agency_applications")
       .select("company_name, email")
@@ -112,12 +86,12 @@ serve(async (req: Request) => {
       if (action === "approve") {
         const { subject, html } = agencyApprovedEmail({
           agencyName: agency.company_name ?? "Agency",
-          email: agency.email,
         });
         await sendEmail({ to: agency.email, subject, html });
       } else {
         const { subject, html } = agencyRejectedEmail({
           agencyName: agency.company_name ?? "Agency",
+          reason: reason || "Your application did not meet our current requirements.",
         });
         await sendEmail({ to: agency.email, subject, html });
       }

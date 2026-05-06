@@ -32,6 +32,12 @@ import type { Activity } from "@/components/activities/ActivityCard";
 
 const PAGE_SIZE = 20;
 const DIFFICULTIES = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
+const DURATION_RANGES = [
+  { value: "1", label: "1 day" },
+  { value: "2-3", label: "2-3 days" },
+  { value: "4-7", label: "4-7 days" },
+  { value: "8+", label: "8+ days" },
+];
 
 function listingToActivity(listing: Listing): Activity {
   return {
@@ -65,6 +71,7 @@ export default function Activities() {
   const difficulties = searchParams.get("difficulty")
     ? searchParams.get("difficulty")!.split(",")
     : [];
+  const durationRange = searchParams.get("duration") || "all";
   const availableOnDate = searchParams.get("date") || undefined;
 
   // Local input state for debounced/uncontrolled fields
@@ -127,6 +134,7 @@ export default function Activities() {
     priceMin,
     priceMax,
     difficulties: difficulties.length ? difficulties : undefined,
+    durationRange: durationRange !== "all" ? durationRange : undefined,
     availableOnDate,
   });
 
@@ -141,6 +149,7 @@ export default function Activities() {
     priceMin != null,
     priceMax != null,
     difficulties.length > 0,
+    durationRange !== "all",
     !!availableOnDate,
   ].filter(Boolean).length;
 
@@ -189,6 +198,30 @@ export default function Activities() {
             </div>
           ))}
         </div>
+      </div>
+
+      <Separator />
+
+      {/* Duration */}
+      <div>
+        <Label className="text-sm font-semibold mb-3 block">Duration</Label>
+        <Select
+          value={durationRange}
+          onValueChange={(value) => {
+            updateParam("duration", value === "all" ? null : value);
+            updateParam("page", null);
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Any duration" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any duration</SelectItem>
+            {DURATION_RANGES.map((range) => (
+              <SelectItem key={range.value} value={range.value}>{range.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Separator />
@@ -339,7 +372,7 @@ export default function Activities() {
           </div>
 
           {/* Active filter badges */}
-          {(search || category !== "all" || location !== "All Locations" || priceMin != null || priceMax != null || difficulties.length > 0 || availableOnDate) && (
+          {(search || category !== "all" || location !== "All Locations" || priceMin != null || priceMax != null || difficulties.length > 0 || durationRange !== "all" || availableOnDate) && (
             <div className="flex flex-wrap items-center gap-2 mt-3">
               <span className="text-xs text-muted-foreground">Active filters:</span>
               {search && (
@@ -372,6 +405,12 @@ export default function Activities() {
                   <button onClick={() => toggleDifficulty(d)}><X className="h-3 w-3" /></button>
                 </Badge>
               ))}
+              {durationRange !== "all" && (
+                <Badge variant="secondary" className="gap-1 text-xs">
+                  {DURATION_RANGES.find((range) => range.value === durationRange)?.label}
+                  <button onClick={() => updateParam("duration", null)}><X className="h-3 w-3" /></button>
+                </Badge>
+              )}
               {availableOnDate && (
                 <Badge variant="secondary" className="gap-1 text-xs">
                   {new Date(availableOnDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -392,7 +431,7 @@ export default function Activities() {
             <p className="text-sm text-muted-foreground">
               {isLoading ? "Loading…" : (
                 <>
-                  Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)}</span> of{" "}
+                  Showing <span className="font-medium text-foreground">{total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)}</span> of{" "}
                   <span className="font-medium text-foreground">{total}</span> activities
                 </>
               )}

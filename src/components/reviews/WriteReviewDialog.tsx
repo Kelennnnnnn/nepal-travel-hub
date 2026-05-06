@@ -12,8 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
-import { useReviewsStore } from "@/stores/reviewsStore";
+import { useSubmitReview } from "@/lib/queries";
 
 interface WriteReviewDialogProps {
   activityId: string;
@@ -34,7 +33,7 @@ export function WriteReviewDialog({
   const [title, setTitle] = useState("");
   const [comment, setComment] = useState("");
 
-  const { submitReview, isSubmitting } = useReviewsStore();
+  const submitReview = useSubmitReview();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,40 +50,15 @@ export function WriteReviewDialog({
       return;
     }
 
-    // Resolve the eligible booking id at submit time
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      toast.error("You must be signed in to submit a review");
-      return;
-    }
-
-    const { data: bookings } = await supabase
-      .from("bookings")
-      .select("id")
-      .eq("listing_id", activityId)
-      .eq("traveler_id", user.id)
-      .eq("status", "completed")
-      .limit(1);
-
-    const bookingId = bookings?.[0]?.id;
-    if (!bookingId) {
-      toast.error("No completed booking found for this activity");
-      return;
-    }
-
-    const { error } = await submitReview({
-      listingId: activityId,
-      bookingId,
-      rating,
-      title: title.trim(),
-      comment: comment.trim(),
-    });
-
-    if (error) {
-      toast.error(error);
+    try {
+      await submitReview.mutateAsync({
+        listingId: activityId,
+        rating,
+        title: title.trim(),
+        comment: comment.trim(),
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to submit review");
       return;
     }
 
@@ -164,8 +138,8 @@ export function WriteReviewDialog({
             </p>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? "Submitting…" : "Submit Review"}
+          <Button type="submit" className="w-full" disabled={submitReview.isPending}>
+            {submitReview.isPending ? "Submitting…" : "Submit Review"}
           </Button>
         </form>
       </DialogContent>

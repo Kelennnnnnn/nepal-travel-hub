@@ -273,26 +273,37 @@ export async function startConversation({
   listingId: string;
   content: string;
 }): Promise<{ conversationId: string }> {
-  // Upsert conversation (UNIQUE constraint handles duplicates)
-  const { data: conv, error: convError } = await supabase
+  const { data: existing, error: findError } = await supabase
     .from("conversations")
-    .upsert(
-      { traveler_id: travelerId, agency_id: agencyId, listing_id: listingId },
-      { onConflict: "traveler_id,agency_id,listing_id" }
-    )
     .select("id")
-    .single();
+    .eq("traveler_id", travelerId)
+    .eq("agency_id", agencyId)
+    .eq("listing_id", listingId)
+    .maybeSingle();
 
-  if (convError || !conv) throw convError ?? new Error("Failed to create conversation");
+  if (findError) throw findError;
+
+  let conversationId = existing?.id;
+
+  if (!conversationId) {
+    const { data: conv, error: convError } = await supabase
+      .from("conversations")
+      .insert({ traveler_id: travelerId, agency_id: agencyId, listing_id: listingId })
+      .select("id")
+      .single();
+
+    if (convError || !conv) throw convError ?? new Error("Failed to create conversation");
+    conversationId = conv.id;
+  }
 
   // Insert message
   const { error: msgError } = await supabase.from("messages").insert({
-    conversation_id: conv.id,
+    conversation_id: conversationId,
     sender_id: travelerId,
     content: content.trim(),
   });
 
   if (msgError) throw msgError;
 
-  return { conversationId: conv.id };
+  return { conversationId };
 }

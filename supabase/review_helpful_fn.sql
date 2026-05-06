@@ -35,5 +35,16 @@ AS $$
   WHERE id = review_id;
 $$;
 
+CREATE OR REPLACE FUNCTION increment_helpful(review_id UUID)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  UPDATE reviews
+  SET helpful_count = COALESCE(helpful_count, 0) + 1
+  WHERE id = review_id;
+$$;
+
 -- Allow anyone (anon + authenticated) to call this
 GRANT EXECUTE ON FUNCTION increment_review_helpful(UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION increment_helpful(UUID) TO anon, authenticated;

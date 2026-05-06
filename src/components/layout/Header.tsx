@@ -267,6 +267,17 @@ export function Header() {
 
                     {user?.role === "user" && (
                       <>
+                        <Link to="/messages" onClick={() => setIsMobileMenuOpen(false)}>
+                          <Button variant="outline" className="w-full justify-start">
+                            <MessageSquare className="mr-2 h-4 w-4" />
+                            <span className="flex-1 text-left">Messages</span>
+                            {unreadCount > 0 && (
+                              <span className="bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">
+                                {unreadCount}
+                              </span>
+                            )}
+                          </Button>
+                        </Link>
                         <Link to="/my-bookings" onClick={() => setIsMobileMenuOpen(false)}>
                           <Button variant="outline" className="w-full justify-start">
                             <BookOpen className="mr-2 h-4 w-4" />

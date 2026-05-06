@@ -9,7 +9,7 @@ interface SEOProps {
 }
 
 const DEFAULT_DESC = "Discover authentic Nepal travel experiences — trekking, rafting, cultural tours and more with verified local agencies.";
-const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=1200&h=630&fit=crop";
+const DEFAULT_IMAGE = "https://yatranepal.com/og-image.jpg";
 const SITE_NAME = "Yatra Nepal";
 
 export function SEO({ title, description, image, url, type = "website" }: SEOProps) {

@@ -30,7 +30,7 @@ import { ReviewsSection } from "@/components/reviews/ReviewsSection";
 import { ImageGallery } from "@/components/gallery/ImageGallery";
 import { ActivityCard } from "@/components/activities/ActivityCard";
 import type { Activity } from "@/components/activities/ActivityCard";
-import { useListingsStore } from "@/stores/listingsStore";
+import { useListing } from "@/lib/queries";
 import { useAuthStore } from "@/stores/authStore";
 import { supabase } from "@/lib/supabase";
 import { useWishlistIds, useToggleWishlist } from "@/hooks/useWishlist";
@@ -50,7 +50,7 @@ import { MessageSquare } from "lucide-react";
 export default function ActivityDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { currentListing: listing, isLoadingPublished, fetchListingById } = useListingsStore();
+  const { data: listing, isLoading } = useListing(id);
   const { user, isAuthenticated } = useAuthStore();
 
   const [selectedDate, setSelectedDate] = useState("");
@@ -71,13 +71,6 @@ export default function ActivityDetail() {
   const [availabilityId, setAvailabilityId] = useState<string | null>(null);
   const [priceOverride, setPriceOverride] = useState<number | null>(null);
   const [relatedActivities, setRelatedActivities] = useState<Activity[]>([]);
-
-  // Fetch listing on mount
-  useEffect(() => {
-    if (id) {
-      fetchListingById(id);
-    }
-  }, [id, fetchListingById]);
 
   // Pre-fill name and email from auth user
   useEffect(() => {
@@ -183,7 +176,7 @@ export default function ActivityDetail() {
   }, [listing?.agency_id]);
 
   // Loading state
-  if (isLoadingPublished) {
+  if (isLoading) {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-32 text-center">
@@ -213,6 +206,20 @@ export default function ActivityDetail() {
   const maxParticipants = listing.max_participants;
   const spotsLeft = availableSpots ?? maxParticipants;
   const totalPrice = price * participants;
+
+  const daysUntilTrip = selectedDate
+    ? Math.floor((new Date(selectedDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+  const cancellationBadge = (() => {
+    if (daysUntilTrip === null) return { text: "Free cancellation available", color: "text-muted-foreground" };
+    if (daysUntilTrip >= 7) {
+      const deadline = new Date(new Date(selectedDate).getTime() - 7 * 86_400_000);
+      const fmt = deadline.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      return { text: `Free cancellation until ${fmt}`, color: "text-green-600" };
+    }
+    if (daysUntilTrip >= 3) return { text: "50% refund if cancelled now", color: "text-amber-600" };
+    return { text: "Non-refundable", color: "text-destructive" };
+  })();
 
   const handleBooking = async () => {
     // Validate inputs
@@ -712,14 +719,14 @@ export default function ActivityDetail() {
                   </Button>
 
                   {/* Trust Badges */}
-                  <div className="flex items-center justify-center gap-4 pt-4 text-xs text-muted-foreground">
+                  <div className="flex flex-col items-center gap-2 pt-4 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Shield className="h-4 w-4" />
                       <span>Secure Payment</span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className={`flex items-center gap-1 ${cancellationBadge.color}`}>
                       <Check className="h-4 w-4" />
-                      <span>Free Cancellation</span>
+                      <span>{cancellationBadge.text}</span>
                     </div>
                   </div>
                 </CardContent>

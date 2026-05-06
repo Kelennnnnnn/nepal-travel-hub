@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { useTravelerBookings } from "@/lib/queries";
+import { useCanReviewListing, useTravelerBookings } from "@/lib/queries";
 import { useQueryClient } from "@tanstack/react-query";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -54,6 +54,8 @@ interface Booking {
   status: string;
   payment_status: string;
   traveler_name: string | null;
+  traveler_email: string | null;
+  traveler_phone: string | null;
   created_at: string;
   listing?: BookingListing | null;
 }
@@ -130,13 +132,16 @@ function BookingCard({ booking, onCancelled }: { booking: Booking; onCancelled: 
   const refundAmount = (booking.total_amount * pct) / 100;
 
   const canCancel = tab === "upcoming" && booking.status === "confirmed";
+  const { data: canReview = false } = useCanReviewListing(
+    tab === "completed" ? booking.listing_id : undefined
+  );
 
   const handleCancel = async () => {
     setIsCancelling(true);
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { toast.error("Not authenticated"); setIsCancelling(false); return; }
 
-    const { error, data } = await supabase.functions.invoke("cancel-booking", {
+    const { error, data } = await supabase.functions.invoke("process-refund", {
       body: { booking_id: booking.id },
     });
 
@@ -198,8 +203,12 @@ function BookingCard({ booking, onCancelled }: { booking: Booking; onCancelled: 
           {expanded && (
             <div className="pt-2 border-t border-border text-sm space-y-1">
               <p><span className="text-muted-foreground">Price per person:</span> ${Number(booking.price_per_person).toFixed(2)}</p>
+              <p><span className="text-muted-foreground">Total amount:</span> ${Number(booking.total_amount).toFixed(2)}</p>
+              <p><span className="text-muted-foreground">Payment status:</span> {booking.payment_status}</p>
               <p><span className="text-muted-foreground">Booked on:</span> {new Date(booking.created_at).toLocaleDateString()}</p>
               <p><span className="text-muted-foreground">Traveler:</span> {booking.traveler_name}</p>
+              {booking.traveler_email && <p><span className="text-muted-foreground">Email:</span> {booking.traveler_email}</p>}
+              {booking.traveler_phone && <p><span className="text-muted-foreground">Phone:</span> {booking.traveler_phone}</p>}
             </div>
           )}
 
@@ -216,7 +225,7 @@ function BookingCard({ booking, onCancelled }: { booking: Booking; onCancelled: 
               </Button>
             )}
 
-            {tab === "completed" && (
+            {tab === "completed" && canReview && (
               <Link to={`/activities/${booking.listing_id}#review`}>
                 <Button variant="outline" size="sm">
                   <Star className="h-3.5 w-3.5 mr-1" />

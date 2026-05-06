@@ -1,10 +1,12 @@
 import { Layout } from "@/components/layout/Layout";
+import { SEO } from "@/components/SEO";
 
 const LAST_UPDATED = "April 9, 2026";
 
 export default function CookiePolicy() {
   return (
     <Layout>
+      <SEO title="Cookie Policy" description="Learn how Yatra Nepal uses cookies and similar technologies to operate and improve the marketplace." />
       <div className="max-w-3xl mx-auto px-6 py-16">
         <div className="mb-10">
           <h1 className="text-4xl font-bold mb-3">Cookie Policy</h1>

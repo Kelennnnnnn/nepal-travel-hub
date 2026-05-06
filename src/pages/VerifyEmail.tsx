@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Mountain, Mail, RefreshCw, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
@@ -13,6 +14,24 @@ export default function VerifyEmail() {
 
   const [cooldown, setCooldown] = useState(0);
   const [isResending, setIsResending] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const queryError = searchParams.get("error_description");
+    const hashError = hashParams.get("error_description");
+    const errorCode = searchParams.get("error_code") ?? hashParams.get("error_code");
+    const errorDescription = queryError ?? hashError;
+
+    if (errorCode === "otp_expired" || errorDescription?.toLowerCase().includes("expired")) {
+      setLinkError("That verification link has expired. Resend the email below and use the newest link.");
+      return;
+    }
+
+    if (errorDescription) {
+      setLinkError(errorDescription);
+    }
+  }, [searchParams]);
 
   // Tick down the cooldown
   useEffect(() => {
@@ -55,7 +74,7 @@ export default function VerifyEmail() {
 
         {/* Heading */}
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold">Check your email</h1>
+          <h1 className="text-2xl font-bold">Check your email!</h1>
           <p className="text-muted-foreground">
             We sent a verification link to{" "}
             {email ? (
@@ -65,6 +84,13 @@ export default function VerifyEmail() {
             )}
           </p>
         </div>
+
+        {linkError && (
+          <Alert variant="destructive" className="text-left">
+            <AlertTitle>Verification link problem</AlertTitle>
+            <AlertDescription>{linkError}</AlertDescription>
+          </Alert>
+        )}
 
         {/* Steps */}
         <div className="bg-white rounded-xl border border-border p-5 text-left space-y-3">

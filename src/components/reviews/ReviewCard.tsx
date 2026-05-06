@@ -1,5 +1,5 @@
 import { Star, ThumbsUp, BadgeCheck } from "lucide-react";
-import { Review } from "@/stores/reviewsStore";
+import type { Review } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -55,8 +55,10 @@ export function ReviewCard({ review }: ReviewCardProps) {
     setHelpfulCount((c) => c + 1);
     setHasVoted(true);
     markVoted(review.id);
-    // Persist to DB
-    await supabase.rpc("increment_review_helpful", { review_id: review.id });
+    const { error } = await supabase.rpc("increment_helpful", { review_id: review.id });
+    if (error) {
+      await supabase.rpc("increment_review_helpful", { review_id: review.id });
+    }
   };
 
   return (

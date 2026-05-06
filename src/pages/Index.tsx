@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { SEO } from "@/components/SEO";
 import { Search, ChevronRight, Shield, Users, Clock, Award, MapPin, Star } from "lucide-react";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Layout } from "@/components/layout/Layout";
 import { ActivityCard } from "@/components/activities/ActivityCard";
 import { categories } from "@/data/activities";
-import { useListingsStore } from "@/stores/listingsStore";
+import { usePublishedListings } from "@/lib/queries";
 import type { Listing } from "@/stores/listingsStore";
 import type { Activity } from "@/components/activities/ActivityCard";
 import heroImage from "@/assets/hero-nepal.jpg";
@@ -83,17 +83,10 @@ const testimonials = [
 export default function Index() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const { publishedListings, fetchPublishedListings } = useListingsStore();
+  const { data: listingsData } = usePublishedListings({ pageSize: 20 });
+  const allListings = (listingsData?.listings ?? []) as Listing[];
 
-  // Fetch published listings on mount
-  useEffect(() => {
-    fetchPublishedListings();
-  }, [fetchPublishedListings]);
-
-  // Featured activities from the store
-  const featuredActivities = publishedListings
-    .filter((l) => l.featured)
-    .map(listingToActivity);
+  const featuredActivities = allListings.filter((l) => l.featured).map(listingToActivity);
 
   const handleHeroSearch = () => {
     if (searchQuery.trim()) {
@@ -233,7 +226,7 @@ export default function Index() {
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {publishedListings.slice(0, 3).map(listingToActivity).map((activity) => (
+              {allListings.slice(0, 3).map(listingToActivity).map((activity) => (
                 <ActivityCard key={activity.id} activity={activity} />
               ))}
             </div>

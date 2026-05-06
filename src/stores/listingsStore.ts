@@ -78,15 +78,6 @@ export interface ListingFormData {
   status: ListingStatus;
 }
 
-// ── Filter types for traveler-side queries ─────────────────
-
-export interface ListingFilters {
-  category?: ListingCategory;
-  location?: string;
-  search?: string;
-  sortBy?: "price_asc" | "price_desc" | "rating" | "newest";
-}
-
 // ── Store interface ────────────────────────────────────────
 
 interface ListingsStore {
@@ -95,11 +86,6 @@ interface ListingsStore {
   myAvailability: AvailabilitySlot[];
   isLoading: boolean;
   error: string | null;
-
-  // Traveler-side state
-  publishedListings: Listing[];
-  currentListing: Listing | null;
-  isLoadingPublished: boolean;
 
   // Agency-side actions
   fetchMyListings: () => Promise<void>;
@@ -110,10 +96,6 @@ interface ListingsStore {
   fetchMyAvailability: (listingId: string) => Promise<void>;
   upsertAvailability: (slot: Omit<AvailabilitySlot, "id" | "created_at">) => Promise<{ error: string | null }>;
   deleteAvailability: (id: string) => Promise<{ error: string | null }>;
-
-  // Traveler-side actions
-  fetchPublishedListings: (filters?: ListingFilters) => Promise<void>;
-  fetchListingById: (id: string) => Promise<void>;
 
   // Reset
   reset: () => void;
@@ -126,9 +108,6 @@ export const useListingsStore = create<ListingsStore>((set, get) => ({
   myAvailability: [],
   isLoading: false,
   error: null,
-  publishedListings: [],
-  currentListing: null,
-  isLoadingPublished: false,
 
   // ── Agency: fetch own listings ───────────────────────────
   fetchMyListings: async () => {
@@ -304,85 +283,11 @@ export const useListingsStore = create<ListingsStore>((set, get) => ({
     return { error: null };
   },
 
-  // ── Traveler: fetch published listings with filters ──────
-  fetchPublishedListings: async (filters) => {
-    set({ isLoadingPublished: true, error: null });
-
-    let query = supabase
-      .from("listings")
-      .select("*")
-      .eq("status", "published");
-
-    // Apply optional filters
-    if (filters?.category) {
-      query = query.eq("category", filters.category);
-    }
-    if (filters?.location) {
-      query = query.ilike("location", `%${filters.location}%`);
-    }
-    if (filters?.search) {
-      query = query.or(
-        `title.ilike.%${filters.search}%,description.ilike.%${filters.search}%,location.ilike.%${filters.search}%`
-      );
-    }
-
-    // Apply sorting
-    switch (filters?.sortBy) {
-      case "price_asc":
-        query = query.order("price", { ascending: true });
-        break;
-      case "price_desc":
-        query = query.order("price", { ascending: false });
-        break;
-      case "rating":
-        query = query.order("rating", { ascending: false });
-        break;
-      case "newest":
-      default:
-        query = query.order("created_at", { ascending: false });
-        break;
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Error fetching published listings:", error.message);
-      set({ isLoadingPublished: false, error: error.message });
-      return;
-    }
-
-    set({
-      publishedListings: (data ?? []) as Listing[],
-      isLoadingPublished: false,
-    });
-  },
-
-  // ── Traveler: fetch single listing by ID ─────────────────
-  fetchListingById: async (id) => {
-    set({ isLoadingPublished: true, error: null });
-
-    const { data, error } = await supabase
-      .from("listings")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error) {
-      console.error("Error fetching listing:", error.message);
-      set({ isLoadingPublished: false, error: error.message, currentListing: null });
-      return;
-    }
-
-    set({ currentListing: data as Listing, isLoadingPublished: false });
-  },
-
   // ── Reset ────────────────────────────────────────────────
   reset: () =>
     set({
       myListings: [],
       myAvailability: [],
-      publishedListings: [],
-      currentListing: null,
       error: null,
     }),
 }));

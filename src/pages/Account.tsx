@@ -37,6 +37,7 @@ export default function Account() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   // Security state
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
@@ -56,7 +57,7 @@ export default function Account() {
       setPhone(user.user_metadata?.phone ?? "");
       setLastSignIn(user.last_sign_in_at ?? null);
 
-      const storedPath = user.user_metadata?.avatar_path;
+      const storedPath = user.user_metadata?.avatar_url ?? user.user_metadata?.avatar_path;
       if (storedPath) {
         setAvatarPath(storedPath);
         const { data } = await supabase.storage
@@ -106,8 +107,8 @@ export default function Account() {
     if (signed?.signedUrl) setAvatarUrl(signed.signedUrl);
     setAvatarPath(path);
 
-    // Save path to user metadata
-    await supabase.auth.updateUser({ data: { avatar_path: path } });
+    // Store the private storage path in auth metadata; signed URLs are created when displayed.
+    await supabase.auth.updateUser({ data: { avatar_url: path } });
     toast.success("Avatar updated.");
     setIsUploadingAvatar(false);
   };
@@ -119,7 +120,7 @@ export default function Account() {
     }
     setIsSavingProfile(true);
     const { error } = await supabase.auth.updateUser({
-      data: { name: name.trim(), phone: phone.trim(), avatar_path: avatarPath },
+      data: { name: name.trim(), phone: phone.trim(), avatar_url: avatarPath },
     });
     setIsSavingProfile(false);
     if (error) { toast.error(error.message); return; }
@@ -139,9 +140,25 @@ export default function Account() {
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setIsSavingPassword(false);
     if (error) { toast.error(error.message); return; }
+    setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
     toast.success("Password updated.");
+  };
+
+  const getFunctionErrorMessage = async (error: unknown) => {
+    if (error && typeof error === "object" && "context" in error) {
+      const context = (error as { context?: unknown }).context;
+      if (context instanceof Response) {
+        try {
+          const body = await context.json();
+          if (typeof body?.error === "string") return body.error;
+        } catch {
+          // Fall through to the default error message.
+        }
+      }
+    }
+    return error instanceof Error ? error.message : "Failed to delete account.";
   };
 
   const handleDeleteAccount = async () => {
@@ -158,7 +175,7 @@ export default function Account() {
     });
 
     if (error) {
-      toast.error(error.message || "Failed to delete account.");
+      toast.error(await getFunctionErrorMessage(error));
       setIsDeleting(false);
       return;
     }
@@ -266,6 +283,18 @@ export default function Account() {
                     </p>
                   )}
                   <Separator />
+                  <div className="space-y-2">
+                    <Label>Current Password</Label>
+                    <Input
+                      type="password"
+                      placeholder="Optional"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Supabase does not require this to update your password.
+                    </p>
+                  </div>
                   <div className="space-y-2">
                     <Label>New Password</Label>
                     <Input

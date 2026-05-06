@@ -1,10 +1,12 @@
 import { Layout } from "@/components/layout/Layout";
+import { SEO } from "@/components/SEO";
 
 const LAST_UPDATED = "April 8, 2026";
 
 export default function PrivacyPolicy() {
   return (
     <Layout>
+      <SEO title="Privacy Policy" description="Read Yatra Nepal's privacy policy and learn how traveler, booking, payment, and communication data is handled." />
       <div className="max-w-3xl mx-auto px-6 py-16">
         <div className="mb-10">
           <h1 className="text-4xl font-bold mb-3">Privacy Policy</h1>

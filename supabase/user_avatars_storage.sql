@@ -9,7 +9,15 @@ VALUES (
   2097152, -- 2MB in bytes
   ARRAY['image/jpeg', 'image/png', 'image/webp']
 )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  public = false,
+  file_size_limit = 2097152,
+  allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
+
+DROP POLICY IF EXISTS "Users can upload their own avatar" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update their own avatar" ON storage.objects;
+DROP POLICY IF EXISTS "Users can read their own avatar" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete their own avatar" ON storage.objects;
 
 -- 2. Users can upload their own avatar (INSERT)
 CREATE POLICY "Users can upload their own avatar"

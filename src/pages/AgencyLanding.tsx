@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Layout } from "@/components/layout/Layout";
+import { SEO } from "@/components/SEO";
 
 const benefits = [
   {
@@ -100,6 +101,7 @@ const testimonials = [
 export default function AgencyLanding() {
   return (
     <Layout>
+      <SEO title="Partner With Us" description="Join Yatra Nepal as a verified travel agency partner and reach travelers looking for authentic Nepal experiences." />
       {/* Hero */}
       <section className="relative pt-32 pb-20 md:pt-40 md:pb-32 bg-primary text-primary-foreground overflow-hidden">
         <div className="absolute inset-0 opacity-10">
