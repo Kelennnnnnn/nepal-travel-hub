@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ReviewsSection } from "@/components/reviews/ReviewsSection";
+import { ImageGallery } from "@/components/gallery/ImageGallery";
 import { ActivityCard } from "@/components/activities/ActivityCard";
 import type { Activity } from "@/components/activities/ActivityCard";
 import { useListingsStore } from "@/stores/listingsStore";
@@ -212,7 +213,6 @@ export default function ActivityDetail() {
   const maxParticipants = listing.max_participants;
   const spotsLeft = availableSpots ?? maxParticipants;
   const totalPrice = price * participants;
-  const heroImage = listing.images?.[0] || "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&h=600&fit=crop";
 
   const handleBooking = async () => {
     // Validate inputs
@@ -347,43 +347,8 @@ export default function ActivityDetail() {
         </div>
       </div>
 
-      {/* Hero Image */}
-      <section className="relative h-[40vh] md:h-[50vh]">
-        <img
-          src={heroImage}
-          alt={listing.title}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 via-transparent to-transparent" />
-        
-        {/* Actions */}
-        <div className="absolute top-4 right-4 flex gap-2">
-          <Button variant="glass" size="icon">
-            <Share2 className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="glass"
-            size="icon"
-            disabled={isTogglingWishlist}
-            onClick={() => {
-              if (!isAuthenticated) {
-                toast.error("Please log in to save activities.");
-                return;
-              }
-              toggleWishlist({ listingId: listing.id, isSaved: wishlistIds.has(listing.id) });
-            }}
-          >
-            <Heart className={`h-5 w-5 transition-colors ${wishlistIds.has(listing.id) ? "fill-red-500 text-red-500" : ""}`} />
-          </Button>
-        </div>
-
-        {/* Category Badge */}
-        <div className="absolute bottom-4 left-4">
-          <Badge className="bg-primary text-primary-foreground text-sm px-3 py-1">
-            {listing.category}
-          </Badge>
-        </div>
-      </section>
+      {/* Photo Gallery */}
+      <ImageGallery images={listing.images ?? []} title={listing.title} />
 
       {/* Content */}
       <section className="py-8 md:py-12">
@@ -393,9 +358,33 @@ export default function ActivityDetail() {
             <div className="lg:col-span-2 space-y-8">
               {/* Title & Meta */}
               <div>
-                <h1 className="text-3xl md:text-4xl font-bold mb-4">
-                  {listing.title}
-                </h1>
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <h1 className="text-3xl md:text-4xl font-bold">
+                    {listing.title}
+                  </h1>
+                  <div className="flex gap-2 flex-shrink-0 pt-1">
+                    <Button variant="outline" size="icon">
+                      <Share2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      disabled={isTogglingWishlist}
+                      onClick={() => {
+                        if (!isAuthenticated) {
+                          toast.error("Please log in to save activities.");
+                          return;
+                        }
+                        toggleWishlist({ listingId: listing.id, isSaved: wishlistIds.has(listing.id) });
+                      }}
+                    >
+                      <Heart className={`h-4 w-4 transition-colors ${wishlistIds.has(listing.id) ? "fill-red-500 text-red-500" : ""}`} />
+                    </Button>
+                  </div>
+                </div>
+                <Badge className="bg-primary/10 text-primary border-primary/20 mb-4">
+                  {listing.category}
+                </Badge>
                 <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <MapPin className="h-4 w-4" />

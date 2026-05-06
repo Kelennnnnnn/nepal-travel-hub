@@ -14,7 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Outfit', 'system-ui', 'sans-serif'],
+        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+        serif: ['Playfair Display', 'Georgia', 'serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -60,17 +61,12 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        emerald: {
-          DEFAULT: "hsl(var(--emerald))",
-          light: "hsl(var(--emerald-light))",
-          dark: "hsl(var(--emerald-dark))",
+        sienna: {
+          DEFAULT: "hsl(var(--primary))",
+          light: "hsl(18 83% 52%)",
+          dark: "hsl(18 83% 30%)",
         },
-        amber: {
-          DEFAULT: "hsl(var(--amber))",
-          light: "hsl(var(--amber-light))",
-          dark: "hsl(var(--amber-dark))",
-        },
-        cream: "hsl(var(--cream))",
+        cream: "hsl(var(--secondary))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -82,6 +78,7 @@ export default {
         'md': 'var(--shadow-md)',
         'lg': 'var(--shadow-lg)',
         'glow': 'var(--shadow-glow)',
+        'card': 'var(--shadow-sm)',
       },
       backgroundImage: {
         'gradient-hero': 'var(--gradient-hero)',

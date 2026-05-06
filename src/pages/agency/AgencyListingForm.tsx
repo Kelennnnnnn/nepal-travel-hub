@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { AgencyLayout } from "@/components/agency/AgencyLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Plus, X, ImagePlus, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Save, Loader2 } from "lucide-react";
+import { ImageUploader } from "@/components/uploads/ImageUploader";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -25,7 +26,6 @@ export default function AgencyListingForm() {
   const { id } = useParams();
   const isEditing = Boolean(id);
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { createListing, updateListing, fetchMyListings, myListings } = useListingsStore();
 
@@ -115,25 +115,6 @@ export default function AgencyListingForm() {
   };
   const removeDay = (index: number) => {
     setItinerary((prev) => prev.filter((_, i) => i !== index).map((d, i) => ({ ...d, day: i + 1 })));
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          setImages((prev) => [...prev, ev.target!.result as string]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-    // reset so same file can be re-selected
-    e.target.value = "";
-  };
-
-  const removeImage = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const validate = () => {
@@ -345,38 +326,13 @@ export default function AgencyListingForm() {
         <Card>
           <CardHeader><CardTitle className="text-base">Photos</CardTitle></CardHeader>
           <CardContent>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handleImageUpload}
+            <ImageUploader
+              images={images}
+              onChange={setImages}
+              disabled={isLoading}
+              maxImages={10}
+              maxSizeMB={5}
             />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {images.map((src, i) => (
-                <div key={i} className="relative aspect-[4/3] rounded-lg overflow-hidden group">
-                  <img src={src} alt="" className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => removeImage(i)}
-                    disabled={isLoading}
-                    className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isLoading}
-                className="aspect-[4/3] rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
-              >
-                <ImagePlus className="h-6 w-6" />
-                <span className="text-xs">Add Photo</span>
-              </button>
-            </div>
           </CardContent>
         </Card>
 

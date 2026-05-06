@@ -57,7 +57,6 @@ export default function AgencyLogin() {
       name: businessName,
       email: signupEmail,
       password: signupPassword,
-      role: "agency",
       agencyName: businessName,
     });
 

@@ -293,7 +293,7 @@ export default function AgencyLanding() {
       {/* CTA */}
       <section className="py-16 md:py-24">
         <div className="container mx-auto px-4">
-          <Card className="bg-gradient-to-br from-primary via-primary to-emerald-dark text-primary-foreground border-0">
+          <Card className="bg-gradient-to-br from-primary via-primary to-sienna-dark text-primary-foreground border-0">
             <CardContent className="p-12 text-center">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
                 Ready to Grow Your Business?

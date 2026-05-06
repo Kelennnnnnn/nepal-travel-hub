@@ -118,7 +118,7 @@ function RoleBadge({ role }: { role: UserRole }) {
       );
     case "agency":
       return (
-        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
+        <Badge className="bg-primary/10 text-primary border-primary/20">
           Agency
         </Badge>
       );
@@ -137,7 +137,7 @@ function AvatarInitials({ user }: { user: AdminUser }) {
   const role = userRole(user);
   const colorMap: Record<UserRole, string> = {
     admin: "bg-amber-100 text-amber-700",
-    agency: "bg-emerald-100 text-emerald-700",
+    agency: "bg-primary/10 text-primary",
     user: "bg-blue-100 text-blue-700",
   };
   return (
@@ -310,7 +310,7 @@ export default function AdminUsers() {
               {showSkeleton ? (
                 <Skeleton className="h-8 w-16 mt-1" />
               ) : (
-                <p className="text-2xl font-bold text-emerald-600">
+                <p className="text-2xl font-bold text-primary">
                   {agencyCount}
                 </p>
               )}

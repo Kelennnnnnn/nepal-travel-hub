@@ -242,14 +242,24 @@ export default function AgencySettings() {
             <div className="space-y-2">
               <Label>Account number</Label>
               <div className="flex gap-2">
-                <Input
-                  className="flex-1"
-                  type={showAccountNumber ? "text" : "password"}
-                  autoComplete="off"
-                  placeholder="Account number"
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                />
+                {showAccountNumber ? (
+                  <Input
+                    className="flex-1"
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Account number"
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value)}
+                  />
+                ) : (
+                  <Input
+                    className="flex-1 cursor-default font-mono tracking-widest"
+                    type="text"
+                    readOnly
+                    value={accountNumber ? `••••••${accountNumber.slice(-4)}` : ""}
+                    placeholder="Account number"
+                  />
+                )}
                 <Button
                   type="button"
                   variant="outline"

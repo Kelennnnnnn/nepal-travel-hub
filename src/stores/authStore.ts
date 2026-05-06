@@ -21,7 +21,6 @@ interface AuthState {
     name: string;
     email: string;
     password: string;
-    role: Role;
     agencyName?: string;
   }) => Promise<{ error: string | null; requiresConfirmation: boolean }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
@@ -99,7 +98,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
     return { error: null, role };
   },
 
-  signUp: async ({ name, email, password, role, agencyName }) => {
+  signUp: async ({ name, email, password, agencyName }) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,

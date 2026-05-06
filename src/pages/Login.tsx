@@ -67,7 +67,6 @@ export default function Login() {
       name: data.name,
       email: data.email,
       password: data.password,
-      role: "user",
     });
 
     if (error) {

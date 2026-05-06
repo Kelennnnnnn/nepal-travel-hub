@@ -127,7 +127,7 @@ export default function Index() {
             <span className="inline-block px-4 py-1.5 bg-secondary/90 text-secondary-foreground text-sm font-medium rounded-full mb-6">
               Trusted by 50,000+ Travelers
             </span>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-primary-foreground mb-6 leading-tight">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-serif italic text-primary-foreground mb-6 leading-tight">
               Discover Authentic Nepal Adventures
             </h1>
             <p className="text-lg md:text-xl text-primary-foreground/80 mb-8 max-w-xl">
@@ -311,7 +311,7 @@ export default function Index() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 md:py-20 bg-gradient-to-br from-primary via-primary to-emerald-dark text-primary-foreground">
+      <section className="py-16 md:py-20 bg-gradient-to-br from-primary via-primary to-sienna-dark text-primary-foreground">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Ready to Explore Nepal?
