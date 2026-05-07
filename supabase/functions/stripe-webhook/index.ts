@@ -104,20 +104,28 @@ Deno.serve(async (req: Request) => {
           await sendEmail({ to: booking.traveler_email, subject, html });
         }
 
-        // Email agency
-        if (agencyEmail) {
-          const netPayout = booking.total_amount * 0.9;
-          const { subject, html } = newBookingAgencyEmail({
-            agencyName,
-            bookingRef,
-            activityTitle,
-            travelerName: booking.traveler_name ?? "A traveler",
-            tripDate: booking.booking_date,
-            guests: booking.participants,
-            totalAmount: booking.total_amount,
-            netPayout,
-          });
-          await sendEmail({ to: agencyEmail, subject, html });
+        // Email agency — respect new_booking notification preference
+        if (agencyId && agencyEmail) {
+          const { data: prefs } = await supabaseAdmin
+            .from("notification_preferences")
+            .select("new_booking")
+            .eq("user_id", agencyId)
+            .maybeSingle();
+
+          if (prefs?.new_booking !== false) {
+            const netPayout = booking.total_amount * 0.9;
+            const { subject, html } = newBookingAgencyEmail({
+              agencyName,
+              bookingRef,
+              activityTitle,
+              travelerName: booking.traveler_name ?? "A traveler",
+              tripDate: booking.booking_date,
+              guests: booking.participants,
+              totalAmount: booking.total_amount,
+              netPayout,
+            });
+            await sendEmail({ to: agencyEmail, subject, html });
+          }
         }
       }
 

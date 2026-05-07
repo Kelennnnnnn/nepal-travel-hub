@@ -46,6 +46,7 @@ const AgencyBookings = lazy(() => import("./pages/agency/AgencyBookings"));
 const AgencyAvailability = lazy(() => import("./pages/agency/AgencyAvailability"));
 const AgencyEarnings = lazy(() => import("./pages/agency/AgencyEarnings"));
 const AgencySettings = lazy(() => import("./pages/agency/AgencySettings"));
+const AgencyAnalytics = lazy(() => import("./pages/agency/AgencyAnalytics"));
 
 // Admin pages
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
@@ -56,6 +57,10 @@ const AdminUsers = lazy(() => import("./pages/admin/Users"));
 const AdminBookings = lazy(() => import("./pages/admin/Bookings"));
 const AdminPayments = lazy(() => import("./pages/admin/Payments"));
 const AdminSettings = lazy(() => import("./pages/admin/Settings"));
+const AdminAuditLog = lazy(() => import("./pages/admin/AuditLog"));
+const AdminReviews    = lazy(() => import("./pages/admin/Reviews"));
+const AdminMFASetup   = lazy(() => import("./pages/admin/MFASetup"));
+const AdminMFAVerify  = lazy(() => import("./pages/admin/MFAVerify"));
 
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -95,6 +100,8 @@ const App = () => (
               <Route path="/agency" element={<AgencyLanding />} />
               <Route path="/agency/login" element={<AgencyLogin />} />
               <Route path="/admin/login" element={<AdminLogin />} />
+              <Route path="/admin/mfa-setup" element={<AdminMFASetup />} />
+              <Route path="/admin/mfa-verify" element={<AdminMFAVerify />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/terms" element={<TermsOfService />} />
@@ -134,6 +141,7 @@ const App = () => (
                 <Route path="/agency/availability" element={<AgencyAvailability />} />
                 <Route path="/agency/earnings" element={<AgencyEarnings />} />
                 <Route path="/agency/settings" element={<AgencySettings />} />
+                <Route path="/agency/analytics" element={<AgencyAnalytics />} />
               </Route>
 
               {/* Admin Routes (Protected) */}
@@ -145,6 +153,8 @@ const App = () => (
                 <Route path="/admin/bookings" element={<AdminBookings />} />
                 <Route path="/admin/payments" element={<AdminPayments />} />
                 <Route path="/admin/settings" element={<AdminSettings />} />
+                <Route path="/admin/audit" element={<AdminAuditLog />} />
+                <Route path="/admin/reviews" element={<AdminReviews />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

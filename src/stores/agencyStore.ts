@@ -7,7 +7,8 @@ export type VerificationStatus =
   | "pending"
   | "in_review"
   | "verified"
-  | "rejected";
+  | "rejected"
+  | "suspended";
 
 export interface AgencyApplication {
   id: string;

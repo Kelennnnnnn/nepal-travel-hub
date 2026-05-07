@@ -38,7 +38,9 @@ export function AgencyLayout({ children, title }: AgencyLayoutProps) {
               </Avatar>
             </div>
           </header>
-          <main className="flex-1 p-6 overflow-auto">{children}</main>
+          <main className="flex-1 p-6 overflow-auto">
+            <div className="max-w-[1400px] mx-auto">{children}</div>
+          </main>
         </div>
       </div>
     </SidebarProvider>

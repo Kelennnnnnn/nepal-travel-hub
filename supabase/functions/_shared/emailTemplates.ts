@@ -81,6 +81,58 @@ export function newBookingAgencyEmail(data: {
   };
 }
 
+export function bookingCancelledAgencyEmail(data: {
+  agencyName: string;
+  bookingRef: string;
+  activityTitle: string;
+  travelerName: string;
+  refundAmount: number;
+  refundPercentage: number;
+}): { subject: string; html: string } {
+  return {
+    subject: `Booking Cancelled — ${data.bookingRef}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #dc2626;">Booking Cancelled</h1>
+        <p>Hi ${data.agencyName},</p>
+        <p>A booking for <strong>${data.activityTitle}</strong> has been cancelled by the traveler.</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: bold;">Booking Ref</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${data.bookingRef}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: bold;">Traveler</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${data.travelerName}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold;">Refund Issued</td><td style="padding: 8px;">${data.refundPercentage}% ($${data.refundAmount.toFixed(2)})</td></tr>
+        </table>
+        <p>Log in to your dashboard for full details.</p>
+        <p style="color: #6b7280; font-size: 14px;">— The Yatra Nepal Team</p>
+      </div>
+    `,
+  };
+}
+
+export function payoutProcessedAgencyEmail(data: {
+  agencyName: string;
+  amount: number;
+  bookingCount: number;
+  transferId: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `Payout Processed — $${data.amount.toFixed(2)}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #16a34a;">Payout Processed</h1>
+        <p>Hi ${data.agencyName},</p>
+        <p>Your payout has been transferred to your connected Stripe account.</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: bold;">Amount</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">$${data.amount.toFixed(2)}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: bold;">Bookings Covered</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${data.bookingCount}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold;">Transfer ID</td><td style="padding: 8px; font-family: monospace; font-size: 13px;">${data.transferId}</td></tr>
+        </table>
+        <p>Funds typically arrive within 2–3 business days depending on your bank.</p>
+        <p style="color: #6b7280; font-size: 14px;">— The Yatra Nepal Team</p>
+      </div>
+    `,
+  };
+}
+
 export function agencyApprovedEmail(data: {
   agencyName: string;
 }): { subject: string; html: string } {

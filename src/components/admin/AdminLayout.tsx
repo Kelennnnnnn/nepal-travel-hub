@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useCallback, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Mountain,
   LayoutDashboard,
@@ -13,10 +13,15 @@ import {
   Menu,
   LogOut,
   Bell,
+  ClipboardList,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useIdleTimer } from "@/hooks/useIdleTimer";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 const adminNavItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -25,16 +30,29 @@ const adminNavItems = [
   { name: "Bookings", href: "/admin/bookings", icon: Calendar },
   { name: "Payments", href: "/admin/payments", icon: CreditCard },
   { name: "Users", href: "/admin/users", icon: Users },
+  { name: "Reviews", href: "/admin/reviews", icon: MessageSquare },
   { name: "Settings", href: "/admin/settings", icon: Settings },
+  { name: "Audit Log", href: "/admin/audit", icon: ClipboardList },
 ];
 
 interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
 export function AdminLayout({ children }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleIdle = useCallback(async () => {
+    await supabase.auth.signOut();
+    toast.info("Session expired due to inactivity. Please log in again.");
+    navigate("/admin/login", { replace: true });
+  }, [navigate]);
+
+  useIdleTimer(handleIdle, IDLE_TIMEOUT_MS);
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -148,7 +166,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         </header>
 
         {/* Page Content */}
-        <main className="p-6">{children}</main>
+        <main className="p-6">
+          <div className="max-w-[1400px] mx-auto">{children}</div>
+        </main>
       </div>
     </div>
   );

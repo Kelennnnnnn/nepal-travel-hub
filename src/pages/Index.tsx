@@ -219,13 +219,13 @@ export default function Index() {
           </div>
           
           {featuredActivities.length > 0 ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {featuredActivities.map((activity) => (
                 <ActivityCard key={activity.id} activity={activity} />
               ))}
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {allListings.slice(0, 3).map(listingToActivity).map((activity) => (
                 <ActivityCard key={activity.id} activity={activity} />
               ))}

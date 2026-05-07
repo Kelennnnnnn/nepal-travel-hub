@@ -441,10 +441,10 @@ export default function Activities() {
 
           {/* Skeletons */}
           {isLoading ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="rounded-xl border border-border overflow-hidden">
-                  <Skeleton className="aspect-[4/3] w-full" />
+                  <Skeleton className="aspect-video w-full" />
                   <div className="p-4 space-y-3">
                     <Skeleton className="h-5 w-3/4" />
                     <Skeleton className="h-4 w-full" />
@@ -458,7 +458,7 @@ export default function Activities() {
               ))}
             </div>
           ) : activities.length > 0 ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {activities.map((activity) => (
                 <ActivityCard key={activity.id} activity={activity} />
               ))}

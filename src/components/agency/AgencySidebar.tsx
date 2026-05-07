@@ -8,6 +8,7 @@ import {
   Mountain,
   LogOut,
   MessageSquare,
+  BarChart2,
 } from "lucide-react";
 import { useUnreadCount } from "@/hooks/useMessages";
 import { NavLink } from "@/components/NavLink";
@@ -30,13 +31,14 @@ import {
 import { Button } from "@/components/ui/button";
 
 const mainItems = [
-  { title: "Dashboard", url: "/agency/dashboard", icon: LayoutDashboard },
-  { title: "Listings", url: "/agency/listings", icon: ListChecks },
-  { title: "Bookings", url: "/agency/bookings", icon: BookOpen },
-  { title: "Messages", url: "/agency/messages", icon: MessageSquare },
-  { title: "Availability", url: "/agency/availability", icon: CalendarDays },
-  { title: "Earnings", url: "/agency/earnings", icon: DollarSign },
-  { title: "Settings", url: "/agency/settings", icon: Settings },
+  { title: "Dashboard",   url: "/agency/dashboard",  icon: LayoutDashboard },
+  { title: "Analytics",   url: "/agency/analytics",  icon: BarChart2 },
+  { title: "Listings",    url: "/agency/listings",   icon: ListChecks },
+  { title: "Bookings",    url: "/agency/bookings",   icon: BookOpen },
+  { title: "Messages",    url: "/agency/messages",   icon: MessageSquare },
+  { title: "Availability",url: "/agency/availability",icon: CalendarDays },
+  { title: "Earnings",    url: "/agency/earnings",   icon: DollarSign },
+  { title: "Settings",    url: "/agency/settings",   icon: Settings },
 ];
 
 export function AgencySidebar() {

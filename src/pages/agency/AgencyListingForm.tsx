@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Plus, X, Save, Loader2, Eye } from "lucide-react";
+import { ArrowLeft, Plus, X, Save, Loader2, Eye, Check } from "lucide-react";
 import { ImageUploader } from "@/components/uploads/ImageUploader";
 import { ListingPreviewDialog } from "@/components/agency/ListingPreviewDialog";
 import { useNavigate, useParams } from "react-router-dom";
@@ -24,6 +24,17 @@ import { listingFormSchema, type ListingFormData } from "@/lib/validations";
 const categories = ["Trekking", "Adventure", "Cultural", "Wildlife", "Rafting", "Mountaineering", "Wellness", "Photography"];
 const difficulties = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
 const locations = ["Kathmandu", "Pokhara", "Solukhumbu", "Annapurna Region", "Chitwan", "Langtang", "Mustang", "Sindhupalchok"];
+
+const INCLUDE_PRESETS = [
+  "Accommodation", "Breakfast", "Lunch", "Dinner", "Meals",
+  "Guide", "Porter", "Transport", "Permits", "Equipment",
+  "Insurance", "Airport Transfer", "Tea House", "Camping", "Oxygen",
+];
+
+const EXCLUDE_PRESETS = [
+  "Flights", "Visa Fees", "Tips", "Personal Expenses",
+  "Travel Insurance", "Alcohol", "Snacks", "Laundry", "Gear Rental",
+];
 
 interface ItineraryDay { day: number; title: string; description: string; }
 
@@ -125,7 +136,7 @@ export default function AgencyListingForm() {
     }
   };
 
-  const addDay = () => setItinerary([...itinerary, { day: itinerary.length + 1, title: "", description: "" }]);
+  const addDay = () => setItinerary([...itinerary, { day: itinerary.length + 1, title: `Day ${itinerary.length + 1}`, description: "" }]);
   const updateDay = (i: number, field: "title" | "description", val: string) =>
     setItinerary((prev) => prev.map((d, j) => j === i ? { ...d, [field]: val } : d));
   const removeDay = (i: number) =>
@@ -333,64 +344,176 @@ export default function AgencyListingForm() {
         {/* Includes / Excludes */}
         <Card>
           <CardHeader><CardTitle className="text-base">What's Included / Excluded</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Includes</Label>
-              <div className="flex flex-wrap gap-2">
-                {includes.map((item, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-3 py-1 text-sm">
-                    {item}
-                    <button type="button" onClick={() => setValue("includes", includes.filter((_, j) => j !== i))} disabled={isLoading}><X className="h-3 w-3" /></button>
-                  </span>
-                ))}
+          <CardContent className="space-y-5">
+
+            {/* ── Includes ── */}
+            <div className="space-y-3">
+              <Label>Included</Label>
+              {/* Preset chips */}
+              <div className="flex flex-wrap gap-1.5">
+                {INCLUDE_PRESETS.map((preset) => {
+                  const active = includes.includes(preset);
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      disabled={isLoading}
+                      onClick={() =>
+                        setValue(
+                          "includes",
+                          active ? includes.filter((x) => x !== preset) : [...includes, preset],
+                          { shouldValidate: true }
+                        )
+                      }
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        active
+                          ? "bg-primary/15 text-primary border-primary/50"
+                          : "bg-muted/40 text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+                      }`}
+                    >
+                      {active && <Check className="h-3 w-3" />}
+                      {preset}
+                    </button>
+                  );
+                })}
               </div>
+              {/* Custom items (not in presets) */}
+              {includes.filter((x) => !INCLUDE_PRESETS.includes(x)).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {includes
+                    .filter((x) => !INCLUDE_PRESETS.includes(x))
+                    .map((item) => (
+                      <span key={item} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-3 py-1 text-sm">
+                        {item}
+                        <button type="button" onClick={() => setValue("includes", includes.filter((x) => x !== item))} disabled={isLoading}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                </div>
+              )}
+              {/* Custom input */}
               <div className="flex gap-2">
-                <Input placeholder="Add item…" value={newInclude} onChange={(e) => setNewInclude(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addInclude())} disabled={isLoading} />
-                <Button type="button" variant="outline" size="sm" onClick={addInclude} disabled={isLoading}><Plus className="h-4 w-4" /></Button>
+                <Input
+                  placeholder="Add custom item…"
+                  value={newInclude}
+                  onChange={(e) => setNewInclude(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addInclude())}
+                  disabled={isLoading}
+                />
+                <Button type="button" variant="outline" size="sm" onClick={addInclude} disabled={isLoading}>
+                  <Plus className="h-4 w-4" />
+                </Button>
               </div>
             </div>
+
             <Separator />
-            <div className="space-y-2">
-              <Label>Excludes</Label>
-              <div className="flex flex-wrap gap-2">
-                {excludes.map((item, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive px-3 py-1 text-sm">
-                    {item}
-                    <button type="button" onClick={() => setValue("excludes", excludes.filter((_, j) => j !== i))} disabled={isLoading}><X className="h-3 w-3" /></button>
-                  </span>
-                ))}
+
+            {/* ── Excludes ── */}
+            <div className="space-y-3">
+              <Label>Not Included</Label>
+              {/* Preset chips */}
+              <div className="flex flex-wrap gap-1.5">
+                {EXCLUDE_PRESETS.map((preset) => {
+                  const active = excludes.includes(preset);
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      disabled={isLoading}
+                      onClick={() =>
+                        setValue(
+                          "excludes",
+                          active ? excludes.filter((x) => x !== preset) : [...excludes, preset],
+                          { shouldValidate: true }
+                        )
+                      }
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        active
+                          ? "bg-destructive/15 text-destructive border-destructive/50"
+                          : "bg-muted/40 text-muted-foreground border-border hover:border-destructive/40 hover:text-foreground"
+                      }`}
+                    >
+                      {active && <X className="h-3 w-3" />}
+                      {preset}
+                    </button>
+                  );
+                })}
               </div>
+              {/* Custom items (not in presets) */}
+              {excludes.filter((x) => !EXCLUDE_PRESETS.includes(x)).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {excludes
+                    .filter((x) => !EXCLUDE_PRESETS.includes(x))
+                    .map((item) => (
+                      <span key={item} className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive px-3 py-1 text-sm">
+                        {item}
+                        <button type="button" onClick={() => setValue("excludes", excludes.filter((x) => x !== item))} disabled={isLoading}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                </div>
+              )}
+              {/* Custom input */}
               <div className="flex gap-2">
-                <Input placeholder="Add item…" value={newExclude} onChange={(e) => setNewExclude(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addExclude())} disabled={isLoading} />
-                <Button type="button" variant="outline" size="sm" onClick={addExclude} disabled={isLoading}><Plus className="h-4 w-4" /></Button>
+                <Input
+                  placeholder="Add custom item…"
+                  value={newExclude}
+                  onChange={(e) => setNewExclude(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addExclude())}
+                  disabled={isLoading}
+                />
+                <Button type="button" variant="outline" size="sm" onClick={addExclude} disabled={isLoading}>
+                  <Plus className="h-4 w-4" />
+                </Button>
               </div>
             </div>
+
           </CardContent>
         </Card>
 
         {/* Itinerary */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Itinerary</CardTitle>
-            <Button variant="outline" size="sm" onClick={addDay} className="gap-1" disabled={isLoading}><Plus className="h-4 w-4" /> Add Day</Button>
+            <div>
+              <CardTitle className="text-base">Itinerary</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Each click adds the next day in sequence</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={addDay} className="gap-1.5" disabled={isLoading}>
+              <Plus className="h-4 w-4" />
+              {itinerary.length === 0 ? "Add Day 1" : `Add Day ${itinerary.length + 1}`}
+            </Button>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
+            {itinerary.length === 0 && (
+              <p className="text-sm text-muted-foreground py-2">
+                Click "Add Day 1" to start building your itinerary.
+              </p>
+            )}
             {itinerary.map((day, i) => (
               <div key={i} className="flex gap-3">
-                <div className="flex flex-col items-center">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium">{day.day}</div>
+                <div className="flex flex-col items-center flex-shrink-0">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold">
+                    {day.day}
+                  </div>
                   {i < itinerary.length - 1 && <div className="w-px flex-1 bg-border mt-1" />}
                 </div>
-                <div className="flex-1 space-y-2 pb-4">
-                  <Input placeholder="Day title" value={day.title} onChange={(e) => updateDay(i, "title", e.target.value)} disabled={isLoading} />
-                  <Textarea placeholder="Day description…" rows={2} value={day.description} onChange={(e) => updateDay(i, "description", e.target.value)} disabled={isLoading} />
+                <div className="flex-1 pb-3">
+                  <p className="text-sm font-semibold mb-1.5">Day {day.day}</p>
+                  <Textarea
+                    placeholder={`Describe what happens on Day ${day.day}…`}
+                    rows={3}
+                    value={day.description}
+                    onChange={(e) => updateDay(i, "description", e.target.value)}
+                    disabled={isLoading}
+                  />
                 </div>
-                <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={() => removeDay(i)} disabled={isLoading}>
+                <Button variant="ghost" size="icon" className="text-muted-foreground flex-shrink-0 mt-6" onClick={() => removeDay(i)} disabled={isLoading}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
             ))}
-            {itinerary.length === 0 && <p className="text-sm text-muted-foreground">No itinerary days added yet.</p>}
           </CardContent>
         </Card>
 

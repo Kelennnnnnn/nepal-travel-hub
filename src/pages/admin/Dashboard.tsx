@@ -6,27 +6,42 @@ import {
   Calendar,
   DollarSign,
   TrendingUp,
+  TrendingDown,
   Users,
   CheckCircle,
   Clock,
   Eye,
   Loader2,
 } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useAgencyStore } from "@/stores/agencyStore";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
-const money = new Intl.NumberFormat(undefined, {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-});
+// ── Types ────────────────────────────────────────────────────────────
 
 interface RecentBookingRow {
   id: string;
@@ -38,6 +53,49 @@ interface RecentBookingRow {
   traveler_name: string | null;
   listing: { title: string } | { title: string }[] | null;
 }
+
+interface BookingStatRow {
+  period: string;
+  booking_count: number;
+  total_revenue: number;
+  total_commission: number;
+}
+
+interface RevenueRow {
+  period: string;
+  total_revenue: number;
+  booking_count: number;
+}
+
+interface AgencySignupRow {
+  period: string;
+  new_applications: number;
+  cumulative: number;
+}
+
+interface CategoryRow {
+  category: string;
+  booking_count: number;
+  total_revenue: number;
+}
+
+interface CoreStats {
+  totalRevenue: number;
+  totalBookings: number;
+  listedActivities: number;
+  verifiedAgencies: number;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+const money = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
+const PIE_COLORS = ["#7c3aed", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 
 function listingTitle(listing: RecentBookingRow["listing"]): string {
   if (!listing) return "—";
@@ -51,6 +109,70 @@ function badgeVariant(status: string): "default" | "secondary" | "destructive" {
   return "secondary";
 }
 
+function formatPeriod(d: string, mode: "week" | "month") {
+  const date = new Date(d);
+  if (mode === "month") {
+    return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  }
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function pctChange(curr: number, prev: number): number | null {
+  if (prev === 0) return null;
+  return ((curr - prev) / prev) * 100;
+}
+
+function getDates(preset: string): { from: string; to: string } {
+  const now = new Date();
+  const to = now.toISOString().split("T")[0];
+  const d = new Date(now);
+  if (preset === "7d")  d.setDate(d.getDate() - 7);
+  if (preset === "30d") d.setDate(d.getDate() - 30);
+  if (preset === "90d") d.setDate(d.getDate() - 90);
+  if (preset === "6m")  d.setMonth(d.getMonth() - 6);
+  if (preset === "1y")  d.setFullYear(d.getFullYear() - 1);
+  return { from: d.toISOString().split("T")[0], to };
+}
+
+function getPrevDates(from: string, to: string): { from: string; to: string } {
+  const f = new Date(from);
+  const t = new Date(to);
+  const diff = t.getTime() - f.getTime();
+  const prevTo = new Date(f.getTime() - 1);
+  const prevFrom = new Date(prevTo.getTime() - diff);
+  return {
+    from: prevFrom.toISOString().split("T")[0],
+    to:   prevTo.toISOString().split("T")[0],
+  };
+}
+
+// ── Sub-components ───────────────────────────────────────────────────
+
+function DeltaBadge({ pct }: { pct: number | null }) {
+  if (pct === null) return <span className="text-xs text-muted-foreground">No prior data</span>;
+  const up = pct >= 0;
+  return (
+    <span className={`flex items-center gap-0.5 text-xs font-medium ${up ? "text-emerald-600" : "text-destructive"}`}>
+      {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+      {up ? "+" : ""}{pct.toFixed(1)}% vs prev period
+    </span>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────
+
+const PRESETS = [
+  { label: "7D",  value: "7d"  },
+  { label: "30D", value: "30d" },
+  { label: "90D", value: "90d" },
+  { label: "6M",  value: "6m"  },
+  { label: "1Y",  value: "1y"  },
+];
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const {
@@ -61,13 +183,30 @@ export default function AdminDashboard() {
     updateApplicationStatus,
   } = useAgencyStore();
 
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [totalRevenue, setTotalRevenue] = useState(0);
-  const [totalBookings, setTotalBookings] = useState(0);
-  const [listedActivities, setListedActivities] = useState(0);
+  // Date range
+  const [preset, setPreset]   = useState("30d");
+  const [dateFrom, setDateFrom] = useState(() => getDates("30d").from);
+  const [dateTo, setDateTo]     = useState(() => getDates("30d").to);
+  const [customFrom, setCustomFrom] = useState(dateFrom);
+  const [customTo, setCustomTo]     = useState(dateTo);
 
+  // Core stats
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [stats, setStats] = useState<CoreStats>({ totalRevenue: 0, totalBookings: 0, listedActivities: 0, verifiedAgencies: 0 });
+  const [prevStats, setPrevStats] = useState<CoreStats | null>(null);
+
+  // Chart data
+  const [chartsLoading, setChartsLoading] = useState(true);
+  const [bookingStats, setBookingStats]   = useState<BookingStatRow[]>([]);
+  const [revenueStats, setRevenueStats]   = useState<RevenueRow[]>([]);
+  const [agencyStats, setAgencyStats]     = useState<AgencySignupRow[]>([]);
+  const [categoryStats, setCategoryStats] = useState<CategoryRow[]>([]);
+
+  // Recent bookings
   const [recentLoading, setRecentLoading] = useState(true);
-  const [recentRows, setRecentRows] = useState<RecentBookingRow[]>([]);
+  const [recentRows, setRecentRows]       = useState<RecentBookingRow[]>([]);
+
+  // ── Agency store ───────────────────────────────────────────────────
 
   useEffect(() => {
     fetchAllApplications();
@@ -75,199 +214,236 @@ export default function AdminDashboard() {
     return unsubscribe;
   }, [fetchAllApplications, subscribeToAllApplications]);
 
+  // ── Load data whenever date range changes ─────────────────────────
+
   useEffect(() => {
     let cancelled = false;
 
-    async function loadDashboardStats() {
+    async function loadAll() {
       setStatsLoading(true);
+      setChartsLoading(true);
       setRecentLoading(true);
 
-      const paidBookingsPromise = supabase
-        .from("bookings")
-        .select("total_amount")
-        .eq("payment_status", "paid");
+      const prevRange = getPrevDates(dateFrom, dateTo);
 
-      const bookingsCountPromise = supabase
-        .from("bookings")
-        .select("*", { count: "exact", head: true });
+      const [
+        paidRes,
+        prevPaidRes,
+        bookingsCountRes,
+        prevBookingsCountRes,
+        listingsCountRes,
+        recentRes,
+        weeklyRes,
+        monthlyRes,
+        agencyRes,
+        categoryRes,
+      ] = await Promise.all([
+        supabase.from("bookings").select("total_amount").eq("payment_status", "paid")
+          .gte("created_at", dateFrom).lte("created_at", dateTo + "T23:59:59"),
+        supabase.from("bookings").select("total_amount").eq("payment_status", "paid")
+          .gte("created_at", prevRange.from).lte("created_at", prevRange.to + "T23:59:59"),
+        supabase.from("bookings").select("*", { count: "exact", head: true })
+          .gte("created_at", dateFrom).lte("created_at", dateTo + "T23:59:59"),
+        supabase.from("bookings").select("*", { count: "exact", head: true })
+          .gte("created_at", prevRange.from).lte("created_at", prevRange.to + "T23:59:59"),
+        supabase.from("listings").select("*", { count: "exact", head: true }).eq("status", "published"),
+        supabase.from("bookings")
+          .select("id,booking_ref,agency_id,total_amount,status,created_at,traveler_name,listing:listings(title)")
+          .order("created_at", { ascending: false }).limit(5),
+        supabase.rpc("admin_booking_stats", { start_date: dateFrom, end_date: dateTo }),
+        supabase.rpc("admin_revenue_by_month", { start_date: dateFrom, end_date: dateTo }),
+        supabase.rpc("admin_agency_signups", { start_date: dateFrom, end_date: dateTo }),
+        supabase.rpc("admin_bookings_by_category", { start_date: dateFrom, end_date: dateTo }),
+      ]);
 
-      const listingsCountPromise = supabase
-        .from("listings")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "published");
+      if (cancelled) return;
 
-      const recentPromise = supabase
-        .from("bookings")
-        .select(
-          `
-          id,
-          booking_ref,
-          agency_id,
-          total_amount,
-          status,
-          created_at,
-          traveler_name,
-          listing:listings ( title )
-        `
-        )
-        .order("created_at", { ascending: false })
-        .limit(5);
+      // Core stats
+      const revenue = paidRes.data?.reduce((s, r) => s + Number(r.total_amount ?? 0), 0) ?? 0;
+      const prevRevenue = prevPaidRes.data?.reduce((s, r) => s + Number(r.total_amount ?? 0), 0) ?? 0;
+      const bookingsCount = bookingsCountRes.count ?? 0;
+      const prevBookingsCount = prevBookingsCountRes.count ?? 0;
+      const verifiedCount = allApplications.filter((a) => a.status === "verified").length;
 
-      try {
-        const [paidRes, bookingsCountRes, listingsCountRes, recentRes] = await Promise.all([
-          paidBookingsPromise,
-          bookingsCountPromise,
-          listingsCountPromise,
-          recentPromise,
-        ]);
+      setStats({
+        totalRevenue: revenue,
+        totalBookings: bookingsCount,
+        listedActivities: listingsCountRes.count ?? 0,
+        verifiedAgencies: verifiedCount,
+      });
+      setPrevStats({
+        totalRevenue: prevRevenue,
+        totalBookings: prevBookingsCount,
+        listedActivities: 0,
+        verifiedAgencies: 0,
+      });
+      setStatsLoading(false);
 
-        if (cancelled) return;
+      // Chart data
+      if (!weeklyRes.error)  setBookingStats((weeklyRes.data ?? []) as BookingStatRow[]);
+      if (!monthlyRes.error) setRevenueStats((monthlyRes.data ?? []) as RevenueRow[]);
+      if (!agencyRes.error)  setAgencyStats((agencyRes.data ?? []) as AgencySignupRow[]);
+      if (!categoryRes.error) setCategoryStats((categoryRes.data ?? []) as CategoryRow[]);
+      setChartsLoading(false);
 
-        if (paidRes.error) {
-          console.error(paidRes.error.message);
-        }
-        const revenue =
-          paidRes.data?.reduce((acc, row) => acc + Number(row.total_amount ?? 0), 0) ?? 0;
-        setTotalRevenue(Number.isFinite(revenue) ? revenue : 0);
-
-        if (bookingsCountRes.error) {
-          console.error(bookingsCountRes.error.message);
-          setTotalBookings(0);
-        } else {
-          setTotalBookings(bookingsCountRes.count ?? 0);
-        }
-
-        if (listingsCountRes.error) {
-          console.error(listingsCountRes.error.message);
-          setListedActivities(0);
-        } else {
-          setListedActivities(listingsCountRes.count ?? 0);
-        }
-
-        if (recentRes.error) {
-          console.error(recentRes.error.message);
-          toast.error("Could not load recent bookings.");
-          setRecentRows([]);
-        } else {
-          setRecentRows((recentRes.data ?? []) as RecentBookingRow[]);
-        }
-      } finally {
-        if (!cancelled) {
-          setStatsLoading(false);
-          setRecentLoading(false);
-        }
+      // Recent bookings
+      if (recentRes.error) {
+        toast.error("Could not load recent bookings.");
+        setRecentRows([]);
+      } else {
+        setRecentRows((recentRes.data ?? []) as RecentBookingRow[]);
       }
+      setRecentLoading(false);
     }
 
-    void loadDashboardStats();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void loadAll();
+    return () => { cancelled = true; };
+  }, [dateFrom, dateTo, allApplications]);
 
-  const pendingApps = allApplications.filter(
-    (a) => a.status === "pending" || a.status === "in_review"
+  // ── Date range handlers ────────────────────────────────────────────
+
+  const applyPreset = (p: string) => {
+    setPreset(p);
+    const { from, to } = getDates(p);
+    setDateFrom(from);
+    setDateTo(to);
+    setCustomFrom(from);
+    setCustomTo(to);
+  };
+
+  const applyCustom = () => {
+    if (!customFrom || !customTo || customFrom > customTo) return;
+    setPreset("");
+    setDateFrom(customFrom);
+    setDateTo(customTo);
+  };
+
+  // ── Derived ────────────────────────────────────────────────────────
+
+  const pendingApps = allApplications.filter((a) => a.status === "pending" || a.status === "in_review");
+
+  const revenuePct = prevStats ? pctChange(stats.totalRevenue, prevStats.totalRevenue) : null;
+  const bookingsPct = prevStats ? pctChange(stats.totalBookings, prevStats.totalBookings) : null;
+
+  // Agency count (from allApplications, not period-filtered)
+  const verifiedCount = allApplications.filter((a) => a.status === "verified").length;
+
+  const recentBookings = useMemo(
+    () => recentRows.map((row) => ({
+      id: row.id,
+      booking_ref: row.booking_ref,
+      activity: listingTitle(row.listing),
+      customer: row.traveler_name?.trim() || "—",
+      agency: allApplications.find((a) => a.user_id === row.agency_id)?.company_name ?? "—",
+      amount: Number(row.total_amount ?? 0),
+      status: row.status,
+      date: row.created_at.split("T")[0],
+    })),
+    [recentRows, allApplications],
   );
-  const verifiedCount = allApplications.filter(
-    (a) => a.status === "verified"
-  ).length;
 
   const handleApprove = async (id: string, name: string) => {
     const { error } = await updateApplicationStatus(id, "verified");
-    if (error) {
-      toast.error(`Failed to approve: ${error}`);
-      return;
-    }
+    if (error) { toast.error(`Failed to approve: ${error}`); return; }
     toast.success(`${name} has been approved!`);
   };
 
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    });
-
-  const stats = useMemo(
-    () => [
-      {
-        title: "Total Revenue",
-        value: money.format(totalRevenue),
-        change: "Paid bookings",
-        icon: DollarSign,
-      },
-      {
-        title: "Active Agencies",
-        value: String(verifiedCount),
-        change: `${pendingApps.length} pending`,
-        icon: Building2,
-      },
-      {
-        title: "Total Bookings",
-        value: totalBookings.toLocaleString(),
-        change: "All statuses",
-        icon: Calendar,
-      },
-      {
-        title: "Listed Activities",
-        value: listedActivities.toLocaleString(),
-        change: "Published",
-        icon: MapPin,
-      },
-    ],
-    [totalRevenue, verifiedCount, pendingApps.length, totalBookings, listedActivities]
-  );
-
-  const recentBookings = useMemo(
-    () =>
-      recentRows.map((row) => ({
-        id: row.id,
-        booking_ref: row.booking_ref,
-        activity: listingTitle(row.listing),
-        customer: row.traveler_name?.trim() || "—",
-        agency:
-          allApplications.find((a) => a.user_id === row.agency_id)?.company_name ?? "—",
-        amount: Number(row.total_amount ?? 0),
-        status: row.status,
-        date: row.created_at.split("T")[0],
-      })),
-    [recentRows, allApplications]
-  );
+  // ── Render ─────────────────────────────────────────────────────────
 
   return (
     <AdminLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back! Here's what's happening with your platform.
-          </p>
+        {/* Header + Date Range Selector */}
+        <div className="flex flex-col sm:flex-row justify-between gap-4 items-start">
+          <div>
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground">Welcome back! Here's what's happening.</p>
+          </div>
+          <div className="flex flex-wrap gap-2 items-end">
+            {PRESETS.map((p) => (
+              <Button
+                key={p.value}
+                variant={preset === p.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => applyPreset(p.value)}
+              >
+                {p.label}
+              </Button>
+            ))}
+            <div className="flex gap-1 items-end">
+              <div>
+                <Label className="text-xs">From</Label>
+                <Input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="h-8 text-xs w-32"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">To</Label>
+                <Input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="h-8 text-xs w-32"
+                />
+              </div>
+              <Button size="sm" variant="outline" onClick={applyCustom} className="h-8">Apply</Button>
+            </div>
+          </div>
         </div>
 
         {/* Stats Grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat) => (
-            <Card key={stat.title}>
+          {[
+            {
+              title: "Total Revenue",
+              value: statsLoading ? null : money.format(stats.totalRevenue),
+              delta: revenuePct,
+              icon: DollarSign,
+              showDelta: true,
+            },
+            {
+              title: "Total Bookings",
+              value: statsLoading ? null : stats.totalBookings.toLocaleString(),
+              delta: bookingsPct,
+              icon: Calendar,
+              showDelta: true,
+            },
+            {
+              title: "Active Agencies",
+              value: statsLoading ? null : String(verifiedCount),
+              sub: `${pendingApps.length} pending`,
+              icon: Building2,
+              showDelta: false,
+            },
+            {
+              title: "Published Activities",
+              value: statsLoading ? null : stats.listedActivities.toLocaleString(),
+              sub: "Live listings",
+              icon: MapPin,
+              showDelta: false,
+            },
+          ].map((s) => (
+            <Card key={s.title}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">
-                      {stat.title}
-                    </p>
-                    {statsLoading ? (
-                      <Skeleton className="h-8 w-28 mt-1" />
-                    ) : (
-                      <p className="text-2xl font-bold mt-1">{stat.value}</p>
-                    )}
-                    <div className="flex items-center gap-1 mt-2">
-                      <TrendingUp className="h-4 w-4 text-primary" />
-                      <span className="text-sm text-primary">
-                        {stat.change}
-                      </span>
+                    <p className="text-sm text-muted-foreground">{s.title}</p>
+                    {s.value === null
+                      ? <Skeleton className="h-8 w-28 mt-1" />
+                      : <p className="text-2xl font-bold mt-1">{s.value}</p>
+                    }
+                    <div className="mt-2">
+                      {s.showDelta
+                        ? (s.value === null ? <Skeleton className="h-4 w-24" /> : <DeltaBadge pct={s.delta ?? null} />)
+                        : <span className="text-xs text-muted-foreground">{s.sub}</span>
+                      }
                     </div>
                   </div>
                   <div className="p-3 rounded-xl bg-primary/10">
-                    <stat.icon className="h-6 w-6 text-primary" />
+                    <s.icon className="h-6 w-6 text-primary" />
                   </div>
                 </div>
               </CardContent>
@@ -275,66 +451,222 @@ export default function AdminDashboard() {
           ))}
         </div>
 
+        {/* Charts Row 1: Bookings per week + Revenue per month */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Bookings per week line chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Bookings per Week</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {chartsLoading ? (
+                <Skeleton className="h-48 w-full" />
+              ) : bookingStats.length === 0 ? (
+                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                  No booking data in this period
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={bookingStats}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis
+                      dataKey="period"
+                      tickFormatter={(v) => formatPeriod(v, "week")}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip
+                      formatter={(v: number, name: string) =>
+                        name === "total_revenue" ? [money.format(v), "Revenue"] : [v, "Bookings"]
+                      }
+                      labelFormatter={(l) => formatPeriod(String(l), "week")}
+                    />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="booking_count"
+                      name="Bookings"
+                      stroke="#7c3aed"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Revenue per month bar chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Revenue per Month</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {chartsLoading ? (
+                <Skeleton className="h-48 w-full" />
+              ) : revenueStats.length === 0 ? (
+                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                  No revenue data in this period
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={revenueStats}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis
+                      dataKey="period"
+                      tickFormatter={(v) => formatPeriod(v, "month")}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                    <Tooltip
+                      formatter={(v: number) => [money.format(v), "Revenue"]}
+                      labelFormatter={(l) => formatPeriod(String(l), "month")}
+                    />
+                    <Bar dataKey="total_revenue" name="Revenue" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Charts Row 2: Agency signups + Category breakdown */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Agency sign-ups area chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Agency Sign-ups (Cumulative)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {chartsLoading ? (
+                <Skeleton className="h-48 w-full" />
+              ) : agencyStats.length === 0 ? (
+                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                  No agency sign-ups in this period
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={agencyStats}>
+                    <defs>
+                      <linearGradient id="agencyGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="#7c3aed" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis
+                      dataKey="period"
+                      tickFormatter={(v) => formatPeriod(v, "week")}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip labelFormatter={(l) => formatPeriod(String(l), "week")} />
+                    <Area
+                      type="monotone"
+                      dataKey="cumulative"
+                      name="Cumulative"
+                      stroke="#7c3aed"
+                      fill="url(#agencyGrad)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Category breakdown donut chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Bookings by Category</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {chartsLoading ? (
+                <Skeleton className="h-48 w-full" />
+              ) : categoryStats.length === 0 ? (
+                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                  No category data in this period
+                </div>
+              ) : (
+                <div className="flex items-center gap-4">
+                  <ResponsiveContainer width="60%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={categoryStats}
+                        dataKey="booking_count"
+                        nameKey="category"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                      >
+                        {categoryStats.map((_, i) => (
+                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v: number) => [v, "Bookings"]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex-1 space-y-2">
+                    {categoryStats.slice(0, 6).map((c, i) => (
+                      <div key={c.category} className="flex items-center gap-2 text-xs">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
+                        />
+                        <span className="capitalize truncate flex-1">{c.category}</span>
+                        <span className="font-medium text-muted-foreground">{c.booking_count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recent Bookings + Pending Agencies */}
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Recent Bookings */}
           <Card className="lg:col-span-2">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Recent Bookings</CardTitle>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => navigate("/admin/bookings")}>
                 View All
               </Button>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {recentLoading ? (
-                  <>
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
-                      >
-                        <div className="flex-1 space-y-2">
-                          <Skeleton className="h-5 w-48" />
-                          <Skeleton className="h-4 w-64" />
-                        </div>
-                        <div className="text-right space-y-2">
-                          <Skeleton className="h-5 w-16 ml-auto" />
-                          <Skeleton className="h-4 w-12 ml-auto" />
-                        </div>
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-5 w-48" />
+                        <Skeleton className="h-4 w-64" />
                       </div>
-                    ))}
-                  </>
+                      <div className="text-right space-y-2">
+                        <Skeleton className="h-5 w-16 ml-auto" />
+                        <Skeleton className="h-4 w-12 ml-auto" />
+                      </div>
+                    </div>
+                  ))
                 ) : recentBookings.length === 0 ? (
-                  <p className="text-center py-8 text-sm text-muted-foreground">
-                    No bookings yet.
-                  </p>
+                  <p className="text-center py-8 text-sm text-muted-foreground">No bookings yet.</p>
                 ) : (
-                  recentBookings.map((booking) => (
-                    <div
-                      key={booking.id}
-                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
-                    >
+                  recentBookings.map((b) => (
+                    <div key={b.id} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{booking.activity}</span>
-                          <Badge
-                            variant={badgeVariant(booking.status)}
-                            className="text-xs"
-                          >
-                            {booking.status}
-                          </Badge>
+                          <span className="font-medium">{b.activity}</span>
+                          <Badge variant={badgeVariant(b.status)} className="text-xs">{b.status}</Badge>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
-                          <span className="font-mono text-xs">{booking.booking_ref}</span>
-                          {" · "}
-                          {booking.customer} • {booking.agency}
+                          <span className="font-mono text-xs">{b.booking_ref}</span>
+                          {" · "}{b.customer} • {b.agency}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold">${booking.amount.toFixed(2)}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatDate(booking.date)}
-                        </p>
+                        <p className="font-semibold">${b.amount.toFixed(2)}</p>
+                        <p className="text-sm text-muted-foreground">{formatDate(b.date)}</p>
                       </div>
                     </div>
                   ))
@@ -343,19 +675,16 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
 
-          {/* Pending Agencies — LIVE */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 Pending Approvals
                 {pendingApps.length > 0 && (
-                  <Badge className="bg-secondary text-secondary-foreground">
-                    {pendingApps.length}
-                  </Badge>
+                  <Badge className="bg-secondary text-secondary-foreground">{pendingApps.length}</Badge>
                 )}
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                 </span>
               </CardTitle>
             </CardHeader>
@@ -372,44 +701,26 @@ export default function AdminDashboard() {
               ) : (
                 <div className="space-y-4">
                   {pendingApps.slice(0, 5).map((agency) => (
-                    <div
-                      key={agency.id}
-                      className="p-4 rounded-lg border border-border"
-                    >
+                    <div key={agency.id} className="p-4 rounded-lg border border-border">
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className="font-medium">{agency.company_name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {agency.city}, {agency.district}
-                          </p>
+                          <p className="text-sm text-muted-foreground">{agency.city}, {agency.district}</p>
                         </div>
                         <Badge variant="outline" className="text-xs">
                           <Clock className="h-3 w-3 mr-1" />
-                          {agency.status === "in_review"
-                            ? "In Review"
-                            : "Pending"}
+                          {agency.status === "in_review" ? "In Review" : "Pending"}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mb-3">
                         Applied {formatDate(agency.created_at)}
                       </p>
                       <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          className="flex-1"
-                          onClick={() =>
-                            handleApprove(agency.id, agency.company_name)
-                          }
-                        >
+                        <Button size="sm" className="flex-1" onClick={() => handleApprove(agency.id, agency.company_name)}>
                           <CheckCircle className="h-4 w-4 mr-1" />
                           Approve
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => navigate("/admin/agencies")}
-                        >
+                        <Button size="sm" variant="outline" className="flex-1" onClick={() => navigate("/admin/agencies")}>
                           <Eye className="h-4 w-4 mr-1" />
                           Review
                         </Button>
@@ -417,11 +728,7 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                   {pendingApps.length > 5 && (
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => navigate("/admin/agencies")}
-                    >
+                    <Button variant="outline" className="w-full" onClick={() => navigate("/admin/agencies")}>
                       View all {pendingApps.length} pending
                     </Button>
                   )}
@@ -438,34 +745,19 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex flex-col gap-2"
-                onClick={() => navigate("/admin/agencies")}
-              >
+              <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" onClick={() => navigate("/admin/agencies")}>
                 <Building2 className="h-6 w-6" />
                 <span>Review Agencies</span>
               </Button>
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex flex-col gap-2"
-                onClick={() => navigate("/admin/listings")}
-              >
+              <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" onClick={() => navigate("/admin/listings")}>
                 <MapPin className="h-6 w-6" />
                 <span>Moderate Listings</span>
               </Button>
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex flex-col gap-2"
-              >
+              <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" onClick={() => navigate("/admin/bookings")}>
                 <DollarSign className="h-6 w-6" />
                 <span>Process Payments</span>
               </Button>
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex flex-col gap-2"
-                onClick={() => navigate("/admin/users")}
-              >
+              <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" onClick={() => navigate("/admin/users")}>
                 <Users className="h-6 w-6" />
                 <span>Manage Users</span>
               </Button>

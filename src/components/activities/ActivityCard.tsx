@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { MapPin, Clock, Star, Users, Heart } from "lucide-react";
+import { MapPin, Clock, Star, Heart } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -45,88 +45,75 @@ export function ActivityCard({ activity, className }: ActivityCardProps) {
   };
 
   return (
-    <Link to={`/activities/${activity.id}`}>
-      <Card variant="activity" className={cn("h-full", className)}>
-        {/* Image */}
-        <div className="relative aspect-[4/3] overflow-hidden">
+    <Link to={`/activities/${activity.id}`} className="block h-full">
+      <Card variant="activity" className={cn("h-full flex flex-col", className)}>
+        {/* Image — 16:9 keeps the card compact */}
+        <div className="relative aspect-video overflow-hidden flex-shrink-0">
           <img
             src={activity.image}
             alt={activity.title}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
 
-          {/* Category Badge */}
-          <Badge className="absolute top-4 left-4 bg-primary text-primary-foreground">
+          {/* Category */}
+          <Badge className="absolute top-2.5 left-2.5 bg-primary/95 text-primary-foreground text-[10px] px-2 py-0.5 font-semibold uppercase tracking-wide rounded-md">
             {activity.category}
           </Badge>
 
-          {/* Featured Badge */}
           {activity.featured && (
-            <Badge className="absolute top-4 right-12 bg-secondary text-secondary-foreground">
+            <Badge className="absolute top-2.5 right-9 bg-secondary text-secondary-foreground text-[10px] px-2 py-0.5 rounded-md">
               Featured
             </Badge>
           )}
 
-          {/* Wishlist Button */}
+          {/* Wishlist */}
           <button
             onClick={handleWishlist}
             disabled={isPending}
             aria-label={isSaved ? "Remove from wishlist" : "Save to wishlist"}
-            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-card/80 backdrop-blur-sm flex items-center justify-center hover:bg-card transition-colors"
+            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center hover:bg-black/65 transition-colors"
           >
             <Heart
               className={cn(
-                "h-4 w-4 transition-colors",
-                isSaved ? "fill-red-500 text-red-500" : "text-muted-foreground"
+                "h-3.5 w-3.5 transition-colors",
+                isSaved ? "fill-red-400 text-red-400" : "text-white"
               )}
             />
           </button>
 
-          {/* Price */}
-          <div className="absolute bottom-4 right-4">
-            <div className="bg-card/90 backdrop-blur-sm rounded-lg px-3 py-1.5">
-              <span className="text-lg font-bold text-foreground">${activity.price}</span>
-              <span className="text-sm text-muted-foreground">/person</span>
-            </div>
+          {/* Price — bottom left */}
+          <div className="absolute bottom-2.5 left-2.5 bg-black/55 backdrop-blur-sm rounded-md px-2 py-1 leading-none">
+            <span className="text-sm font-bold text-white">${activity.price}</span>
+            <span className="text-[10px] text-white/70"> /person</span>
+          </div>
+
+          {/* Rating — bottom right */}
+          <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 bg-black/55 backdrop-blur-sm rounded-md px-2 py-1">
+            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+            <span className="text-xs font-bold text-white">{activity.rating.toFixed(1)}</span>
+            <span className="text-[10px] text-white/65">({activity.reviewCount})</span>
           </div>
         </div>
 
         {/* Content */}
-        <CardContent className="p-4">
-          <h3 className="font-semibold text-lg mb-2 line-clamp-1 group-hover:text-primary transition-colors">
+        <CardContent className="p-3 flex flex-col flex-1">
+          <h3 className="font-semibold text-sm leading-snug mb-2 line-clamp-2 group-hover:text-primary transition-colors">
             {activity.title}
           </h3>
 
-          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-            {activity.description}
-          </p>
-
-          {/* Meta Info */}
-          <div className="flex flex-wrap gap-3 text-sm text-muted-foreground mb-3">
-            <div className="flex items-center gap-1">
-              <MapPin className="h-4 w-4" />
-              <span>{activity.location}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Clock className="h-4 w-4" />
-              <span>{activity.duration}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Users className="h-4 w-4" />
-              <span>Max {activity.maxParticipants}</span>
-            </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-auto">
+            <span className="flex items-center gap-1 min-w-0">
+              <MapPin className="h-3 w-3 flex-shrink-0 text-muted-foreground/70" />
+              <span className="truncate">{activity.location}</span>
+            </span>
+            <span className="flex items-center gap-1 flex-shrink-0">
+              <Clock className="h-3 w-3 text-muted-foreground/70" />
+              {activity.duration}
+            </span>
           </div>
 
-          {/* Rating & Agency */}
-          <div className="flex items-center justify-between pt-3 border-t border-border">
-            <div className="flex items-center gap-1">
-              <Star className="h-4 w-4 fill-secondary text-secondary" />
-              <span className="font-medium">{activity.rating.toFixed(1)}</span>
-              <span className="text-muted-foreground">({activity.reviewCount})</span>
-            </div>
-            <span className="text-sm text-muted-foreground">by {activity.agency}</span>
-          </div>
+          <p className="text-[11px] text-muted-foreground/60 mt-1.5 truncate">by {activity.agency}</p>
         </CardContent>
       </Card>
     </Link>

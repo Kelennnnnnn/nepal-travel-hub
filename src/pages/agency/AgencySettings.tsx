@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AgencyLayout } from "@/components/agency/AgencyLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Save, Upload, Eye, EyeOff } from "lucide-react";
+import { Save, Upload, Eye, EyeOff, ExternalLink, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import { supabase } from "@/lib/supabase";
@@ -15,6 +16,7 @@ import { supabase } from "@/lib/supabase";
 export default function AgencySettings() {
   const { user } = useAuthStore();
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Agency profile state
   const [agencyName, setAgencyName] = useState("");
@@ -32,16 +34,22 @@ export default function AgencySettings() {
   const [routingSwift, setRoutingSwift] = useState("");
   const [showAccountNumber, setShowAccountNumber] = useState(false);
 
-  // Notification state
-  const [notifications, setNotifications] = useState({
-    "new-booking": true,
-    "booking-cancel": true,
+  // Notification state — keys match DB columns
+  type NotifKey = "new_booking" | "booking_cancel" | "payout" | "review";
+  const [notifications, setNotifications] = useState<Record<NotifKey, boolean>>({
+    new_booking: true,
+    booking_cancel: true,
     payout: true,
     review: true,
   });
+  const [notifSaving, setNotifSaving] = useState<NotifKey | null>(null);
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Stripe Connect state
+  const [stripeAccountId, setStripeAccountId] = useState("");
+  const [isConnectingStripe, setIsConnectingStripe] = useState(false);
 
   // Load all data on mount
   useEffect(() => {
@@ -53,7 +61,7 @@ export default function AgencySettings() {
       // Load agency profile from agency_applications
       const { data: appData } = await supabase
         .from("agency_applications")
-        .select("company_name, registration_number, email, phone, address, description, logo_url")
+        .select("company_name, registration_number, email, phone, address, description, logo_url, stripe_account_id")
         .eq("user_id", authUser.id)
         .maybeSingle();
 
@@ -65,26 +73,100 @@ export default function AgencySettings() {
         setAddress(appData.address ?? "");
         setAbout(appData.description ?? "");
         if (appData.logo_url) setLogoPreview(appData.logo_url);
+        setStripeAccountId(appData.stripe_account_id ?? "");
       }
 
-      // Load bank details
-      const { data: bankData } = await supabase
-        .from("agency_bank_details")
-        .select("account_holder_name, bank_name, account_number_encrypted, routing_swift")
-        .eq("agency_user_id", authUser.id)
-        .maybeSingle();
+      // Load bank details + notification prefs in parallel
+      const [bankResult, prefsResult] = await Promise.all([
+        supabase
+          .from("agency_bank_details")
+          .select("account_holder_name, bank_name, account_number_encrypted, routing_swift")
+          .eq("agency_user_id", authUser.id)
+          .maybeSingle(),
+        supabase
+          .from("notification_preferences")
+          .select("new_booking, booking_cancel, payout, review")
+          .eq("user_id", authUser.id)
+          .maybeSingle(),
+      ]);
 
-      if (!cancelled && bankData) {
-        setAccountHolder(bankData.account_holder_name ?? "");
-        setBankName(bankData.bank_name ?? "");
-        setAccountNumber(bankData.account_number_encrypted ?? "");
-        setRoutingSwift(bankData.routing_swift ?? "");
+      if (!cancelled && bankResult.data) {
+        setAccountHolder(bankResult.data.account_holder_name ?? "");
+        setBankName(bankResult.data.bank_name ?? "");
+        setAccountNumber(bankResult.data.account_number_encrypted ?? "");
+        setRoutingSwift(bankResult.data.routing_swift ?? "");
+      }
+
+      if (!cancelled && prefsResult.data) {
+        setNotifications({
+          new_booking:    prefsResult.data.new_booking    ?? true,
+          booking_cancel: prefsResult.data.booking_cancel ?? true,
+          payout:         prefsResult.data.payout         ?? true,
+          review:         prefsResult.data.review         ?? true,
+        });
       }
     };
 
     void load();
     return () => { cancelled = true; };
   }, []);
+
+  // Handle Stripe redirect params (?stripe=success|refresh)
+  useEffect(() => {
+    const stripeParam = searchParams.get("stripe");
+    if (stripeParam === "success") {
+      toast.success("Stripe account connected! Your payouts are now enabled.");
+      setSearchParams({}, { replace: true });
+      // Re-fetch stripe_account_id to confirm it's stored
+      supabase.auth.getUser().then(({ data: { user: u } }) => {
+        if (!u) return;
+        supabase
+          .from("agency_applications")
+          .select("stripe_account_id")
+          .eq("user_id", u.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data?.stripe_account_id) setStripeAccountId(data.stripe_account_id);
+          });
+      });
+    } else if (stripeParam === "refresh") {
+      toast.info("Stripe onboarding session expired. Please try connecting again.");
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const handleNotificationToggle = async (key: NotifKey, checked: boolean) => {
+    setNotifications((prev) => ({ ...prev, [key]: checked }));
+    setNotifSaving(key);
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+      const { error } = await supabase
+        .from("notification_preferences")
+        .upsert(
+          { user_id: authUser.id, [key]: checked, updated_at: new Date().toISOString() },
+          { onConflict: "user_id" }
+        );
+      if (error) toast.error("Failed to save notification preference.");
+    } finally {
+      setNotifSaving(null);
+    }
+  };
+
+  const handleConnectStripe = async () => {
+    setIsConnectingStripe(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("stripe-connect-onboard", {});
+      if (error) { toast.error(error.message || "Failed to start Stripe onboarding"); return; }
+      const { url } = data as { url: string };
+      if (!url) { toast.error("No redirect URL returned"); return; }
+      window.location.href = url;
+    } catch (err) {
+      toast.error((err as Error).message ?? "Something went wrong");
+    } finally {
+      setIsConnectingStripe(false);
+    }
+  };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -189,11 +271,11 @@ export default function AgencySettings() {
     .toUpperCase()
     .slice(0, 2);
 
-  const notificationItems = [
-    { id: "new-booking" as const, label: "New booking received", desc: "Get notified when a customer books your activity" },
-    { id: "booking-cancel" as const, label: "Booking cancellation", desc: "Alert when a booking is cancelled" },
-    { id: "payout" as const, label: "Payout processed", desc: "Confirmation when payouts are completed" },
-    { id: "review" as const, label: "New review", desc: "When a customer leaves a review" },
+  const notificationItems: { id: NotifKey; label: string; desc: string }[] = [
+    { id: "new_booking",    label: "New booking received",  desc: "Get notified when a customer books your activity" },
+    { id: "booking_cancel", label: "Booking cancellation",  desc: "Alert when a booking is cancelled" },
+    { id: "payout",         label: "Payout processed",      desc: "Confirmation when payouts are completed" },
+    { id: "review",         label: "New review",            desc: "When a customer leaves a review" },
   ];
 
   return (
@@ -309,24 +391,89 @@ export default function AgencySettings() {
           </CardContent>
         </Card>
 
+        {/* Stripe Connect */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Stripe Payouts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stripeAccountId ? (
+              <div className="flex items-start gap-4">
+                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-green-700 dark:text-green-400">Stripe Connected</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Account: <span className="font-mono">{stripeAccountId}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    You're set up to receive payouts. The platform admin processes transfers to your account.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 gap-2"
+                    onClick={handleConnectStripe}
+                    disabled={isConnectingStripe}
+                  >
+                    {isConnectingStripe
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <ExternalLink className="h-4 w-4" />}
+                    Update Stripe Account
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-4">
+                <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <AlertCircle className="h-5 w-5 text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-foreground">Connect your Stripe account</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Connect Stripe to receive payouts directly to your bank account. You'll be redirected to
+                    Stripe's secure onboarding flow — it takes about 5 minutes.
+                  </p>
+                  <Button
+                    className="mt-4 gap-2"
+                    onClick={handleConnectStripe}
+                    disabled={isConnectingStripe}
+                  >
+                    {isConnectingStripe
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Connecting…</>
+                      : <><ExternalLink className="h-4 w-4" /> Connect Stripe</>}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Notifications */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Notifications</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Notifications</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-4">
             {notificationItems.map((n, i) => (
               <div key={n.id}>
                 {i > 0 && <Separator className="mb-4" />}
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground">{n.label}</p>
                     <p className="text-xs text-muted-foreground">{n.desc}</p>
                   </div>
-                  <Switch
-                    checked={notifications[n.id]}
-                    onCheckedChange={(checked) =>
-                      setNotifications((prev) => ({ ...prev, [n.id]: checked }))
-                    }
-                  />
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {notifSaving === n.id && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                    )}
+                    <Switch
+                      checked={notifications[n.id]}
+                      disabled={notifSaving === n.id}
+                      onCheckedChange={(checked) => handleNotificationToggle(n.id, checked)}
+                    />
+                  </div>
                 </div>
               </div>
             ))}

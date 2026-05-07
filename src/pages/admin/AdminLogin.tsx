@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
+import { supabase } from "@/lib/supabase";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -21,21 +22,33 @@ export default function AdminLogin() {
 
     const { error, role } = await signIn(email, password);
 
-    setIsLoading(false);
-
     if (error) {
       toast.error("Invalid admin credentials");
+      setIsLoading(false);
       return;
     }
 
     if (role !== "admin") {
       toast.error("Access denied. This portal is for administrators only.");
       await useAuthStore.getState().logout();
+      setIsLoading(false);
       return;
     }
 
-    toast.success("Welcome back, Admin!");
-    navigate("/admin");
+    // Check MFA enrollment status
+    const { data: factors } = await supabase.auth.mfa.listFactors();
+    const verifiedTotp = factors?.totp?.find((f) => f.status === "verified");
+
+    setIsLoading(false);
+
+    if (!verifiedTotp) {
+      // Admin has no MFA enrolled — send to setup
+      navigate("/admin/mfa-setup", { replace: true });
+      return;
+    }
+
+    // Admin has MFA enrolled — require verification
+    navigate("/admin/mfa-verify", { replace: true });
   };
 
   return (
@@ -93,11 +106,7 @@ export default function AdminLogin() {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
               >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
           </div>

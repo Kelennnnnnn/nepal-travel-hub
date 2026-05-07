@@ -12,95 +12,96 @@ function json(body: unknown, status = 200) {
   });
 }
 
-async function verifyAdmin(req: Request): Promise<{ error: Response | null }> {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return { error: json({ error: "Missing Authorization header" }, 401) };
-  }
-
-  const token = authHeader.slice(7);
-
-  // Use the admin client to verify the token and get the user
-  const supabaseAdmin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-
-  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-  if (error || !user) {
-    return { error: json({ error: "Invalid or expired token" }, 401) };
-  }
-
-  const role = user.user_metadata?.role;
-  if (role !== "admin") {
-    return { error: json({ error: "Admin access required" }, 403) };
-  }
-
-  return { error: null };
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const { error: authError } = await verifyAdmin(req);
-  if (authError) return authError;
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return json({ error: "Missing Authorization header" }, 401);
+  }
+  const token = authHeader.slice(7);
 
   const supabaseAdmin = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
+    { auth: { autoRefreshToken: false, persistSession: false } },
   );
+
+  // Verify caller is admin
+  const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !caller) return json({ error: "Invalid or expired token" }, 401);
+  if (caller.user_metadata?.role !== "admin") return json({ error: "Admin access required" }, 403);
 
   try {
     const body = await req.json() as {
       action: string;
       user_id?: string;
       role?: string;
-      page?: number;
-      limit?: number;
+      search?: string;
     };
 
     const { action } = body;
 
-    // ── List users ──────────────────────────────────────────
+    // ── List users ──────────────────────────────────────────────────────────
     if (action === "list") {
-      const page = body.page ?? 1;
-      const perPage = body.limit ?? 50;
+      const search = (body.search ?? "").toLowerCase().trim();
 
-      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+      // Fetch up to 1000 users (sufficient for any MVP platform)
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000,
+      });
       if (error) return json({ error: error.message }, 500);
 
-      return json({ users: data.users, total: data.users.length });
+      const all = data.users;
+
+      // Platform-wide stats (always from full list, regardless of search)
+      const stats = {
+        total:     all.length,
+        travelers: all.filter((u) => (u.user_metadata?.role ?? "user") === "user").length,
+        agencies:  all.filter((u) => u.user_metadata?.role === "agency").length,
+        admins:    all.filter((u) => u.user_metadata?.role === "admin").length,
+        suspended: all.filter((u) => u.banned_until && new Date(u.banned_until) > new Date()).length,
+      };
+
+      // Server-side search filter
+      const users = search
+        ? all.filter((u) => {
+            const name = ((u.user_metadata?.name ?? u.user_metadata?.full_name ?? "") as string).toLowerCase();
+            return name.includes(search) || (u.email ?? "").toLowerCase().includes(search);
+          })
+        : all;
+
+      return json({ users, stats });
     }
 
-    // All other actions require a user_id
+    // All mutating actions require user_id
     const { user_id } = body;
-    if (!user_id) {
-      return json({ error: "user_id is required" }, 400);
-    }
+    if (!user_id) return json({ error: "user_id is required" }, 400);
 
-    // ── Suspend ─────────────────────────────────────────────
+    // ── Suspend (proper Supabase Auth ban) ──────────────────────────────────
     if (action === "suspend") {
-      const { error } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
-        user_metadata: { disabled: true },
-      });
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(
+        user_id,
+        { ban_duration: "876000h" }, // ~100 years = effectively permanent
+      );
       if (error) return json({ error: error.message }, 500);
       return json({ success: true });
     }
 
-    // ── Unsuspend ───────────────────────────────────────────
+    // ── Unsuspend ───────────────────────────────────────────────────────────
     if (action === "unsuspend") {
-      const { error } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
-        user_metadata: { disabled: false },
-      });
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(
+        user_id,
+        { ban_duration: "none" },
+      );
       if (error) return json({ error: error.message }, 500);
       return json({ success: true });
     }
 
-    // ── Change role ─────────────────────────────────────────
+    // ── Change role ─────────────────────────────────────────────────────────
     if (action === "change_role") {
       const { role } = body;
       if (!role || !["user", "agency", "admin"].includes(role)) {
@@ -111,6 +112,13 @@ Deno.serve(async (req: Request) => {
       });
       if (error) return json({ error: error.message }, 500);
       return json({ success: true, role });
+    }
+
+    // ── Delete user ─────────────────────────────────────────────────────────
+    if (action === "delete") {
+      const { error } = await supabaseAdmin.auth.admin.deleteUser(user_id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ success: true });
     }
 
     return json({ error: `Unknown action: ${action}` }, 400);

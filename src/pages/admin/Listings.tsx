@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { logAdminAction } from "@/lib/audit";
 import {
   useAgencyStore,
   type AgencyApplication,
@@ -147,17 +148,26 @@ export default function AdminListings() {
 
   const handleApprove = async (listing: Listing) => {
     const ok = await updateListingStatus(listing.id, "published");
-    if (ok) toast.success(`"${listing.title}" is now published.`);
+    if (ok) {
+      toast.success(`"${listing.title}" is now published.`);
+      void logAdminAction("publish_listing", "listing", listing.id, { title: listing.title });
+    }
   };
 
   const handlePause = async (listing: Listing) => {
     const ok = await updateListingStatus(listing.id, "paused");
-    if (ok) toast.success(`"${listing.title}" has been paused.`);
+    if (ok) {
+      toast.success(`"${listing.title}" has been paused.`);
+      void logAdminAction("pause_listing", "listing", listing.id, { title: listing.title });
+    }
   };
 
   const handleUnpause = async (listing: Listing) => {
     const ok = await updateListingStatus(listing.id, "published");
-    if (ok) toast.success(`"${listing.title}" is live again.`);
+    if (ok) {
+      toast.success(`"${listing.title}" is live again.`);
+      void logAdminAction("unpause_listing", "listing", listing.id, { title: listing.title });
+    }
   };
 
   const handleRejectSubmit = async () => {
@@ -173,6 +183,10 @@ export default function AdminListings() {
       return;
     }
     toast.success(`Listing rejected`, { description: rejectionReason.trim() });
+    void logAdminAction("reject_listing", "listing", selectedListing.id, {
+      title: selectedListing.title,
+      reason: rejectionReason.trim(),
+    });
     setShowRejectDialog(false);
     setRejectionReason("");
     setSelectedListing(null);
