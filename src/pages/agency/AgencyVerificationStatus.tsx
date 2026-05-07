@@ -238,8 +238,8 @@ export default function AgencyVerificationStatus() {
 
                 {(verificationStatus === "pending" ||
                   verificationStatus === "in_review") && (
-                  <Button variant="outline" onClick={() => navigate("/")}>
-                    Return to Homepage
+                  <Button variant="outline" onClick={() => navigate("/agency/login")}>
+                    Back to Agency Login
                   </Button>
                 )}
               </div>

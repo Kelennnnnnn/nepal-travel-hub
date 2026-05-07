@@ -88,12 +88,12 @@ export default function AgencyLogin() {
           />
         </div>
         <div className="relative z-10 flex flex-col justify-between p-12 text-primary-foreground">
-          <Link to="/" className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <div className="p-2 rounded-xl bg-primary-foreground/20">
               <Mountain className="h-6 w-6" />
             </div>
             <span className="text-xl font-bold">NepalTrails</span>
-          </Link>
+          </div>
 
           <div>
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white/20 mb-6 backdrop-blur-sm">
@@ -118,12 +118,12 @@ export default function AgencyLogin() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden flex justify-center mb-8">
-            <Link to="/" className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <div className="p-2 rounded-xl bg-primary">
                 <Mountain className="h-6 w-6 text-primary-foreground" />
               </div>
               <span className="text-xl font-bold">NepalTrails</span>
-            </Link>
+            </div>
           </div>
 
           <div className="text-center mb-8">
