@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Layout } from "@/components/layout/Layout";
 import { useAgencyStore, VerificationStatus } from "@/stores/agencyStore";
 
 const statusConfig: Record<
@@ -79,14 +78,12 @@ export default function AgencyVerificationStatus() {
   // Show loader while fetching
   if (isLoading) {
     return (
-      <Layout>
-        <div className="pt-24 pb-16 min-h-screen bg-muted/30 flex items-center justify-center">
+      <div className="pt-24 pb-16 min-h-screen bg-muted/30 flex items-center justify-center">
           <div className="text-center space-y-4">
             <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
             <p className="text-muted-foreground">Loading your application...</p>
           </div>
         </div>
-      </Layout>
     );
   }
 
@@ -100,8 +97,7 @@ export default function AgencyVerificationStatus() {
   const StatusIcon = config.icon;
 
   return (
-    <Layout>
-      <div className="pt-24 pb-16 min-h-screen bg-muted/30">
+    <div className="pt-24 pb-16 min-h-screen bg-muted/30">
         <div className="container mx-auto px-4 max-w-2xl">
           {/* Header */}
           <div className="text-center mb-10">
@@ -247,6 +243,6 @@ export default function AgencyVerificationStatus() {
           </Card>
         </div>
       </div>
-    </Layout>
+    </div>
   );
 }

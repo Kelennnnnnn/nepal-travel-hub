@@ -19,7 +19,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Layout } from "@/components/layout/Layout";
 import { useAgencyStore } from "@/stores/agencyStore";
 import { useAuthStore } from "@/stores/authStore";
 import { supabase } from "@/lib/supabase";
@@ -116,8 +115,7 @@ export default function AgencyOnboarding() {
   });
 
   return (
-    <Layout>
-      <div className="pt-24 pb-16 min-h-screen bg-muted/30">
+    <div className="pt-24 pb-16 min-h-screen bg-muted/30">
         <div className="container mx-auto px-4 max-w-3xl">
           {/* Header */}
           <div className="text-center mb-10">
@@ -372,6 +370,6 @@ export default function AgencyOnboarding() {
           </form>
         </div>
       </div>
-    </Layout>
+    </div>
   );
 }

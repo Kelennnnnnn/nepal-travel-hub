@@ -8,75 +8,102 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Save, Upload, Eye, EyeOff, ExternalLink, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Save, Upload, Eye, EyeOff, ExternalLink,
+  CheckCircle2, Loader2, AlertCircle, Lock, ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
+import { useAgencyStore } from "@/stores/agencyStore";
 import { supabase } from "@/lib/supabase";
+
+type NotifKey = "new_booking" | "booking_cancel" | "payout" | "review";
 
 export default function AgencySettings() {
   const { user } = useAuthStore();
+  const { application, fetchMyApplication } = useAgencyStore();
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [profileLoading, setProfileLoading] = useState(true);
 
-  // Agency profile state
-  const [agencyName, setAgencyName] = useState("");
-  const [licenseNumber, setLicenseNumber] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [about, setAbout] = useState("");
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  // ── Read-only regulatory fields ───────────────────────────────────
+  const [panNumber, setPanNumber]                   = useState("");
+  const [registrationNumber, setRegistrationNumber] = useState("");
+  const [licenseUploaded, setLicenseUploaded]       = useState(false);
 
-  // Bank / payout state
+  // ── Editable profile fields ───────────────────────────────────────
+  const [companyName, setCompanyName]   = useState("");
+  const [ownerName, setOwnerName]       = useState("");
+  const [ownerPhone, setOwnerPhone]     = useState("");
+  const [email, setEmail]               = useState("");
+  const [phone, setPhone]               = useState("");
+  const [website, setWebsite]           = useState("");
+  const [city, setCity]                 = useState("");
+  const [district, setDistrict]         = useState("");
+  const [address, setAddress]           = useState("");
+  const [about, setAbout]               = useState("");
+  const [logoPreview, setLogoPreview]   = useState<string | null>(null);
+  const [logoFile, setLogoFile]         = useState<File | null>(null);
+
+  // ── Bank / payout ─────────────────────────────────────────────────
   const [accountHolder, setAccountHolder] = useState("");
-  const [bankName, setBankName] = useState("");
+  const [bankName, setBankName]           = useState("");
   const [accountNumber, setAccountNumber] = useState("");
-  const [routingSwift, setRoutingSwift] = useState("");
+  const [routingSwift, setRoutingSwift]   = useState("");
   const [showAccountNumber, setShowAccountNumber] = useState(false);
 
-  // Notification state — keys match DB columns
-  type NotifKey = "new_booking" | "booking_cancel" | "payout" | "review";
+  // ── Notifications ─────────────────────────────────────────────────
   const [notifications, setNotifications] = useState<Record<NotifKey, boolean>>({
-    new_booking: true,
-    booking_cancel: true,
-    payout: true,
-    review: true,
+    new_booking: true, booking_cancel: true, payout: true, review: true,
   });
   const [notifSaving, setNotifSaving] = useState<NotifKey | null>(null);
 
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Stripe Connect state
-  const [stripeAccountId, setStripeAccountId] = useState("");
+  // ── Stripe ────────────────────────────────────────────────────────
+  const [stripeAccountId, setStripeAccountId]     = useState("");
   const [isConnectingStripe, setIsConnectingStripe] = useState(false);
 
-  // Load all data on mount
+  // ── Save state ────────────────────────────────────────────────────
+  const [isLoading, setIsLoading] = useState(false);
+
+  // ── Populate form from store's application (confirmed working query path) ──
+
+  useEffect(() => {
+    if (!application) return;
+    const d = application;
+    // Read-only regulatory
+    setPanNumber(d.pan_number ?? "");
+    setRegistrationNumber(d.registration_number ?? "");
+    setLicenseUploaded(!!d.license_url);
+    // Editable profile
+    setCompanyName(d.company_name ?? "");
+    setOwnerName(d.owner_name ?? "");
+    setOwnerPhone(d.owner_phone ?? "");
+    setEmail(d.email ?? "");
+    setPhone(d.phone ?? "");
+    setWebsite(d.website ?? "");
+    setCity(d.city ?? "");
+    setDistrict(d.district ?? "");
+    setAddress(d.address ?? "");
+    setAbout(d.description ?? "");
+    if (d.logo_url) setLogoPreview(d.logo_url);
+    setStripeAccountId(d.stripe_account_id ?? "");
+  }, [application]);
+
+  // ── Load on mount: refresh store + fetch bank/notification rows ───
+
   useEffect(() => {
     let cancelled = false;
+
     const load = async () => {
+      setProfileLoading(true);
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (cancelled || !authUser) return;
 
-      // Load agency profile from agency_applications
-      const { data: appData } = await supabase
-        .from("agency_applications")
-        .select("company_name, registration_number, email, phone, address, description, logo_url, stripe_account_id")
-        .eq("user_id", authUser.id)
-        .maybeSingle();
+      // Refresh the application in the store (uses select("*"), proven to work)
+      await fetchMyApplication();
 
-      if (!cancelled && appData) {
-        setAgencyName(appData.company_name ?? "");
-        setLicenseNumber(appData.registration_number ?? "");
-        setEmail(appData.email ?? "");
-        setPhone(appData.phone ?? "");
-        setAddress(appData.address ?? "");
-        setAbout(appData.description ?? "");
-        if (appData.logo_url) setLogoPreview(appData.logo_url);
-        setStripeAccountId(appData.stripe_account_id ?? "");
-      }
-
-      // Load bank details + notification prefs in parallel
       const [bankResult, prefsResult] = await Promise.all([
         supabase
           .from("agency_bank_details")
@@ -91,33 +118,37 @@ export default function AgencySettings() {
       ]);
 
       if (!cancelled && bankResult.data) {
-        setAccountHolder(bankResult.data.account_holder_name ?? "");
-        setBankName(bankResult.data.bank_name ?? "");
-        setAccountNumber(bankResult.data.account_number_encrypted ?? "");
-        setRoutingSwift(bankResult.data.routing_swift ?? "");
+        const b = bankResult.data;
+        setAccountHolder(b.account_holder_name ?? "");
+        setBankName(b.bank_name ?? "");
+        setAccountNumber(b.account_number_encrypted ?? "");
+        setRoutingSwift(b.routing_swift ?? "");
       }
 
       if (!cancelled && prefsResult.data) {
+        const p = prefsResult.data;
         setNotifications({
-          new_booking:    prefsResult.data.new_booking    ?? true,
-          booking_cancel: prefsResult.data.booking_cancel ?? true,
-          payout:         prefsResult.data.payout         ?? true,
-          review:         prefsResult.data.review         ?? true,
+          new_booking:    p.new_booking    ?? true,
+          booking_cancel: p.booking_cancel ?? true,
+          payout:         p.payout         ?? true,
+          review:         p.review         ?? true,
         });
       }
+
+      if (!cancelled) setProfileLoading(false);
     };
 
     void load();
     return () => { cancelled = true; };
-  }, []);
+  }, [fetchMyApplication]);
 
-  // Handle Stripe redirect params (?stripe=success|refresh)
+  // ── Stripe redirect params ─────────────────────────────────────────
+
   useEffect(() => {
-    const stripeParam = searchParams.get("stripe");
-    if (stripeParam === "success") {
+    const param = searchParams.get("stripe");
+    if (param === "success") {
       toast.success("Stripe account connected! Your payouts are now enabled.");
       setSearchParams({}, { replace: true });
-      // Re-fetch stripe_account_id to confirm it's stored
       supabase.auth.getUser().then(({ data: { user: u } }) => {
         if (!u) return;
         supabase
@@ -125,15 +156,15 @@ export default function AgencySettings() {
           .select("stripe_account_id")
           .eq("user_id", u.id)
           .maybeSingle()
-          .then(({ data }) => {
-            if (data?.stripe_account_id) setStripeAccountId(data.stripe_account_id);
-          });
+          .then(({ data }) => { if (data?.stripe_account_id) setStripeAccountId(data.stripe_account_id); });
       });
-    } else if (stripeParam === "refresh") {
+    } else if (param === "refresh") {
       toast.info("Stripe onboarding session expired. Please try connecting again.");
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  // ── Notification toggle ───────────────────────────────────────────
 
   const handleNotificationToggle = async (key: NotifKey, checked: boolean) => {
     setNotifications((prev) => ({ ...prev, [key]: checked }));
@@ -153,6 +184,8 @@ export default function AgencySettings() {
     }
   };
 
+  // ── Stripe connect ────────────────────────────────────────────────
+
   const handleConnectStripe = async () => {
     setIsConnectingStripe(true);
     try {
@@ -168,37 +201,29 @@ export default function AgencySettings() {
     }
   };
 
+  // ── Logo upload ───────────────────────────────────────────────────
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setLogoFile(file);
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      if (ev.target?.result) setLogoPreview(ev.target.result as string);
-    };
+    reader.onload = (ev) => { if (ev.target?.result) setLogoPreview(ev.target.result as string); };
     reader.readAsDataURL(file);
     e.target.value = "";
   };
 
+  // ── Save ──────────────────────────────────────────────────────────
+
   const handleSave = async () => {
-    if (!agencyName.trim()) {
-      toast.error("Agency name is required.");
-      return;
-    }
-    if (!email.trim()) {
-      toast.error("Email is required.");
-      return;
-    }
+    if (!companyName.trim()) { toast.error("Agency name is required."); return; }
+    if (!email.trim()) { toast.error("Email is required."); return; }
     setIsLoading(true);
 
     const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) {
-      toast.error("Not authenticated.");
-      setIsLoading(false);
-      return;
-    }
+    if (!authUser) { toast.error("Not authenticated."); setIsLoading(false); return; }
 
-    // Upload logo to storage if a new file was selected
+    // Upload logo if changed
     let savedLogoUrl: string | undefined;
     if (logoFile) {
       const ext = logoFile.name.split(".").pop() ?? "jpg";
@@ -211,141 +236,249 @@ export default function AgencySettings() {
         setIsLoading(false);
         return;
       }
-      const { data: { publicUrl } } = supabase.storage
-        .from("agency-logos")
-        .getPublicUrl(path);
+      const { data: { publicUrl } } = supabase.storage.from("agency-logos").getPublicUrl(path);
       savedLogoUrl = publicUrl;
       setLogoFile(null);
     }
 
-    // Sync agency_name to auth user_metadata
-    await supabase.auth.updateUser({ data: { agency_name: agencyName.trim() } });
+    // Sync company name to auth metadata
+    await supabase.auth.updateUser({ data: { agency_name: companyName.trim() } });
 
-    // Update agency profile in agency_applications
+    // Update only editable fields — never touch pan_number, registration_number, license_url
     const { error: profileError } = await supabase
       .from("agency_applications")
       .update({
-        company_name: agencyName.trim(),
-        registration_number: licenseNumber.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        address: address.trim(),
-        description: about.trim(),
+        company_name: companyName.trim(),
+        owner_name:   ownerName.trim(),
+        owner_phone:  ownerPhone.trim(),
+        email:        email.trim(),
+        phone:        phone.trim(),
+        website:      website.trim(),
+        city:         city.trim(),
+        district:     district.trim(),
+        address:      address.trim(),
+        description:  about.trim(),
         ...(savedLogoUrl !== undefined ? { logo_url: savedLogoUrl } : {}),
       })
       .eq("user_id", authUser.id);
 
-    if (profileError) {
-      toast.error(profileError.message);
-      setIsLoading(false);
-      return;
-    }
+    if (profileError) { toast.error(profileError.message); setIsLoading(false); return; }
 
     // Upsert bank details
     if (accountHolder.trim() || bankName.trim() || accountNumber.trim() || routingSwift.trim()) {
       const { error: bankError } = await supabase
         .from("agency_bank_details")
         .upsert({
-          agency_user_id: authUser.id,
-          account_holder_name: accountHolder.trim(),
-          bank_name: bankName.trim(),
+          agency_user_id:          authUser.id,
+          account_holder_name:     accountHolder.trim(),
+          bank_name:               bankName.trim(),
           account_number_encrypted: accountNumber.trim(),
-          routing_swift: routingSwift.trim(),
+          routing_swift:           routingSwift.trim(),
         }, { onConflict: "agency_user_id" });
 
-      if (bankError) {
-        toast.error(bankError.message);
-        setIsLoading(false);
-        return;
-      }
+      if (bankError) { toast.error(bankError.message); setIsLoading(false); return; }
     }
 
     setIsLoading(false);
     toast.success("Settings saved successfully.");
   };
 
-  const initials = agencyName
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  // ── Helpers ───────────────────────────────────────────────────────
+
+  const initials = companyName
+    .split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) || user?.name?.slice(0, 2).toUpperCase() || "AG";
 
   const notificationItems: { id: NotifKey; label: string; desc: string }[] = [
-    { id: "new_booking",    label: "New booking received",  desc: "Get notified when a customer books your activity" },
-    { id: "booking_cancel", label: "Booking cancellation",  desc: "Alert when a booking is cancelled" },
-    { id: "payout",         label: "Payout processed",      desc: "Confirmation when payouts are completed" },
-    { id: "review",         label: "New review",            desc: "When a customer leaves a review" },
+    { id: "new_booking",    label: "New booking received", desc: "Get notified when a customer books your activity" },
+    { id: "booking_cancel", label: "Booking cancellation", desc: "Alert when a booking is cancelled" },
+    { id: "payout",         label: "Payout processed",     desc: "Confirmation when payouts are completed" },
+    { id: "review",         label: "New review",           desc: "When a customer leaves a review" },
   ];
+
+  // ── Render ────────────────────────────────────────────────────────
 
   return (
     <AgencyLayout title="Settings">
       <div className="max-w-2xl space-y-6">
 
-        {/* Agency Profile */}
+        {/* ── Verified Business Information (read-only) ─────────── */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Agency Profile</CardTitle></CardHeader>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Verified Business Information</CardTitle>
+              <Badge className="bg-primary/10 text-primary border-primary/20 gap-1">
+                <ShieldCheck className="h-3 w-3" />
+                Locked
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              These details were verified during your onboarding and cannot be changed. Contact support if a correction is needed.
+            </p>
+          </CardHeader>
           <CardContent className="space-y-4">
+            {profileLoading ? (
+              <div className="grid sm:grid-cols-2 gap-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground flex items-center gap-1.5">
+                    <Lock className="h-3 w-3" /> PAN Number
+                  </Label>
+                  <Input
+                    value={panNumber}
+                    readOnly
+                    className="bg-muted text-muted-foreground cursor-default font-mono"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground flex items-center gap-1.5">
+                    <Lock className="h-3 w-3" /> Registration Number
+                  </Label>
+                  <Input
+                    value={registrationNumber}
+                    readOnly
+                    className="bg-muted text-muted-foreground cursor-default font-mono"
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label className="text-muted-foreground flex items-center gap-1.5">
+                    <Lock className="h-3 w-3" /> Tourism License
+                  </Label>
+                  <div className="flex items-center gap-2 h-10 px-3 rounded-md border bg-muted">
+                    {licenseUploaded ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
+                        <span className="text-sm text-muted-foreground">Document on file</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                        <span className="text-sm text-muted-foreground">Not uploaded</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── Agency Profile (editable) ─────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Agency Profile</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Update your contact details and public profile.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Logo */}
             <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-lg bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary overflow-hidden">
+              <div className="h-16 w-16 rounded-lg bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary overflow-hidden flex-shrink-0">
                 {logoPreview
                   ? <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" />
-                  : initials || "—"}
+                  : (profileLoading ? <Skeleton className="h-16 w-16" /> : (initials || "AG"))}
               </div>
               <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
               <Button variant="outline" size="sm" className="gap-2" onClick={() => logoInputRef.current?.click()}>
                 <Upload className="h-4 w-4" /> Upload Logo
               </Button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Agency Name</Label>
-                <Input value={agencyName} onChange={(e) => setAgencyName(e.target.value)} />
+
+            {profileLoading ? (
+              <div className="grid sm:grid-cols-2 gap-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ))}
               </div>
-              <div className="space-y-2">
-                <Label>License Number</Label>
-                <Input value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Address</Label>
-              <Input value={address} onChange={(e) => setAddress(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>About</Label>
-              <Textarea rows={4} value={about} onChange={(e) => setAbout(e.target.value)} />
-            </div>
+            ) : (
+              <>
+                {/* Row 1: Company name + owner name */}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Agency Name</Label>
+                    <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Your agency name" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Owner / Contact Name</Label>
+                    <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Full name" />
+                  </div>
+                </div>
+
+                {/* Row 2: Email + phone */}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Agency Email</Label>
+                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="contact@youragency.com" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Agency Phone</Label>
+                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+977 ..." />
+                  </div>
+                </div>
+
+                {/* Row 3: Owner phone + website */}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Owner Phone</Label>
+                    <Input value={ownerPhone} onChange={(e) => setOwnerPhone(e.target.value)} placeholder="+977 ..." />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Website</Label>
+                    <Input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://youragency.com" />
+                  </div>
+                </div>
+
+                {/* Row 4: City + district */}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>City</Label>
+                    <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Kathmandu" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>District</Label>
+                    <Input value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="Bagmati" />
+                  </div>
+                </div>
+
+                {/* Address */}
+                <div className="space-y-2">
+                  <Label>Address</Label>
+                  <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street address" />
+                </div>
+
+                {/* About */}
+                <div className="space-y-2">
+                  <Label>About Your Agency</Label>
+                  <Textarea rows={4} value={about} onChange={(e) => setAbout(e.target.value)} placeholder="Tell travelers about your experience, specialties, and what makes your agency unique..." />
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
-        {/* Bank Account / Payout Details */}
+        {/* ── Bank Account / Payout Details ──────────────────────── */}
         <Card>
           <CardHeader><CardTitle className="text-base">Bank Account / Payout Details</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Account holder name</Label>
-                <Input
-                  value={accountHolder}
-                  onChange={(e) => setAccountHolder(e.target.value)}
-                  placeholder="Legal name on the account"
-                />
+                <Input value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} placeholder="Legal name on the account" />
               </div>
               <div className="space-y-2">
                 <Label>Bank name</Label>
-                <Input
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  placeholder="e.g. Nepal Investment Bank"
-                />
+                <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g. Nepal Investment Bank" />
               </div>
             </div>
             <div className="space-y-2">
@@ -373,7 +506,7 @@ export default function AgencySettings() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  aria-label={showAccountNumber ? "Hide account number" : "Show account number"}
+                  aria-label={showAccountNumber ? "Hide" : "Show"}
                   onClick={() => setShowAccountNumber((v) => !v)}
                 >
                   {showAccountNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -382,20 +515,14 @@ export default function AgencySettings() {
             </div>
             <div className="space-y-2">
               <Label>Routing / SWIFT code</Label>
-              <Input
-                value={routingSwift}
-                onChange={(e) => setRoutingSwift(e.target.value)}
-                placeholder="Routing or SWIFT/BIC"
-              />
+              <Input value={routingSwift} onChange={(e) => setRoutingSwift(e.target.value)} placeholder="Routing or SWIFT/BIC" />
             </div>
           </CardContent>
         </Card>
 
-        {/* Stripe Connect */}
+        {/* ── Stripe Connect ────────────────────────────────────── */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Stripe Payouts</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base">Stripe Payouts</CardTitle></CardHeader>
           <CardContent>
             {stripeAccountId ? (
               <div className="flex items-start gap-4">
@@ -410,16 +537,8 @@ export default function AgencySettings() {
                   <p className="text-xs text-muted-foreground mt-1">
                     You're set up to receive payouts. The platform admin processes transfers to your account.
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3 gap-2"
-                    onClick={handleConnectStripe}
-                    disabled={isConnectingStripe}
-                  >
-                    {isConnectingStripe
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <ExternalLink className="h-4 w-4" />}
+                  <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={handleConnectStripe} disabled={isConnectingStripe}>
+                    {isConnectingStripe ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                     Update Stripe Account
                   </Button>
                 </div>
@@ -435,11 +554,7 @@ export default function AgencySettings() {
                     Connect Stripe to receive payouts directly to your bank account. You'll be redirected to
                     Stripe's secure onboarding flow — it takes about 5 minutes.
                   </p>
-                  <Button
-                    className="mt-4 gap-2"
-                    onClick={handleConnectStripe}
-                    disabled={isConnectingStripe}
-                  >
+                  <Button className="mt-4 gap-2" onClick={handleConnectStripe} disabled={isConnectingStripe}>
                     {isConnectingStripe
                       ? <><Loader2 className="h-4 w-4 animate-spin" /> Connecting…</>
                       : <><ExternalLink className="h-4 w-4" /> Connect Stripe</>}
@@ -450,24 +565,20 @@ export default function AgencySettings() {
           </CardContent>
         </Card>
 
-        {/* Notifications */}
+        {/* ── Notifications ─────────────────────────────────────── */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Notifications</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base">Notifications</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             {notificationItems.map((n, i) => (
               <div key={n.id}>
                 {i > 0 && <Separator className="mb-4" />}
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground">{n.label}</p>
+                    <p className="text-sm font-medium">{n.label}</p>
                     <p className="text-xs text-muted-foreground">{n.desc}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {notifSaving === n.id && (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                    )}
+                    {notifSaving === n.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
                     <Switch
                       checked={notifications[n.id]}
                       disabled={notifSaving === n.id}
@@ -480,8 +591,8 @@ export default function AgencySettings() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={isLoading} className="gap-2">
+        <div className="flex justify-end pb-6">
+          <Button onClick={handleSave} disabled={isLoading || profileLoading} className="gap-2">
             <Save className="h-4 w-4" />
             {isLoading ? "Saving…" : "Save Changes"}
           </Button>

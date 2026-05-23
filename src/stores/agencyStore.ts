@@ -28,6 +28,8 @@ export interface AgencyApplication {
   license_url: string;
   pan_url: string;
   insurance_url: string;
+  logo_url?: string;
+  stripe_account_id?: string;
   status: VerificationStatus;
   rejection_reason: string;
   created_at: string;
