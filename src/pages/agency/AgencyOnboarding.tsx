@@ -370,6 +370,5 @@ export default function AgencyOnboarding() {
           </form>
         </div>
       </div>
-    </div>
   );
 }

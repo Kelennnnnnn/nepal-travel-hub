@@ -36,27 +36,27 @@ Deno.serve(async (req: Request) => {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
+  // Idempotency: skip if we've already processed this event.
+  const { data: seen } = await supabaseAdmin
+    .from("webhook_events")
+    .select("event_id")
+    .eq("event_id", event.id)
+    .maybeSingle();
+
+  if (seen) {
+    return new Response(JSON.stringify({ received: true, duplicate: true }), { status: 200 });
+  }
+
   switch (event.type) {
     case "payment_intent.succeeded": {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      const pi = event.data.object as Stripe.PaymentIntent;
 
-      // Update booking to confirmed + paid
-      const { error } = await supabaseAdmin
-        .from("bookings")
-        .update({
-          status: "confirmed",
-          payment_status: "paid",
-        })
-        .eq("payment_intent_id", paymentIntent.id);
-
-      if (error) {
-        console.error("Failed to update booking:", error.message);
-        return new Response("DB update failed", { status: 500 });
-      }
-
-      // Fetch booking + activity + traveler details for emails
+      // Guard: only transition once (unpaid → paid)
       const { data: booking } = await supabaseAdmin
         .from("bookings")
+        .update({ status: "confirmed", payment_status: "paid" })
+        .eq("payment_intent_id", pi.id)
+        .eq("payment_status", "unpaid")
         .select(`
           id,
           booking_date,
@@ -69,63 +69,59 @@ Deno.serve(async (req: Request) => {
             agency_id
           )
         `)
-        .eq("payment_intent_id", paymentIntent.id)
         .maybeSingle();
 
-      if (booking) {
-        const activityTitle = (booking.listings as { title: string } | null)?.title ?? "Activity";
-        const agencyId = (booking.listings as { agency_id: string } | null)?.agency_id;
-        const bookingRef = `YN-${booking.id.slice(0, 8).toUpperCase()}`;
+      if (!booking) break; // already confirmed — do not resend emails
 
-        // Fetch agency name for traveler email
-        let agencyName = "Your Agency";
-        let agencyEmail: string | null = null;
-        if (agencyId) {
-          const { data: agency } = await supabaseAdmin
-            .from("agency_applications")
-            .select("company_name, email")
-            .eq("user_id", agencyId)
-            .maybeSingle();
-          agencyName = agency?.company_name ?? agencyName;
-          agencyEmail = agency?.email ?? null;
-        }
+      const activityTitle = (booking.listings as { title: string } | null)?.title ?? "Activity";
+      const agencyId = (booking.listings as { agency_id: string } | null)?.agency_id;
+      const bookingRef = `YN-${booking.id.slice(0, 8).toUpperCase()}`;
 
-        // Email traveler
-        if (booking.traveler_email) {
-          const { subject, html } = bookingConfirmationEmail({
-            travelerName: booking.traveler_name ?? "Traveler",
+      let agencyName = "Your Agency";
+      let agencyEmail: string | null = null;
+      if (agencyId) {
+        const { data: agency } = await supabaseAdmin
+          .from("agency_applications")
+          .select("company_name, email")
+          .eq("user_id", agencyId)
+          .maybeSingle();
+        agencyName = agency?.company_name ?? agencyName;
+        agencyEmail = agency?.email ?? null;
+      }
+
+      if (booking.traveler_email) {
+        const { subject, html } = bookingConfirmationEmail({
+          travelerName: booking.traveler_name ?? "Traveler",
+          bookingRef,
+          activityTitle,
+          tripDate: booking.booking_date,
+          guests: booking.participants,
+          totalAmount: booking.total_amount,
+          agencyName,
+        });
+        await sendEmail({ to: booking.traveler_email, subject, html });
+      }
+
+      if (agencyId && agencyEmail) {
+        const { data: prefs } = await supabaseAdmin
+          .from("notification_preferences")
+          .select("new_booking")
+          .eq("user_id", agencyId)
+          .maybeSingle();
+
+        if (prefs?.new_booking !== false) {
+          const netPayout = booking.total_amount * 0.9;
+          const { subject, html } = newBookingAgencyEmail({
+            agencyName,
             bookingRef,
             activityTitle,
+            travelerName: booking.traveler_name ?? "A traveler",
             tripDate: booking.booking_date,
             guests: booking.participants,
             totalAmount: booking.total_amount,
-            agencyName,
+            netPayout,
           });
-          await sendEmail({ to: booking.traveler_email, subject, html });
-        }
-
-        // Email agency — respect new_booking notification preference
-        if (agencyId && agencyEmail) {
-          const { data: prefs } = await supabaseAdmin
-            .from("notification_preferences")
-            .select("new_booking")
-            .eq("user_id", agencyId)
-            .maybeSingle();
-
-          if (prefs?.new_booking !== false) {
-            const netPayout = booking.total_amount * 0.9;
-            const { subject, html } = newBookingAgencyEmail({
-              agencyName,
-              bookingRef,
-              activityTitle,
-              travelerName: booking.traveler_name ?? "A traveler",
-              tripDate: booking.booking_date,
-              guests: booking.participants,
-              totalAmount: booking.total_amount,
-              netPayout,
-            });
-            await sendEmail({ to: agencyEmail, subject, html });
-          }
+          await sendEmail({ to: agencyEmail, subject, html });
         }
       }
 
@@ -170,6 +166,12 @@ Deno.serve(async (req: Request) => {
       break;
     }
   }
+
+  // Record the event so retries are no-ops
+  await supabaseAdmin.from("webhook_events").insert({
+    event_id: event.id,
+    event_type: event.type,
+  });
 
   return new Response(JSON.stringify({ received: true }), {
     status: 200,

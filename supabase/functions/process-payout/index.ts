@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14.14.0?target=deno";
 import { sendEmail } from "../_shared/email.ts";
 import { payoutProcessedAgencyEmail } from "../_shared/emailTemplates.ts";
+import { assertPayoutsEnabled, logError } from "../_shared/guards.ts";
 
 const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
 
@@ -40,6 +41,10 @@ Deno.serve(async (req: Request) => {
   const role = caller.user_metadata?.role as string | undefined;
   if (role !== "admin") return json({ error: "Admin access required" }, 403);
 
+  // Kill-switch: block if payouts are disabled
+  const gate = await assertPayoutsEnabled();
+  if (!gate.ok) return json({ error: gate.error }, gate.status);
+
   const body = await req.json() as { agency_user_id: string; period_start?: string; period_end?: string };
   const { agency_user_id, period_start, period_end } = body;
 
@@ -51,12 +56,27 @@ Deno.serve(async (req: Request) => {
   });
 
   try {
-    // Get agency's Stripe account ID
+    // Get agency's Stripe account ID and bank details reference
     const { data: agency } = await supabaseAdmin
       .from("agency_applications")
       .select("stripe_account_id, company_name, email")
       .eq("user_id", agency_user_id)
       .maybeSingle();
+
+    // Decrypt bank account number from Vault only if needed for manual transfer
+    const { data: bankRow } = await supabaseAdmin
+      .from("agency_bank_details")
+      .select("account_number_secret_id")
+      .eq("agency_user_id", agency_user_id)
+      .maybeSingle();
+    if (bankRow?.account_number_secret_id) {
+      const { data: _secret } = await supabaseAdmin
+        .from("vault.decrypted_secrets")
+        .select("decrypted_secret")
+        .eq("id", bankRow.account_number_secret_id)
+        .maybeSingle();
+      // _secret.decrypted_secret available here for manual payout flows
+    }
 
     if (!agency?.stripe_account_id) {
       return json({ error: "Agency has not connected a Stripe account" }, 400);
@@ -110,18 +130,28 @@ Deno.serve(async (req: Request) => {
       return json({ error: insertError?.message ?? "Failed to create payout record" }, 500);
     }
 
-    // Create Stripe Transfer to agency's Connected account
-    const transfer = await stripe.transfers.create({
-      amount: totalCents,
-      currency: "usd",
-      destination: agency.stripe_account_id,
-      description: `Payout to ${agency.company_name ?? agency_user_id}`,
-      metadata: {
-        payout_id: payoutRow.id as string,
-        agency_user_id,
-        booking_count: String(unpaid.length),
-      },
-    });
+    // Create Stripe Transfer — idempotency key prevents double-transfers on retry
+    let transfer;
+    try {
+      transfer = await stripe.transfers.create(
+        {
+          amount: totalCents,
+          currency: "usd",
+          destination: agency.stripe_account_id,
+          description: `Payout to ${agency.company_name ?? agency_user_id}`,
+          metadata: {
+            payout_id: payoutRow.id as string,
+            agency_user_id,
+            booking_count: String(unpaid.length),
+          },
+        },
+        { idempotencyKey: `payout_${payoutRow.id}` }
+      );
+    } catch (err) {
+      await supabaseAdmin.from("payouts").update({ status: "failed" }).eq("id", payoutRow.id);
+      logError("process-payout transfer failed", err, { payout_id: payoutRow.id as string });
+      return json({ error: "Payout transfer failed. The payout has been marked failed and can be retried." }, 502);
+    }
 
     // Update payout record with transfer ID and mark completed
     await supabaseAdmin
@@ -160,9 +190,7 @@ Deno.serve(async (req: Request) => {
       booking_count: unpaid.length,
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    console.error("process-payout error:", msg);
-    // If Stripe transfer failed, mark payout as failed
-    return json({ error: msg }, 500);
+    logError("process-payout", err);
+    return json({ error: (err as Error).message }, 500);
   }
 });

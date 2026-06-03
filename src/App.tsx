@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,6 +8,7 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useAuthStore } from "./stores/authStore";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { CookieConsent } from "./components/CookieConsent";
+import { supabase } from "./lib/supabase";
 
 // Lazy-loaded pages
 const Account = lazy(() => import("./pages/Account"));
@@ -81,6 +82,28 @@ function AuthInitializer() {
   return null;
 }
 
+function MaintenanceBanner() {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("platform_settings")
+      .select("value")
+      .eq("key", "maintenance_mode")
+      .maybeSingle()
+      .then(({ data }) => setShow(data?.value === true));
+  }, []);
+
+  if (!show) return null;
+
+  return (
+    <div className="bg-yellow-400 text-yellow-900 text-sm font-medium text-center px-4 py-2 flex items-center justify-between">
+      <span>The platform is currently under maintenance. Some features may be unavailable.</span>
+      <button onClick={() => setShow(false)} className="ml-4 underline text-xs">Dismiss</button>
+    </div>
+  );
+}
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
@@ -89,6 +112,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthInitializer />
+          <MaintenanceBanner />
           <CookieConsent />
           <Suspense fallback={<PageLoader />}>
             <Routes>

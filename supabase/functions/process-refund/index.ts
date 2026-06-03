@@ -98,10 +98,10 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2023-10-16",
     });
 
-    const refund = await stripe.refunds.create({
-      payment_intent: booking.payment_intent_id,
-      amount: refundAmountCents,
-    });
+    const refund = await stripe.refunds.create(
+      { payment_intent: booking.payment_intent_id, amount: refundAmountCents },
+      { idempotencyKey: `refund_${booking.id}` }
+    );
 
     await supabaseAdmin
       .from("bookings")

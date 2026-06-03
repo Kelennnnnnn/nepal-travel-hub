@@ -107,7 +107,7 @@ export default function AgencySettings() {
       const [bankResult, prefsResult] = await Promise.all([
         supabase
           .from("agency_bank_details")
-          .select("account_holder_name, bank_name, account_number_encrypted, routing_swift")
+          .select("account_holder_name, bank_name, routing_swift")
           .eq("agency_user_id", authUser.id)
           .maybeSingle(),
         supabase
@@ -121,7 +121,8 @@ export default function AgencySettings() {
         const b = bankResult.data;
         setAccountHolder(b.account_holder_name ?? "");
         setBankName(b.bank_name ?? "");
-        setAccountNumber(b.account_number_encrypted ?? "");
+        // Account number is stored encrypted in Vault — never loaded back to client
+        setAccountNumber("");
         setRoutingSwift(b.routing_swift ?? "");
       }
 
@@ -269,14 +270,23 @@ export default function AgencySettings() {
       const { error: bankError } = await supabase
         .from("agency_bank_details")
         .upsert({
-          agency_user_id:          authUser.id,
-          account_holder_name:     accountHolder.trim(),
-          bank_name:               bankName.trim(),
-          account_number_encrypted: accountNumber.trim(),
-          routing_swift:           routingSwift.trim(),
+          agency_user_id:      authUser.id,
+          account_holder_name: accountHolder.trim(),
+          bank_name:           bankName.trim(),
+          routing_swift:       routingSwift.trim(),
         }, { onConflict: "agency_user_id" });
 
       if (bankError) { toast.error(bankError.message); setIsLoading(false); return; }
+
+      // Store account number via Vault RPC — never written as plaintext
+      if (accountNumber.trim()) {
+        const { error: vaultError } = await supabase.rpc("set_bank_account", {
+          p_agency_id: authUser.id,
+          p_account_number: accountNumber.trim(),
+        });
+        if (vaultError) { toast.error(vaultError.message); setIsLoading(false); return; }
+        setAccountNumber(""); // clear field — vault-only from here
+      }
     }
 
     setIsLoading(false);
