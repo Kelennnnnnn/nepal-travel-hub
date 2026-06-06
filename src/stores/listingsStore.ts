@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
+import { logger } from "@/lib/logger";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -127,7 +128,7 @@ export const useListingsStore = create<ListingsStore>((set, get) => ({
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching my listings:", error.message);
+      logger.error("Error fetching my listings:", error.message);
       set({ isLoading: false, error: error.message });
       return;
     }
@@ -236,7 +237,7 @@ export const useListingsStore = create<ListingsStore>((set, get) => ({
       .order("date", { ascending: true });
 
     if (error) {
-      console.error("Error fetching availability:", error.message);
+      logger.error("Error fetching availability:", error.message);
       set({ isLoading: false, error: error.message });
       return;
     }

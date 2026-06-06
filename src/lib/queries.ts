@@ -4,6 +4,7 @@ import { supabase } from "./supabase";
 export interface Review {
   id: string;
   activityId: string;
+  agencyId: string | null;
   userName: string;
   userAvatar?: string;
   rating: number;
@@ -14,6 +15,7 @@ export interface Review {
   verified: boolean;
   tripDate: string;
   photos?: string[];
+  adminNote: string | null;
 }
 
 interface SubmitReviewData {
@@ -34,6 +36,7 @@ function mapReviewRow(row: Record<string, unknown>): Review {
   return {
     id: row.id as string,
     activityId: row.listing_id as string,
+    agencyId: (row.agency_id as string | null) ?? null,
     userName: (row.traveler_name as string | null) ?? "Traveler",
     rating: row.rating as number,
     title: row.title as string,
@@ -42,6 +45,7 @@ function mapReviewRow(row: Record<string, unknown>): Review {
     helpful: (row.helpful_count as number) ?? 0,
     verified: (row.verified as boolean) ?? true,
     tripDate: formatTripDate(row.created_at as string),
+    adminNote: (row.admin_note as string | null) ?? null,
   };
 }
 
@@ -190,7 +194,7 @@ export function useListingReviews(listingId: string | undefined) {
       if (!listingId) throw new Error("No listing ID");
       const { data, error } = await supabase
         .from("reviews")
-        .select("id, listing_id, traveler_name, rating, title, comment, helpful_count, verified, created_at")
+        .select("id, listing_id, agency_id, traveler_name, rating, title, comment, helpful_count, verified, created_at, admin_note")
         .eq("listing_id", listingId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -279,6 +283,30 @@ export function useSubmitReview() {
       void queryClient.invalidateQueries({ queryKey: ["reviews", variables.listingId] });
       void queryClient.invalidateQueries({ queryKey: ["reviews", "can-review", variables.listingId] });
       void queryClient.invalidateQueries({ queryKey: ["listing", variables.listingId] });
+    },
+  });
+}
+
+// Agency responds to a review via admin_note
+export function useRespondToReview() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ reviewId, note, listingId }: { reviewId: string; note: string; listingId: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { error } = await supabase
+        .from("reviews")
+        .update({ admin_note: note.trim() || null })
+        .eq("id", reviewId)
+        .eq("agency_id", user.id);
+
+      if (error) throw error;
+      return listingId;
+    },
+    onSuccess: (listingId) => {
+      void queryClient.invalidateQueries({ queryKey: ["reviews", listingId] });
     },
   });
 }

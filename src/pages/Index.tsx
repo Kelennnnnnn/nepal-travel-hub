@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { SEO } from "@/components/SEO";
-import { Search, ChevronRight, Shield, Users, Clock, Award, MapPin, Star } from "lucide-react";
+import { Search, ChevronRight, Shield, Users, Clock } from "lucide-react";
+import { HowItWorksSection } from "@/components/home/HowItWorksSection";
+import { TestimonialsSection } from "@/components/home/TestimonialsSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Layout } from "@/components/layout/Layout";
 import { ActivityCard } from "@/components/activities/ActivityCard";
 import { categories } from "@/data/activities";
 import { usePublishedListings } from "@/lib/queries";
+import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import type { Listing } from "@/stores/listingsStore";
 import type { Activity } from "@/components/activities/ActivityCard";
 import heroImage from "@/assets/hero-nepal.jpg";
@@ -18,7 +21,7 @@ function listingToActivity(listing: Listing): Activity {
     id: listing.id,
     title: listing.title,
     description: listing.description,
-    image: listing.images?.[0] || "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&h=600&fit=crop",
+    image: listing.images?.[0] || FALLBACK_IMAGE_URL,
     location: listing.location,
     duration: listing.duration,
     price: Number(listing.price),
@@ -36,48 +39,6 @@ const stats = [
   { value: "150+", label: "Partner Agencies" },
   { value: "50k+", label: "Happy Travelers" },
   { value: "4.8", label: "Average Rating" },
-];
-
-const howItWorks = [
-  {
-    icon: Search,
-    title: "Discover",
-    description: "Browse hundreds of authentic Nepal experiences curated by verified local agencies.",
-  },
-  {
-    icon: Shield,
-    title: "Book Securely",
-    description: "Complete your booking with instant confirmation and secure payment processing.",
-  },
-  {
-    icon: Award,
-    title: "Experience",
-    description: "Enjoy your adventure with expert local guides who know Nepal best.",
-  },
-];
-
-const testimonials = [
-  {
-    quote: "The Everest Base Camp trek was life-changing. The agency was professional and the experience was beyond expectations.",
-    author: "Sarah M.",
-    location: "United States",
-    rating: 5,
-    image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
-  },
-  {
-    quote: "NepalTrails made it so easy to find and book authentic experiences. We felt safe and well taken care of throughout.",
-    author: "James L.",
-    location: "Australia",
-    rating: 5,
-    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
-  },
-  {
-    quote: "As a solo traveler, I appreciated the verified agencies and clear pricing. The paragliding in Pokhara was incredible!",
-    author: "Emma K.",
-    location: "Germany",
-    rating: 5,
-    image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
-  },
 ];
 
 export default function Index() {
@@ -234,74 +195,9 @@ export default function Index() {
         </div>
       </section>
 
-      {/* How It Works */}
-      <section id="how-it-works" className="py-16 md:py-20 bg-primary text-primary-foreground">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">How NepalTrails Works</h2>
-            <p className="text-primary-foreground/80 max-w-2xl mx-auto">
-              Book your Nepal adventure in three simple steps
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            {howItWorks.map((step, index) => (
-              <div key={step.title} className="text-center group">
-                <div className="relative inline-flex items-center justify-center w-20 h-20 bg-primary-foreground/10 rounded-2xl mb-6 group-hover:bg-primary-foreground/20 transition-colors">
-                  <step.icon className="h-8 w-8" />
-                  <span className="absolute -top-2 -right-2 w-8 h-8 bg-secondary text-secondary-foreground rounded-full flex items-center justify-center font-bold text-sm">
-                    {index + 1}
-                  </span>
-                </div>
-                <h3 className="text-xl font-semibold mb-3">{step.title}</h3>
-                <p className="text-primary-foreground/70">{step.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <HowItWorksSection />
 
-      {/* Testimonials */}
-      <section className="py-16 md:py-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Travelers Love Us</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Real stories from adventurers who discovered Nepal with us
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial) => (
-              <div
-                key={testimonial.author}
-                className="bg-card p-6 rounded-xl border border-border hover:shadow-md transition-shadow"
-              >
-                <div className="flex gap-1 mb-4">
-                  {Array.from({ length: testimonial.rating }).map((_, i) => (
-                    <Star key={i} className="h-5 w-5 fill-secondary text-secondary" />
-                  ))}
-                </div>
-                <p className="text-foreground mb-6 italic">"{testimonial.quote}"</p>
-                <div className="flex items-center gap-3">
-                  <img
-                    src={testimonial.image}
-                    alt={testimonial.author}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                  <div>
-                    <div className="font-medium">{testimonial.author}</div>
-                    <div className="text-sm text-muted-foreground flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      {testimonial.location}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <TestimonialsSection />
 
       {/* CTA Section */}
       <section className="py-16 md:py-20 bg-gradient-to-br from-primary via-primary to-sienna-dark text-primary-foreground">

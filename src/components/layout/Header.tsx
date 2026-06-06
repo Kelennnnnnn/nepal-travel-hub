@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, Mountain, User, LogIn, LayoutDashboard, LogOut, BookOpen, Heart, MessageSquare } from "lucide-react";
+import { MobileMenu } from "./MobileMenu";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -227,104 +228,15 @@ export function Header() {
           </button>
         </div>
 
-        {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-border/50 animate-slide-up bg-background">
-            <nav className="flex flex-col gap-3">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className="text-foreground/80 hover:text-primary py-2 px-4 transition-colors font-medium text-lg"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {item.name}
-                </Link>
-              ))}
-              <div className="flex flex-col gap-3 py-4 px-4 border-t border-border/50 mt-2">
-                {isAuthenticated ? (
-                  <>
-                    <div className="flex items-center gap-3 mb-2 px-2">
-                      <Avatar className="h-10 w-10 border border-primary/20">
-                        <AvatarFallback className="bg-primary/10 text-primary">
-                          {user?.name?.charAt(0).toUpperCase() || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-foreground">{user?.name}</span>
-                        <span className="text-xs text-muted-foreground uppercase">{user?.role}</span>
-                      </div>
-                    </div>
-                    
-                    {user?.role !== "user" && (
-                      <Link to={getDashboardLink()} onClick={() => setIsMobileMenuOpen(false)}>
-                        <Button variant="outline" className="w-full justify-start">
-                          <LayoutDashboard className="mr-2 h-4 w-4" />
-                          {user?.role === 'admin' ? 'Admin Dashboard' : 'Agency Dashboard'}
-                        </Button>
-                      </Link>
-                    )}
-
-                    {user?.role === "user" && (
-                      <>
-                        <Link to="/messages" onClick={() => setIsMobileMenuOpen(false)}>
-                          <Button variant="outline" className="w-full justify-start">
-                            <MessageSquare className="mr-2 h-4 w-4" />
-                            <span className="flex-1 text-left">Messages</span>
-                            {unreadCount > 0 && (
-                              <span className="bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">
-                                {unreadCount}
-                              </span>
-                            )}
-                          </Button>
-                        </Link>
-                        <Link to="/my-bookings" onClick={() => setIsMobileMenuOpen(false)}>
-                          <Button variant="outline" className="w-full justify-start">
-                            <BookOpen className="mr-2 h-4 w-4" />
-                            My Bookings
-                          </Button>
-                        </Link>
-                        <Link to="/wishlist" onClick={() => setIsMobileMenuOpen(false)}>
-                          <Button variant="outline" className="w-full justify-start">
-                            <Heart className="mr-2 h-4 w-4" />
-                            Saved
-                          </Button>
-                        </Link>
-                        <Link to="/account" onClick={() => setIsMobileMenuOpen(false)}>
-                          <Button variant="outline" className="w-full justify-start">
-                            <User className="mr-2 h-4 w-4" />
-                            My Account
-                          </Button>
-                        </Link>
-                      </>
-                    )}
-                    
-                    <Button onClick={() => {
-                      handleLogout();
-                      setIsMobileMenuOpen(false);
-                    }} variant="destructive" className="w-full justify-start mt-2">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Log Out
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                      <Button variant="outline" className="w-full">
-                        <LogIn className="mr-2 h-4 w-4" />
-                        Traveler Sign In
-                      </Button>
-                    </Link>
-                    <Link to="/agency/login" onClick={() => setIsMobileMenuOpen(false)}>
-                      <Button className="w-full">
-                        Agent Login
-                      </Button>
-                    </Link>
-                  </>
-                )}
-              </div>
-            </nav>
-          </div>
+          <MobileMenu
+            isAuthenticated={isAuthenticated}
+            user={user}
+            unreadCount={unreadCount}
+            dashboardLink={getDashboardLink()}
+            onClose={() => setIsMobileMenuOpen(false)}
+            onLogout={handleLogout}
+          />
         )}
       </div>
     </header>

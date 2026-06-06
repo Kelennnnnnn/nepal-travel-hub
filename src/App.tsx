@@ -91,7 +91,10 @@ function MaintenanceBanner() {
       .select("value")
       .eq("key", "maintenance_mode")
       .maybeSingle()
-      .then(({ data }) => setShow(data?.value === true));
+      .then(({ data, error }) => {
+        if (!error) setShow(data?.value === true);
+      })
+      .catch(() => {});
   }, []);
 
   if (!show) return null;

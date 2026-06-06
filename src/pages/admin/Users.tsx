@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Users, Search, MoreHorizontal, Eye, ShieldCheck, ShieldOff,
-  UserCog, Loader2, Mail, Calendar, AlertTriangle, Trash2,
-  ArrowLeft, ArrowRight, RefreshCw, BookOpen, Star, Building2,
+  UserCog, Loader2, Trash2, ArrowLeft, ArrowRight, RefreshCw,
 } from "lucide-react";
+import { useAuthStore } from "@/stores/authStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -19,34 +17,20 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
-  DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { logAdminAction } from "@/lib/audit";
+import {
+  UserDetailDialog, AvatarInitials, RoleBadge,
+  displayName, userRole, isSuspended, formatDate,
+  type AdminUser, type UserDetail,
+} from "./users/UserDetailDialog";
+import { UserChangeRoleDialog } from "./users/UserChangeRoleDialog";
+import { UserDeleteDialog } from "./users/UserDeleteDialog";
 
 // ── Types ────────────────────────────────────────────────────────────
 
 type UserRole = "user" | "agency" | "admin";
-
-interface AdminUser {
-  id: string;
-  email: string;
-  created_at: string;
-  last_sign_in_at: string | null;
-  banned_until: string | null;
-  user_metadata: {
-    name?: string;
-    full_name?: string;
-    role?: UserRole;
-    agency_name?: string;
-  };
-}
 
 interface PlatformStats {
   total: number;
@@ -56,67 +40,9 @@ interface PlatformStats {
   suspended: number;
 }
 
-interface UserDetail {
-  bookingsCount: number;
-  reviewsCount: number;
-  agencyStatus: string | null;
-  agencyName: string | null;
-}
-
 const PAGE_SIZE = 20;
 
-// ── Helpers ──────────────────────────────────────────────────────────
-
-function displayName(u: AdminUser): string {
-  return u.user_metadata?.name ?? u.user_metadata?.full_name ?? u.email.split("@")[0];
-}
-
-function userRole(u: AdminUser): UserRole {
-  return u.user_metadata?.role ?? "user";
-}
-
-function isSuspended(u: AdminUser): boolean {
-  return !!u.banned_until && new Date(u.banned_until) > new Date();
-}
-
-function initials(u: AdminUser): string {
-  const name = displayName(u);
-  const parts = name.trim().split(" ");
-  return parts.length >= 2
-    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    : name.slice(0, 2).toUpperCase();
-}
-
-function formatDate(d: string | null) {
-  if (!d) return "Never";
-  return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-}
-
 // ── Sub-components ───────────────────────────────────────────────────
-
-function RoleBadge({ role }: { role: UserRole }) {
-  const cfg: Record<UserRole, { label: string; className: string }> = {
-    admin:  { label: "Admin",    className: "bg-amber-100 text-amber-800 border-amber-200" },
-    agency: { label: "Agency",   className: "bg-primary/10 text-primary border-primary/20" },
-    user:   { label: "Traveler", className: "bg-blue-100 text-blue-800 border-blue-200" },
-  };
-  const { label, className } = cfg[role];
-  return <Badge className={className}>{label}</Badge>;
-}
-
-function AvatarInitials({ user }: { user: AdminUser }) {
-  const role = userRole(user);
-  const colorMap: Record<UserRole, string> = {
-    admin:  "bg-amber-100 text-amber-700",
-    agency: "bg-primary/10 text-primary",
-    user:   "bg-blue-100 text-blue-700",
-  };
-  return (
-    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0 ${colorMap[role]}`}>
-      {initials(user)}
-    </div>
-  );
-}
 
 function StatCard({ label, value, color, loading }: {
   label: string; value: number; color?: string; loading: boolean;
@@ -136,6 +62,8 @@ function StatCard({ label, value, color, loading }: {
 // ── Page ─────────────────────────────────────────────────────────────
 
 export default function AdminUsers() {
+  const selfId = useAuthStore((s) => s.user?.id);
+
   const [allUsers, setAllUsers]       = useState<AdminUser[]>([]);
   const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
   const [isLoading, setIsLoading]     = useState(true);
@@ -436,35 +364,41 @@ export default function AdminUsers() {
                                   <Eye className="h-4 w-4 mr-2" />
                                   View Details
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => {
-                                  setSelectedUser(user);
-                                  setNewRole(userRole(user));
-                                  setShowRoleDialog(true);
-                                }}>
-                                  <UserCog className="h-4 w-4 mr-2" />
-                                  Change Role
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                {suspended ? (
-                                  <DropdownMenuItem onClick={() => void handleUnsuspend(user)}>
-                                    <ShieldCheck className="h-4 w-4 mr-2" />
-                                    Unsuspend
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem
-                                    className="text-amber-600 focus:text-amber-600"
-                                    onClick={() => void handleSuspend(user)}>
-                                    <ShieldOff className="h-4 w-4 mr-2" />
-                                    Suspend
+                                {user.id !== selfId && (
+                                  <DropdownMenuItem onClick={() => {
+                                    setSelectedUser(user);
+                                    setNewRole(userRole(user));
+                                    setShowRoleDialog(true);
+                                  }}>
+                                    <UserCog className="h-4 w-4 mr-2" />
+                                    Change Role
                                   </DropdownMenuItem>
                                 )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onClick={() => { setUserToDelete(user); setShowDeleteDialog(true); }}>
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete User
-                                </DropdownMenuItem>
+                                {user.id !== selfId && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    {suspended ? (
+                                      <DropdownMenuItem onClick={() => void handleUnsuspend(user)}>
+                                        <ShieldCheck className="h-4 w-4 mr-2" />
+                                        Unsuspend
+                                      </DropdownMenuItem>
+                                    ) : (
+                                      <DropdownMenuItem
+                                        className="text-amber-600 focus:text-amber-600"
+                                        onClick={() => void handleSuspend(user)}>
+                                        <ShieldOff className="h-4 w-4 mr-2" />
+                                        Suspend
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive"
+                                      onClick={() => { setUserToDelete(user); setShowDeleteDialog(true); }}>
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete User
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -501,211 +435,33 @@ export default function AdminUsers() {
 
       </div>
 
-      {/* ── Detail Dialog ────────────────────────────────────── */}
-      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>User Details</DialogTitle>
-            <DialogDescription>Account information and activity</DialogDescription>
-          </DialogHeader>
+      <UserDetailDialog
+        open={showDetailDialog}
+        onOpenChange={setShowDetailDialog}
+        user={selectedUser}
+        detailData={detailData}
+        detailLoading={detailLoading}
+        onSuspend={(u) => void handleSuspend(u)}
+        onUnsuspend={(u) => void handleUnsuspend(u)}
+      />
 
-          {selectedUser && (
-            <div className="space-y-5">
-              {/* Identity */}
-              <div className="flex items-center gap-4">
-                <AvatarInitials user={selectedUser} />
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-base truncate">{displayName(selectedUser)}</p>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <RoleBadge role={userRole(selectedUser)} />
-                    {isSuspended(selectedUser) && (
-                      <Badge variant="destructive" className="text-xs">Suspended</Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
+      <UserChangeRoleDialog
+        open={showRoleDialog}
+        onOpenChange={setShowRoleDialog}
+        user={selectedUser}
+        newRole={newRole}
+        onNewRoleChange={setNewRole}
+        onConfirm={() => void handleChangeRole()}
+        actionLoading={actionLoading}
+      />
 
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Mail className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">{selectedUser.email}</span>
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Calendar className="h-4 w-4 flex-shrink-0" />
-                  Joined {formatDate(selectedUser.created_at)}
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Calendar className="h-4 w-4 flex-shrink-0" />
-                  Last sign in {formatDate(selectedUser.last_sign_in_at)}
-                </div>
-              </div>
-
-              {isSuspended(selectedUser) && selectedUser.banned_until && (
-                <div className="flex items-start gap-2 p-3 bg-destructive/5 border border-destructive/20 rounded-lg text-sm text-destructive">
-                  <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span>Suspended until {new Date(selectedUser.banned_until).toLocaleDateString()}</span>
-                </div>
-              )}
-
-              <Separator />
-
-              {/* Activity stats */}
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Activity</p>
-                {detailLoading ? (
-                  <div className="grid grid-cols-3 gap-3">
-                    {Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="rounded-lg border p-3">
-                        <Skeleton className="h-6 w-10 mb-1" />
-                        <Skeleton className="h-3 w-16" />
-                      </div>
-                    ))}
-                  </div>
-                ) : detailData ? (
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="rounded-lg bg-muted/50 p-3 text-center">
-                      <p className="text-2xl font-bold">{detailData.bookingsCount}</p>
-                      <p className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
-                        <BookOpen className="h-3 w-3" /> Bookings
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-muted/50 p-3 text-center">
-                      <p className="text-2xl font-bold">{detailData.reviewsCount}</p>
-                      <p className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
-                        <Star className="h-3 w-3" /> Reviews
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-muted/50 p-3 text-center">
-                      {detailData.agencyStatus ? (
-                        <>
-                          <p className="text-sm font-semibold capitalize">{detailData.agencyStatus}</p>
-                          <p className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
-                            <Building2 className="h-3 w-3" /> Agency
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-sm font-semibold text-muted-foreground">—</p>
-                          <p className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
-                            <Building2 className="h-3 w-3" /> Agency
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-
-                {detailData?.agencyName && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Agency name: <span className="font-medium text-foreground">{detailData.agencyName}</span>
-                  </p>
-                )}
-              </div>
-
-              <div className="rounded-lg bg-muted/40 p-3">
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">User ID</p>
-                <code className="text-xs break-all">{selectedUser.id}</code>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
-              Close
-            </Button>
-            {selectedUser && (
-              isSuspended(selectedUser) ? (
-                <Button onClick={() => { void handleUnsuspend(selectedUser); setShowDetailDialog(false); }}>
-                  <ShieldCheck className="h-4 w-4 mr-2" />
-                  Unsuspend
-                </Button>
-              ) : (
-                <Button variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-50"
-                  onClick={() => { void handleSuspend(selectedUser); setShowDetailDialog(false); }}>
-                  <ShieldOff className="h-4 w-4 mr-2" />
-                  Suspend
-                </Button>
-              )
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Change Role Dialog ───────────────────────────────── */}
-      <Dialog open={showRoleDialog} onOpenChange={setShowRoleDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change User Role</DialogTitle>
-            <DialogDescription>
-              Update the role for <strong>{selectedUser ? displayName(selectedUser) : ""}</strong>.
-              This affects what they can access on the platform.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Label>New Role</Label>
-            <Select value={newRole} onValueChange={(v) => setNewRole(v as UserRole)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="user">Traveler</SelectItem>
-                <SelectItem value="agency">Agency</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRoleDialog(false)}>Cancel</Button>
-            <Button onClick={() => void handleChangeRole()} disabled={actionLoading !== null}>
-              {actionLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <UserCog className="h-4 w-4 mr-1" />}
-              Save Role
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Delete Confirmation Dialog ───────────────────────── */}
-      <Dialog open={showDeleteDialog} onOpenChange={(open) => {
-        if (!open) { setShowDeleteDialog(false); setUserToDelete(null); }
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              Delete User
-            </DialogTitle>
-            <DialogDescription>
-              This action is <strong>permanent and cannot be undone</strong>.
-              The user's account, bookings, and all associated data will be deleted.
-            </DialogDescription>
-          </DialogHeader>
-          {userToDelete && (
-            <div className="py-2">
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                <AvatarInitials user={userToDelete} />
-                <div>
-                  <p className="font-medium text-sm">{displayName(userToDelete)}</p>
-                  <p className="text-xs text-muted-foreground">{userToDelete.email}</p>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowDeleteDialog(false); setUserToDelete(null); }}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={actionLoading === userToDelete?.id}
-              onClick={() => void handleDelete()}
-            >
-              {actionLoading === userToDelete?.id
-                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Deleting…</>
-                : <><Trash2 className="h-4 w-4 mr-2" />Delete Permanently</>}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <UserDeleteDialog
+        open={showDeleteDialog}
+        onOpenChange={(v) => { if (!v) { setShowDeleteDialog(false); setUserToDelete(null); } }}
+        user={userToDelete}
+        onConfirm={() => void handleDelete()}
+        actionLoading={actionLoading}
+      />
 
     </AdminLayout>
   );

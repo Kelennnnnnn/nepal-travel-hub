@@ -60,17 +60,21 @@ function PaymentForm({ clientSecret, bookingId }: { clientSecret: string; bookin
       };
 
       const waitForConfirmation = async () => {
-        while (attempts < maxAttempts) {
-          const confirmed = await pollBookingStatus();
-          if (confirmed) {
-            toast.success("Booking confirmed!");
-            navigate(`/booking/confirmation?id=${encodeURIComponent(bookingId)}`);
-            return;
+        try {
+          while (attempts < maxAttempts) {
+            const confirmed = await pollBookingStatus();
+            if (confirmed) {
+              toast.success("Booking confirmed!");
+              navigate(`/booking/confirmation?id=${encodeURIComponent(bookingId)}`);
+              return;
+            }
+            attempts++;
+            await new Promise((r) => setTimeout(r, pollInterval));
           }
-          attempts++;
-          await new Promise((r) => setTimeout(r, pollInterval));
+        } catch {
+          // poll fetch failed — fall through to navigate with warning
         }
-        // Webhook hasn't fired after 30s — navigate anyway
+        // Webhook hasn't fired after 30s (or poll errored) — navigate anyway
         toast.warning(
           "Payment received but confirmation is taking longer than expected. You'll receive an email shortly."
         );

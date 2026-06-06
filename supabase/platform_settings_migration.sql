@@ -1,5 +1,5 @@
 -- Single source of truth for platform-wide flags and config.
--- Solves: kill-switch, maintenance mode, and the 10%/15% commission conflict.
+-- Commission rate is 15 % (flat). Change via platform_settings — no redeploy needed.
 
 CREATE TABLE IF NOT EXISTS public.platform_settings (
   key        TEXT PRIMARY KEY,
@@ -12,7 +12,7 @@ INSERT INTO public.platform_settings (key, value) VALUES
   ('payments_enabled',  'true'::jsonb),
   ('maintenance_mode',  'false'::jsonb),
   ('payouts_enabled',   'true'::jsonb),
-  ('commission_rate',   '10'::jsonb),
+  ('commission_rate',   '15'::jsonb),
   ('platform_name',     '"Yatra Nepal"'::jsonb),
   ('contact_email',     '"hello@yatranepal.com"'::jsonb)
 ON CONFLICT (key) DO NOTHING;

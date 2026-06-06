@@ -11,11 +11,14 @@ import {
 import { ReviewCard } from "./ReviewCard";
 import { ReviewSummary } from "./ReviewSummary";
 import { WriteReviewDialog } from "./WriteReviewDialog";
-import { useCanReviewListing, useListingReviews, type Review } from "@/lib/queries";
+import { useCanReviewListing, useListingReviews, useRespondToReview, type Review } from "@/lib/queries";
+import { toast } from "sonner";
 
 interface ReviewsSectionProps {
   activityId: string;
   activityTitle: string;
+  /** Pass the agency's user_id when the viewer is this listing's verified agency. */
+  agencyUserId?: string;
 }
 
 function computeSummary(reviews: Review[]) {
@@ -29,10 +32,21 @@ function computeSummary(reviews: Review[]) {
   return { average: total / reviews.length, count: reviews.length, distribution };
 }
 
-export function ReviewsSection({ activityId, activityTitle }: ReviewsSectionProps) {
+export function ReviewsSection({ activityId, activityTitle, agencyUserId }: ReviewsSectionProps) {
   const [sortBy, setSortBy] = useState("newest");
   const { data: reviews = [], isLoading } = useListingReviews(activityId);
   const { data: canReview = false } = useCanReviewListing(activityId);
+  const respondMutation = useRespondToReview();
+
+  const handleRespond = async (reviewId: string, note: string) => {
+    try {
+      await respondMutation.mutateAsync({ reviewId, note, listingId: activityId });
+      toast.success(note.trim() ? "Response saved." : "Response removed.");
+    } catch (err) {
+      toast.error((err as Error).message);
+      throw err;
+    }
+  };
 
   const { average, count, distribution } = computeSummary(reviews);
 
@@ -85,7 +99,11 @@ export function ReviewsSection({ activityId, activityTitle }: ReviewsSectionProp
 
           <div>
             {sortedReviews.map((review) => (
-              <ReviewCard key={review.id} review={review} />
+              <ReviewCard
+                key={review.id}
+                review={review}
+                onRespond={agencyUserId && review.agencyId === agencyUserId ? handleRespond : undefined}
+              />
             ))}
           </div>
         </>

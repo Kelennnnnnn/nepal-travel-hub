@@ -7,29 +7,16 @@ import {
   CheckCircle,
   XCircle,
   Eye,
-  Mail,
   MapPin,
-  Phone,
-  Calendar,
-  FileText,
   Loader2,
   Clock,
-  AlertTriangle,
-  ExternalLink,
   ShieldOff,
   ShieldCheck,
-  DollarSign,
-  Star,
-  BookOpen,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import {
   Table,
@@ -46,14 +33,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   useAgencyStore,
@@ -61,23 +40,9 @@ import {
 } from "@/stores/agencyStore";
 import { supabase } from "@/lib/supabase";
 import { logAdminAction } from "@/lib/audit";
-
-// ── Agency metrics loaded on demand ─────────────────────────────────
-
-interface AgencyMetrics {
-  totalBookings: number;
-  totalRevenue: number;
-  avgRating: number | null;
-  listingCount: number;
-  lastActiveDate: string | null;
-}
-
-const money = new Intl.NumberFormat(undefined, {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-});
+import { AgencyDetailDialog, type AgencyMetrics } from "./agencies/AgencyDetailDialog";
+import { AgencyRejectDialog } from "./agencies/AgencyRejectDialog";
+import { AgencySuspendDialog } from "./agencies/AgencySuspendDialog";
 
 // ── Main component ───────────────────────────────────────────────────
 
@@ -290,17 +255,6 @@ export default function AdminAgencies() {
     }
   };
 
-  const handleViewDocument = async (storagePath: string) => {
-    const { data, error } = await supabase.storage
-      .from("agency-docs")
-      .createSignedUrl(storagePath, 300);
-    if (error || !data?.signedUrl) {
-      toast.error("Could not load document. Please try again.");
-      return;
-    }
-    window.open(data.signedUrl, "_blank");
-  };
-
   const formatDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString("en-US", {
       year: "numeric",
@@ -495,298 +449,37 @@ export default function AdminAgencies() {
           </CardContent>
         </Card>
 
-        {/* Agency Detail Dialog */}
-        <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Agency Details</DialogTitle>
-              <DialogDescription>
-                Review agency information and manage their verification status
-              </DialogDescription>
-            </DialogHeader>
-            {selectedAgency && (
-              <div className="space-y-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <Building2 className="h-8 w-8 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold">{selectedAgency.company_name}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      {getStatusBadge(selectedAgency.status)}
-                      <span className="text-sm text-muted-foreground">
-                        Reg: {selectedAgency.registration_number}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+        <AgencyDetailDialog
+          open={showDetailDialog}
+          onOpenChange={setShowDetailDialog}
+          agency={selectedAgency}
+          metrics={agencyMetrics}
+          metricsLoading={metricsLoading}
+          statusBadge={getStatusBadge}
+          formatDate={formatDate}
+          onApprove={handleApprove}
+          onReject={() => setShowRejectDialog(true)}
+          onSuspend={() => { setAgencyToSuspend(selectedAgency); setShowSuspendDialog(true); }}
+          onReactivate={handleReactivate}
+        />
 
-                {/* Per-agency metrics */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {metricsLoading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="p-3 bg-muted/50 rounded-lg space-y-1">
-                        <Skeleton className="h-3 w-16" />
-                        <Skeleton className="h-6 w-12" />
-                      </div>
-                    ))
-                  ) : agencyMetrics ? (
-                    <>
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                          <BookOpen className="h-3 w-3" />
-                          Total Bookings
-                        </div>
-                        <p className="text-lg font-bold">{agencyMetrics.totalBookings}</p>
-                      </div>
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                          <DollarSign className="h-3 w-3" />
-                          Total Revenue
-                        </div>
-                        <p className="text-lg font-bold">{money.format(agencyMetrics.totalRevenue)}</p>
-                      </div>
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                          <Star className="h-3 w-3" />
-                          Avg Rating
-                        </div>
-                        <p className="text-lg font-bold">
-                          {agencyMetrics.avgRating !== null ? agencyMetrics.avgRating.toFixed(1) : "—"}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                          <MapPin className="h-3 w-3" />
-                          Live Listings
-                        </div>
-                        <p className="text-lg font-bold">{agencyMetrics.listingCount}</p>
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-                {agencyMetrics?.lastActiveDate && (
-                  <p className="text-xs text-muted-foreground">
-                    Last booking: {new Date(agencyMetrics.lastActiveDate).toLocaleDateString("en-US", {
-                      year: "numeric", month: "short", day: "numeric"
-                    })}
-                  </p>
-                )}
+        <AgencyRejectDialog
+          open={showRejectDialog}
+          onOpenChange={setShowRejectDialog}
+          agency={selectedAgency}
+          rejectionReason={rejectionReason}
+          onReasonChange={setRejectionReason}
+          onConfirm={handleReject}
+          actionLoading={actionLoading}
+        />
 
-                <Separator />
-
-                {/* Company Info */}
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    {selectedAgency.email}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    {selectedAgency.phone}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    {selectedAgency.address}, {selectedAgency.city}, {selectedAgency.district}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    Applied {formatDate(selectedAgency.created_at)}
-                  </div>
-                </div>
-
-                {/* Business Details */}
-                <div className="p-4 bg-muted/50 rounded-xl space-y-2">
-                  <h4 className="font-semibold text-sm">Business Details</h4>
-                  <div className="grid sm:grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">PAN Number:</span>{" "}
-                      {selectedAgency.pan_number}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Registration:</span>{" "}
-                      {selectedAgency.registration_number}
-                    </div>
-                    {selectedAgency.website && (
-                      <div>
-                        <span className="text-muted-foreground">Website:</span>{" "}
-                        {selectedAgency.website}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Owner Info */}
-                <div className="p-4 bg-muted/50 rounded-xl space-y-2">
-                  <h4 className="font-semibold text-sm">Contact Person</h4>
-                  <div className="grid sm:grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Name:</span>{" "}
-                      {selectedAgency.owner_name}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Phone:</span>{" "}
-                      {selectedAgency.owner_phone}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Description */}
-                {selectedAgency.description && (
-                  <div className="p-4 bg-muted/50 rounded-xl space-y-2">
-                    <h4 className="font-semibold text-sm">About</h4>
-                    <p className="text-sm text-muted-foreground">{selectedAgency.description}</p>
-                  </div>
-                )}
-
-                {/* Documents */}
-                <div className="p-4 bg-muted/50 rounded-xl space-y-2">
-                  <h4 className="font-semibold text-sm flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-primary" />
-                    Documents
-                  </h4>
-                  <div className="space-y-2">
-                    {[
-                      { label: "Tourism License",    url: selectedAgency.license_url,   required: true },
-                      { label: "PAN Certificate",    url: selectedAgency.pan_url,        required: true },
-                      { label: "Insurance Certificate", url: selectedAgency.insurance_url, required: false },
-                    ].map((doc) => (
-                      <div key={doc.label} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          {doc.url ? (
-                            <CheckCircle className="h-4 w-4 text-primary" />
-                          ) : doc.required ? (
-                            <AlertTriangle className="h-4 w-4 text-amber-500" />
-                          ) : (
-                            <span className="h-4 w-4 rounded-full border border-muted-foreground inline-block" />
-                          )}
-                          <span>{doc.label}</span>
-                        </div>
-                        {doc.url ? (
-                          <Button variant="outline" size="sm" onClick={() => handleViewDocument(doc.url!)}>
-                            <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                            View Document
-                          </Button>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">
-                            {doc.required ? "Not uploaded" : "Not uploaded (optional)"}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Rejection reason */}
-                {selectedAgency.status === "rejected" && selectedAgency.rejection_reason && (
-                  <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-xl space-y-2">
-                    <h4 className="font-semibold text-sm text-destructive">Rejection Reason</h4>
-                    <p className="text-sm text-muted-foreground">{selectedAgency.rejection_reason}</p>
-                  </div>
-                )}
-              </div>
-            )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowDetailDialog(false)}>Close</Button>
-              {selectedAgency && (selectedAgency.status === "pending" || selectedAgency.status === "in_review") && (
-                <>
-                  <Button variant="destructive" onClick={() => { setShowDetailDialog(false); setShowRejectDialog(true); }}>
-                    Reject
-                  </Button>
-                  <Button onClick={() => { handleApprove(selectedAgency); setShowDetailDialog(false); }}>
-                    Approve Agency
-                  </Button>
-                </>
-              )}
-              {selectedAgency?.status === "verified" && (
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    setShowDetailDialog(false);
-                    setAgencyToSuspend(selectedAgency);
-                    setShowSuspendDialog(true);
-                  }}
-                >
-                  <ShieldOff className="h-4 w-4 mr-1" />
-                  Suspend
-                </Button>
-              )}
-              {selectedAgency?.status === "suspended" && (
-                <Button onClick={() => { handleReactivate(selectedAgency); setShowDetailDialog(false); }}>
-                  <ShieldCheck className="h-4 w-4 mr-1" />
-                  Reactivate
-                </Button>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Reject Dialog */}
-        <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Reject Application</DialogTitle>
-              <DialogDescription>
-                Provide a reason for rejecting{" "}
-                <strong>{selectedAgency?.company_name}</strong>. The agency will
-                see this feedback and can resubmit.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              <Label>Rejection Reason</Label>
-              <Textarea
-                placeholder="e.g. Documents appear to be expired. Please upload current tourism license..."
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                rows={4}
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => { setShowRejectDialog(false); setRejectionReason(""); }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleReject}
-                disabled={!rejectionReason.trim() || actionLoading !== null}
-              >
-                {actionLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />}
-                Reject Application
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Suspend Confirmation Dialog */}
-        <Dialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Suspend Agency</DialogTitle>
-              <DialogDescription>
-                This will suspend <strong>{agencyToSuspend?.company_name}</strong>, ban their
-                user account, and pause all their active listings. This action can be reversed.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-              <AlertTriangle className="h-4 w-4 inline mr-2" />
-              The agency will immediately lose access to their dashboard. Active bookings will not be affected.
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowSuspendDialog(false)}>Cancel</Button>
-              <Button
-                variant="destructive"
-                onClick={handleSuspend}
-                disabled={actionLoading !== null}
-              >
-                {actionLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ShieldOff className="h-4 w-4 mr-1" />}
-                Suspend Agency
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <AgencySuspendDialog
+          open={showSuspendDialog}
+          onOpenChange={setShowSuspendDialog}
+          agency={agencyToSuspend}
+          onConfirm={handleSuspend}
+          actionLoading={actionLoading}
+        />
       </div>
     </AdminLayout>
   );

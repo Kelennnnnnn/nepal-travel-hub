@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import { AgencyLayout } from "@/components/agency/AgencyLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, MoreVertical, Eye, Edit, Pause, Play, Trash2, Star, MapPin, Loader2 } from "lucide-react";
+import { Plus, Search, MoreVertical, Edit, Pause, Play, Trash2, Star, MapPin, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useListingsStore } from "@/stores/listingsStore";
@@ -126,7 +127,7 @@ export default function AgencyListings() {
                   <Card key={listing.id} className="overflow-hidden">
                     <CardContent className="p-0">
                       <div className="flex flex-col sm:flex-row">
-                        <img src={listing.images?.[0] || "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=400&h=300&fit=crop"} alt={listing.title} className="w-full sm:w-44 h-32 object-cover" />
+                        <img src={listing.images?.[0] || FALLBACK_IMAGE_URL} alt={listing.title} className="w-full sm:w-44 h-32 object-cover" />
                         <div className="flex-1 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
@@ -147,9 +148,6 @@ export default function AgencyListings() {
                                 <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => navigate(`/agency/listings/${listing.id}/edit`)}>
-                                  <Eye className="mr-2 h-4 w-4" /> View / Edit
-                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => navigate(`/agency/listings/${listing.id}/edit`)}>
                                   <Edit className="mr-2 h-4 w-4" /> Edit
                                 </DropdownMenuItem>

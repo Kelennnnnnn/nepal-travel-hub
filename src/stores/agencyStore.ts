@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
+import { logger } from "@/lib/logger";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export type VerificationStatus =
@@ -107,7 +108,7 @@ export const useAgencyStore = create<AgencyStore>((set, get) => ({
       .maybeSingle();
 
     if (error) {
-      console.error("Error fetching application:", error.message);
+      logger.error("Error fetching application:", error.message);
       set({ isLoading: false });
       return;
     }
@@ -258,7 +259,7 @@ export const useAgencyStore = create<AgencyStore>((set, get) => ({
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching all applications:", error.message);
+      logger.error("Error fetching all applications:", error.message);
       set({ isLoadingAll: false });
       return;
     }
@@ -335,10 +336,10 @@ export const useAgencyStore = create<AgencyStore>((set, get) => ({
           { body: { user_id: targetApp.user_id, action, reason: rejectionReason } }
         );
         if (fnError) {
-          console.error("Role upgrade failed:", fnError.message);
+          logger.error("Role upgrade failed:", fnError.message);
         }
       } catch (err) {
-        console.error("Role upgrade call failed:", err);
+        logger.error("Role upgrade call failed:", err);
       }
     }
 

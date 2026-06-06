@@ -2,14 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   MapPin,
   Search,
-  Filter,
+  Download,
   MoreHorizontal,
   CheckCircle,
   XCircle,
   Eye,
-  Mail,
-  Phone,
-  Calendar,
   Loader2,
   Pause,
   Play,
@@ -19,8 +16,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import {
@@ -37,22 +32,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { logAdminAction } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 import {
   useAgencyStore,
   type AgencyApplication,
 } from "@/stores/agencyStore";
 import type { Listing, ListingStatus } from "@/stores/listingsStore";
+import { ListingDetailDialog } from "./listings/ListingDetailDialog";
+import { ListingRejectDialog } from "./listings/ListingRejectDialog";
 
 function companyForAgency(
   agencyId: string,
@@ -93,7 +83,7 @@ export default function AdminListings() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error(error.message);
+      logger.error("Failed to load listings:", error.message);
       toast.error(`Failed to load listings: ${error.message}`);
       setListings([]);
       setIsLoadingListings(false);
@@ -205,6 +195,39 @@ export default function AdminListings() {
     });
   }, [listings, searchQuery, statusFilter, allApplications]);
 
+  const handleExportCSV = () => {
+    if (filteredListings.length === 0) {
+      toast.error("No listings to export.");
+      return;
+    }
+    const csvEscape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const headers = ["Title", "Category", "Location", "Price (USD)", "Duration", "Max Guests", "Status", "Agency", "Rating", "Reviews", "Submitted"];
+    const rows = filteredListings.map((l) => [
+      csvEscape(l.title),
+      csvEscape(l.category),
+      csvEscape(l.location),
+      csvEscape(Number(l.price)),
+      csvEscape(l.duration),
+      csvEscape(l.max_participants),
+      csvEscape(l.status),
+      csvEscape(companyForAgency(l.agency_id, allApplications)),
+      csvEscape(Number(l.rating).toFixed(1)),
+      csvEscape(l.review_count),
+      csvEscape(formatDate(l.created_at)),
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `listings-${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredListings.length} listing${filteredListings.length !== 1 ? "s" : ""}`);
+  };
+
   const getStatusBadge = (status: ListingStatus) => {
     switch (status) {
       case "published":
@@ -277,9 +300,9 @@ export default function AdminListings() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline">
-              <Filter className="h-4 w-4 mr-2" />
-              Export
+            <Button variant="outline" onClick={handleExportCSV} disabled={isLoadingListings}>
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
             </Button>
           </div>
         </div>
@@ -510,229 +533,26 @@ export default function AdminListings() {
           </CardContent>
         </Card>
 
-        {/* Detail dialog */}
-        <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Listing details</DialogTitle>
-              <DialogDescription>
-                Full activity information and agency context
-              </DialogDescription>
-            </DialogHeader>
-            {selectedListing && (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold">
-                      {selectedListing.title}
-                    </h3>
-                    <div className="flex flex-wrap items-center gap-2 mt-2">
-                      {getStatusBadge(selectedListing.status)}
-                      <span className="text-sm text-muted-foreground">
-                        {selectedListing.category} · {selectedListing.difficulty}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-lg font-bold text-primary">
-                    {money(Number(selectedListing.price))}
-                  </p>
-                </div>
+        <ListingDetailDialog
+          open={showDetailDialog}
+          onOpenChange={setShowDetailDialog}
+          listing={selectedListing}
+          allApplications={allApplications}
+          isLoadingAll={isLoadingAll}
+          statusBadge={getStatusBadge}
+          onApprove={handleApprove}
+          onReject={() => setShowRejectDialog(true)}
+        />
 
-                <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    {selectedListing.location}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    Submitted {formatDate(selectedListing.created_at)}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Duration:</span>{" "}
-                    {selectedListing.duration}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Max guests:</span>{" "}
-                    {selectedListing.max_participants}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Featured:</span>{" "}
-                    {selectedListing.featured ? "Yes" : "No"}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Rating:</span>{" "}
-                    {selectedListing.rating} ({selectedListing.review_count}{" "}
-                    reviews)
-                  </div>
-                </div>
-
-                {(() => {
-                  const agency = agencyApplication(
-                    selectedListing.agency_id,
-                    allApplications
-                  );
-                  return agency ? (
-                    <div className="p-4 bg-muted/50 rounded-xl space-y-2">
-                      <h4 className="font-semibold text-sm">Agency</h4>
-                      <p className="font-medium">{agency.company_name}</p>
-                      <div className="grid sm:grid-cols-2 gap-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                          {agency.email}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-4 w-4 text-muted-foreground" />
-                          {agency.phone}
-                        </div>
-                        <div className="flex items-center gap-2 sm:col-span-2">
-                          <MapPin className="h-4 w-4 text-muted-foreground" />
-                          {agency.city}, {agency.district}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 bg-muted/50 rounded-xl text-sm text-muted-foreground">
-                      No agency application on file for this owner.
-                    </div>
-                  );
-                })()}
-
-                <div>
-                  <h4 className="font-semibold text-sm mb-2">Description</h4>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    {selectedListing.description}
-                  </p>
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="p-4 bg-muted/50 rounded-xl">
-                    <h4 className="font-semibold text-sm mb-2">Includes</h4>
-                    <ul className="text-sm text-muted-foreground list-disc pl-4 space-y-1">
-                      {(selectedListing.includes ?? []).map((x, i) => (
-                        <li key={i}>{x}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="p-4 bg-muted/50 rounded-xl">
-                    <h4 className="font-semibold text-sm mb-2">Excludes</h4>
-                    <ul className="text-sm text-muted-foreground list-disc pl-4 space-y-1">
-                      {(selectedListing.excludes ?? []).map((x, i) => (
-                        <li key={i}>{x}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-muted/50 rounded-xl">
-                  <h4 className="font-semibold text-sm mb-2">Itinerary</h4>
-                  <pre className="text-xs text-muted-foreground overflow-x-auto max-h-48 overflow-y-auto rounded-md bg-background p-3 border">
-                    {JSON.stringify(selectedListing.itinerary ?? [], null, 2)}
-                  </pre>
-                </div>
-
-                {(selectedListing.images?.length ?? 0) > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-sm mb-2">Images</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {selectedListing.images.map((url, i) => (
-                        <a
-                          key={i}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="aspect-video rounded-lg overflow-hidden border bg-muted"
-                        >
-                          <img
-                            src={url}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setShowDetailDialog(false)}
-              >
-                Close
-              </Button>
-              {selectedListing &&
-                (selectedListing.status === "pending_review" ||
-                  selectedListing.status === "draft") && (
-                  <>
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        setShowDetailDialog(false);
-                        setShowRejectDialog(true);
-                      }}
-                    >
-                      Reject
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        void handleApprove(selectedListing);
-                        setShowDetailDialog(false);
-                      }}
-                    >
-                      Approve & publish
-                    </Button>
-                  </>
-                )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Reject dialog */}
-        <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Reject listing</DialogTitle>
-              <DialogDescription>
-                Provide a reason for rejecting{" "}
-                <strong>{selectedListing?.title}</strong>. The agency can revise
-                and resubmit.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              <Label>Rejection reason</Label>
-              <Textarea
-                placeholder="e.g. Description does not meet quality guidelines..."
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                rows={4}
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowRejectDialog(false);
-                  setRejectionReason("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => void handleRejectSubmit()}
-                disabled={!rejectionReason.trim() || actionLoading !== null}
-              >
-                {actionLoading ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <XCircle className="h-4 w-4 mr-1" />
-                )}
-                Reject listing
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ListingRejectDialog
+          open={showRejectDialog}
+          onOpenChange={setShowRejectDialog}
+          listing={selectedListing}
+          rejectionReason={rejectionReason}
+          onReasonChange={setRejectionReason}
+          onConfirm={() => void handleRejectSubmit()}
+          actionLoading={actionLoading}
+        />
       </div>
     </AdminLayout>
   );

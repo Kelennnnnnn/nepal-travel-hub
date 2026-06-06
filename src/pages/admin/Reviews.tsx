@@ -2,23 +2,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Star,
   Search,
-  Trash2,
   Flag,
   Award,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
   MessageSquare,
-  AlertTriangle,
   Loader2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import {
   Table,
@@ -28,14 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,52 +41,12 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { logAdminAction } from "@/lib/audit";
-
-// ── Types ────────────────────────────────────────────────────────────
-
-interface AdminReview {
-  id: string;
-  listing_id: string | null;
-  traveler_id: string | null;
-  traveler_name: string | null;
-  agency_id: string | null;
-  rating: number;
-  title: string | null;
-  comment: string | null;
-  helpful_count: number;
-  verified: boolean;
-  flagged: boolean;
-  featured: boolean;
-  admin_note: string | null;
-  created_at: string;
-  listing: { title: string } | null;
-}
+import {
+  ReviewDetailDialog, StarRating, formatReviewDate as formatDate, type AdminReview,
+} from "./reviews/ReviewDetailDialog";
+import { ReviewDeleteDialog } from "./reviews/ReviewDeleteDialog";
 
 const PAGE_SIZE = 25;
-
-// ── Helpers ──────────────────────────────────────────────────────────
-
-function StarRating({ rating }: { rating: number }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star
-          key={i}
-          className={`h-3.5 w-3.5 ${i < rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`}
-        />
-      ))}
-      <span className="ml-1 text-xs text-muted-foreground">{rating}/5</span>
-    </div>
-  );
-}
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 // ── Page ─────────────────────────────────────────────────────────────
 
@@ -463,134 +411,23 @@ export default function AdminReviews() {
         )}
       </div>
 
-      {/* Detail Dialog */}
-      <Dialog open={!!selectedReview} onOpenChange={() => setSelectedReview(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Review Details</DialogTitle>
-          </DialogHeader>
-          {selectedReview && (
-            <div className="space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Reviewer</p>
-                  <p className="font-medium">{selectedReview.traveler_name ?? "Anonymous"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Date</p>
-                  <p className="font-medium">{formatDate(selectedReview.created_at)}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-xs text-muted-foreground mb-1">Listing</p>
-                  <p className="font-medium">
-                    {(selectedReview.listing as { title: string } | null)?.title ?? "—"}
-                  </p>
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Rating</p>
-                <StarRating rating={selectedReview.rating} />
-              </div>
-              {selectedReview.title && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Title</p>
-                  <p className="font-semibold">{selectedReview.title}</p>
-                </div>
-              )}
-              {selectedReview.comment && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Comment</p>
-                  <p className="text-sm leading-relaxed">{selectedReview.comment}</p>
-                </div>
-              )}
-              <div className="flex gap-2 flex-wrap">
-                {selectedReview.flagged && (
-                  <Badge className="bg-amber-100 text-amber-800 border-amber-200">
-                    <Flag className="h-3 w-3 mr-1" />
-                    Flagged
-                  </Badge>
-                )}
-                {selectedReview.featured && (
-                  <Badge className="bg-primary/10 text-primary border-primary/20">
-                    <Award className="h-3 w-3 mr-1" />
-                    Featured
-                  </Badge>
-                )}
-                {selectedReview.verified && (
-                  <Badge className="bg-green-100 text-green-700 border-green-200">Verified</Badge>
-                )}
-              </div>
-              <div className="flex gap-2 pt-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => { handleFlag(selectedReview); setSelectedReview(null); }}
-                >
-                  <Flag className="h-4 w-4 mr-1" />
-                  {selectedReview.flagged ? "Remove Flag" : "Flag"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => { handleFeature(selectedReview); setSelectedReview(null); }}
-                >
-                  <Award className="h-4 w-4 mr-1" />
-                  {selectedReview.featured ? "Unfeature" : "Feature"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => { setReviewToDelete(selectedReview); setSelectedReview(null); setShowDeleteDialog(true); }}
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ReviewDetailDialog
+        review={selectedReview}
+        onClose={() => setSelectedReview(null)}
+        onFlag={handleFlag}
+        onFeature={handleFeature}
+        onDelete={(r) => { setReviewToDelete(r); setShowDeleteDialog(true); }}
+      />
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Review</DialogTitle>
-            <DialogDescription>
-              This will permanently delete the review from{" "}
-              <strong>{reviewToDelete?.traveler_name ?? "this reviewer"}</strong>.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="p-3 bg-muted/50 rounded-lg text-sm">
-              <StarRating rating={reviewToDelete?.rating ?? 0} />
-              <p className="mt-1 text-muted-foreground line-clamp-2">{reviewToDelete?.comment}</p>
-            </div>
-            <div className="space-y-1">
-              <Label>Reason for deletion</Label>
-              <Textarea
-                placeholder="e.g. Violates community guidelines — contains inappropriate content..."
-                value={deleteReason}
-                onChange={(e) => setDeleteReason(e.target.value)}
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowDeleteDialog(false); setDeleteReason(""); }}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={!deleteReason.trim() || actionLoading !== null}
-            >
-              {actionLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
-              Delete Review
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ReviewDeleteDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        review={reviewToDelete}
+        deleteReason={deleteReason}
+        onReasonChange={setDeleteReason}
+        onConfirm={handleDelete}
+        actionLoading={actionLoading}
+      />
     </AdminLayout>
   );
 }

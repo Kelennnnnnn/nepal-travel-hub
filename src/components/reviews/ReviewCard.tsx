@@ -1,11 +1,14 @@
-import { Star, ThumbsUp, BadgeCheck } from "lucide-react";
+import { Star, ThumbsUp, BadgeCheck, MessageSquare } from "lucide-react";
 import type { Review } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 interface ReviewCardProps {
   review: Review;
+  /** When provided the agency can inline-edit their response to this review. */
+  onRespond?: (reviewId: string, note: string) => Promise<void>;
 }
 
 function StarRating({ rating, size = "sm" }: { rating: number; size?: "sm" | "md" }) {
@@ -45,9 +48,23 @@ function markVoted(reviewId: string) {
   localStorage.setItem(HELPFUL_KEY, JSON.stringify([...voted]));
 }
 
-export function ReviewCard({ review }: ReviewCardProps) {
+export function ReviewCard({ review, onRespond }: ReviewCardProps) {
   const [helpfulCount, setHelpfulCount] = useState(review.helpful);
   const [hasVoted, setHasVoted] = useState(() => getVotedReviews().has(review.id));
+  const [showResponseEditor, setShowResponseEditor] = useState(false);
+  const [responseText, setResponseText] = useState(review.adminNote ?? "");
+  const [isSavingResponse, setIsSavingResponse] = useState(false);
+
+  const handleSaveResponse = async () => {
+    if (!onRespond) return;
+    setIsSavingResponse(true);
+    try {
+      await onRespond(review.id, responseText);
+      setShowResponseEditor(false);
+    } finally {
+      setIsSavingResponse(false);
+    }
+  };
 
   const handleHelpful = async () => {
     if (hasVoted) return;
@@ -109,7 +126,56 @@ export function ReviewCard({ review }: ReviewCardProps) {
             day: "numeric",
           })}
         </span>
+        {onRespond && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground gap-1.5 ml-auto"
+            onClick={() => setShowResponseEditor((v) => !v)}
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            {review.adminNote ? "Edit Response" : "Respond"}
+          </Button>
+        )}
       </div>
+
+      {/* Agency response — always visible when it exists */}
+      {review.adminNote && !showResponseEditor && (
+        <div className="mt-4 pl-4 border-l-2 border-primary/30 bg-primary/5 rounded-r-lg p-3">
+          <p className="text-xs font-semibold text-primary mb-1">Response from the Agency</p>
+          <p className="text-sm text-foreground/80 leading-relaxed">{review.adminNote}</p>
+        </div>
+      )}
+
+      {/* Inline response editor — only visible to agency */}
+      {showResponseEditor && onRespond && (
+        <div className="mt-4 space-y-2">
+          <Textarea
+            value={responseText}
+            onChange={(e) => setResponseText(e.target.value)}
+            placeholder="Write a public response to this review…"
+            rows={3}
+            disabled={isSavingResponse}
+          />
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setShowResponseEditor(false); setResponseText(review.adminNote ?? ""); }}
+              disabled={isSavingResponse}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSaveResponse}
+              disabled={isSavingResponse}
+            >
+              {isSavingResponse ? "Saving…" : responseText.trim() ? "Save Response" : "Remove Response"}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

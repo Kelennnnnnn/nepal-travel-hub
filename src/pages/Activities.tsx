@@ -3,12 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import { Search, MapPin, SlidersHorizontal, X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Layout } from "@/components/layout/Layout";
 import { ActivityCard } from "@/components/activities/ActivityCard";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -27,24 +25,19 @@ import { Separator } from "@/components/ui/separator";
 import { usePublishedListings } from "@/lib/queries";
 import { SEO } from "@/components/SEO";
 import { categories, locations } from "@/data/activities";
+import { FALLBACK_IMAGE_URL } from "@/lib/constants";
+import { FilterPanel } from "@/components/activities/FilterPanel";
 import type { Listing } from "@/stores/listingsStore";
 import type { Activity } from "@/components/activities/ActivityCard";
 
 const PAGE_SIZE = 20;
-const DIFFICULTIES = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
-const DURATION_RANGES = [
-  { value: "1", label: "1 day" },
-  { value: "2-3", label: "2-3 days" },
-  { value: "4-7", label: "4-7 days" },
-  { value: "8+", label: "8+ days" },
-];
 
 function listingToActivity(listing: Listing): Activity {
   return {
     id: listing.id,
     title: listing.title,
     description: listing.description,
-    image: listing.images?.[0] || "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&h=600&fit=crop",
+    image: listing.images?.[0] || FALLBACK_IMAGE_URL,
     location: listing.location,
     duration: listing.duration,
     price: Number(listing.price),
@@ -124,7 +117,7 @@ export default function Activities() {
   };
 
   // Server-side query
-  const { data, isLoading, isFetching } = usePublishedListings({
+  const { data, isLoading, isFetching, isError } = usePublishedListings({
     search: search || undefined,
     category: category !== "all" ? category : undefined,
     location: location !== "All Locations" ? location : undefined,
@@ -153,103 +146,26 @@ export default function Activities() {
     !!availableOnDate,
   ].filter(Boolean).length;
 
-  // Filter panel (shared between desktop sidebar and mobile sheet)
-  const FilterPanel = () => (
-    <div className="space-y-6">
-      {/* Price Range */}
-      <div>
-        <Label className="text-sm font-semibold mb-3 block">Price Range (USD)</Label>
-        <div className="flex gap-2 items-center">
-          <Input
-            type="number"
-            placeholder="Min"
-            value={priceMinInput}
-            onChange={(e) => setPriceMinInput(e.target.value)}
-            className="w-24"
-            min={0}
-          />
-          <span className="text-muted-foreground">–</span>
-          <Input
-            type="number"
-            placeholder="Max"
-            value={priceMaxInput}
-            onChange={(e) => setPriceMaxInput(e.target.value)}
-            className="w-24"
-            min={0}
-          />
-          <Button size="sm" variant="outline" onClick={applyPriceFilter}>Apply</Button>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Difficulty */}
-      <div>
-        <Label className="text-sm font-semibold mb-3 block">Difficulty</Label>
-        <div className="space-y-2">
-          {DIFFICULTIES.map((d) => (
-            <div key={d} className="flex items-center gap-2">
-              <Checkbox
-                id={`diff-${d}`}
-                checked={difficulties.includes(d)}
-                onCheckedChange={() => toggleDifficulty(d)}
-              />
-              <label htmlFor={`diff-${d}`} className="text-sm cursor-pointer">{d}</label>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Duration */}
-      <div>
-        <Label className="text-sm font-semibold mb-3 block">Duration</Label>
-        <Select
-          value={durationRange}
-          onValueChange={(value) => {
-            updateParam("duration", value === "all" ? null : value);
-            updateParam("page", null);
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Any duration" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Any duration</SelectItem>
-            {DURATION_RANGES.map((range) => (
-              <SelectItem key={range.value} value={range.value}>{range.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Separator />
-
-      {/* Available on Date */}
-      <div>
-        <Label className="text-sm font-semibold mb-3 block">Available On Date</Label>
-        <Input
-          type="date"
-          value={availableOnDate || ""}
-          min={new Date().toISOString().split("T")[0]}
-          onChange={(e) => {
-            updateParam("date", e.target.value || null);
-            updateParam("page", null);
-          }}
-        />
-        {availableOnDate && (
-          <button onClick={() => updateParam("date", null)} className="text-xs text-primary hover:underline mt-1">
-            Clear date
-          </button>
-        )}
-      </div>
-
-      <Separator />
-
-      <Button variant="outline" className="w-full" onClick={clearAll}>Clear All Filters</Button>
-    </div>
-  );
+  const filterPanelProps = {
+    priceMinInput,
+    priceMaxInput,
+    difficulties,
+    durationRange,
+    availableOnDate,
+    setPriceMinInput,
+    setPriceMaxInput,
+    onApplyPrice: applyPriceFilter,
+    onToggleDifficulty: toggleDifficulty,
+    onDurationChange: (v: string) => {
+      updateParam("duration", v || null);
+      updateParam("page", null);
+    },
+    onDateChange: (v: string | null) => {
+      updateParam("date", v);
+      updateParam("page", null);
+    },
+    onClearAll: clearAll,
+  };
 
   return (
     <Layout>
@@ -366,7 +282,7 @@ export default function Activities() {
                   </Select>
                   <Separator />
                 </div>
-                <FilterPanel />
+                <FilterPanel {...filterPanelProps} />
               </SheetContent>
             </Sheet>
           </div>
@@ -439,8 +355,13 @@ export default function Activities() {
             </p>
           </div>
 
-          {/* Skeletons */}
-          {isLoading ? (
+          {/* Error */}
+          {isError ? (
+            <div className="text-center py-16">
+              <p className="text-destructive font-medium mb-4">Failed to load activities. Please try again.</p>
+              <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button>
+            </div>
+          ) : isLoading ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="rounded-xl border border-border overflow-hidden">
@@ -463,14 +384,14 @@ export default function Activities() {
                 <ActivityCard key={activity.id} activity={activity} />
               ))}
             </div>
-          ) : (
+          ) : !isError ? (
             <div className="text-center py-16">
               <div className="text-6xl mb-4">🏔️</div>
               <h3 className="text-xl font-semibold mb-2">No activities found</h3>
               <p className="text-muted-foreground mb-6">Try adjusting your filters or search terms</p>
               <Button variant="outline" onClick={clearAll}>Clear all filters</Button>
             </div>
-          )}
+          ) : null}
 
           {/* Pagination */}
           {totalPages > 1 && (

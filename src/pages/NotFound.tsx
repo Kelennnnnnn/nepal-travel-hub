@@ -3,12 +3,13 @@ import { useEffect } from "react";
 import { Mountain } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
+import { logger } from "@/lib/logger";
 
 const NotFound = () => {
   const location = useLocation();
 
   useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
+    logger.error("404: non-existent route accessed:", location.pathname);
   }, [location.pathname]);
 
   return (

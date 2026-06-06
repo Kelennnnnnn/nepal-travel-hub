@@ -7,6 +7,7 @@ import { Heart } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useWishlistIds } from "@/hooks/useWishlist";
 import { supabase } from "@/lib/supabase";
+import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import type { Listing } from "@/stores/listingsStore";
 import type { Activity } from "@/components/activities/ActivityCard";
 
@@ -15,7 +16,7 @@ function listingToActivity(listing: Listing): Activity {
     id: listing.id,
     title: listing.title,
     description: listing.description,
-    image: listing.images?.[0] || "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&h=600&fit=crop",
+    image: listing.images?.[0] || FALLBACK_IMAGE_URL,
     location: listing.location,
     duration: listing.duration,
     price: Number(listing.price),
@@ -29,11 +30,11 @@ function listingToActivity(listing: Listing): Activity {
 }
 
 export default function Wishlist() {
-  const { data: wishlistIds = new Set<string>(), isLoading: isLoadingIds } = useWishlistIds();
+  const { data: wishlistIds = new Set<string>(), isLoading: isLoadingIds, isError: isIdsError } = useWishlistIds();
 
   const ids = Array.from(wishlistIds);
 
-  const { data: listings = [], isLoading: isLoadingListings } = useQuery({
+  const { data: listings = [], isLoading: isLoadingListings, isError: isListingsError } = useQuery({
     queryKey: ["wishlist-listings", ids],
     queryFn: async () => {
       if (ids.length === 0) return [];
@@ -49,6 +50,7 @@ export default function Wishlist() {
   });
 
   const isLoading = isLoadingIds || isLoadingListings;
+  const isError = isIdsError || isListingsError;
   const activities = listings.map(listingToActivity);
 
   return (
@@ -60,7 +62,12 @@ export default function Wishlist() {
             {isLoading ? "Loading…" : `${activities.length} saved activity${activities.length !== 1 ? "s" : ""}`}
           </p>
 
-          {isLoading ? (
+          {isError ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <p className="text-destructive font-medium mb-4">Failed to load your saved activities.</p>
+              <Link to="/activities"><Button variant="outline">Browse Activities</Button></Link>
+            </div>
+          ) : isLoading ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="rounded-xl border border-border overflow-hidden">

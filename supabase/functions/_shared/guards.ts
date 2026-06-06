@@ -37,7 +37,7 @@ export async function assertPayoutsEnabled(): Promise<{ ok: true } | { ok: false
   return { ok: true };
 }
 
-/** Reads the commission rate from settings; defaults to 10 if unset. */
+/** Reads the commission rate from settings; defaults to 15 if unset. */
 export async function getCommissionRate(): Promise<number> {
   const sb = admin();
   const { data } = await sb
@@ -46,7 +46,7 @@ export async function getCommissionRate(): Promise<number> {
     .eq("key", "commission_rate")
     .maybeSingle();
   const rate = Number(data?.value);
-  return Number.isFinite(rate) && rate > 0 ? rate : 10;
+  return Number.isFinite(rate) && rate > 0 ? rate : 15;
 }
 
 /** Strips sensitive keys before logging. Use instead of raw console.error on objects. */

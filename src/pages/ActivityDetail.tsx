@@ -10,12 +10,15 @@ import { Badge } from "@/components/ui/badge";
 import { Layout } from "@/components/layout/Layout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { ReviewsSection } from "@/components/reviews/ReviewsSection";
 import { useListing } from "@/lib/queries";
 import { useAuthStore } from "@/stores/authStore";
+import { useWishlistIds, useToggleWishlist } from "@/hooks/useWishlist";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 
 type Tab = "overview" | "itinerary" | "inclusions" | "reviews";
 
@@ -32,7 +35,7 @@ interface RelatedListing {
   review_count: number;
 }
 
-const FALLBACK_IMG = "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=1200&h=800&fit=crop";
+const FALLBACK_IMG = FALLBACK_IMAGE_URL;
 
 export default function ActivityDetail() {
   const { id } = useParams();
@@ -40,11 +43,15 @@ export default function ActivityDetail() {
   const { data: listing, isLoading } = useListing(id);
   const { user, isAuthenticated } = useAuthStore();
 
+  const { data: wishlistIds = new Set<string>() } = useWishlistIds();
+  const toggleWishlist = useToggleWishlist();
+
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [selectedDate, setSelectedDate] = useState("");
   const [participants, setParticipants] = useState(2);
   const [travelerName, setTravelerName] = useState("");
   const [travelerEmail, setTravelerEmail] = useState("");
+  const [specialRequests, setSpecialRequests] = useState("");
   const [isBooking, setIsBooking] = useState(false);
   const [agencyName, setAgencyName] = useState("");
   const [agencyId, setAgencyId] = useState("");
@@ -67,9 +74,10 @@ export default function ActivityDetail() {
       .eq("user_id", listing.agency_id)
       .eq("status", "verified")
       .maybeSingle()
-      .then(({ data }) => {
-        if (data?.company_name) { setAgencyName(data.company_name); setAgencyId(data.user_id); }
-      });
+      .then(({ data, error }) => {
+        if (!error && data?.company_name) { setAgencyName(data.company_name); setAgencyId(data.user_id); }
+      })
+      .catch(() => {});
   }, [listing?.agency_id]);
 
   useEffect(() => {
@@ -81,7 +89,10 @@ export default function ActivityDetail() {
       .eq("category", listing.category)
       .neq("id", listing.id)
       .limit(3)
-      .then(({ data }) => setRelatedListings((data ?? []) as RelatedListing[]));
+      .then(({ data, error }) => {
+        if (!error) setRelatedListings((data ?? []) as RelatedListing[]);
+      })
+      .catch(() => {});
   }, [listing?.id, listing?.category]);
 
   if (isLoading) {
@@ -115,6 +126,30 @@ export default function ActivityDetail() {
   const total = totalBase + serviceFee;
   const itinerary = (listing.itinerary ?? []) as { day: number; title: string; description: string }[];
 
+  const handleShare = async () => {
+    const url = window.location.href;
+    const title = listing.title;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url });
+      } catch {
+        // User cancelled — not an error
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard");
+    }
+  };
+
+  const handleWishlistToggle = () => {
+    if (!isAuthenticated) {
+      toast.error("Please log in to save activities");
+      navigate(`/login?redirect=/activities/${id}`);
+      return;
+    }
+    toggleWishlist.mutate({ listingId: listing.id, isSaved: wishlistIds.has(listing.id) });
+  };
+
   const handleBooking = async () => {
     if (!selectedDate) { toast.error("Please select a departure date"); return; }
     if (!travelerName.trim()) { toast.error("Please enter your full name"); return; }
@@ -137,6 +172,7 @@ export default function ActivityDetail() {
           total_amount: total,
           traveler_name: travelerName.trim(),
           traveler_email: travelerEmail.trim(),
+          special_requests: specialRequests.trim() || null,
         },
       });
       if (error) { toast.error(error.message || "Failed to create booking"); setIsBooking(false); return; }
@@ -191,11 +227,24 @@ export default function ActivityDetail() {
               </div>
             </div>
             <div className="flex gap-2.5 flex-shrink-0">
-              <button className="flex items-center gap-2 px-4 py-2 bg-card text-foreground border border-border/40 rounded-full text-sm font-medium hover:bg-muted transition-colors shadow-sm">
+              <button
+                onClick={handleShare}
+                className="flex items-center gap-2 px-4 py-2 bg-card text-foreground border border-border/40 rounded-full text-sm font-medium hover:bg-muted transition-colors shadow-sm"
+              >
                 <Share2 className="h-4 w-4" /> Share
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-card text-foreground border border-border/40 rounded-full text-sm font-medium hover:bg-muted transition-colors shadow-sm">
-                <Heart className="h-4 w-4" /> Save
+              <button
+                onClick={handleWishlistToggle}
+                disabled={toggleWishlist.isPending}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 border border-border/40 rounded-full text-sm font-medium transition-colors shadow-sm",
+                  wishlistIds.has(listing.id)
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                    : "bg-card text-foreground hover:bg-muted"
+                )}
+              >
+                <Heart className={cn("h-4 w-4", wishlistIds.has(listing.id) && "fill-current")} />
+                {wishlistIds.has(listing.id) ? "Saved" : "Save"}
               </button>
             </div>
           </div>
@@ -423,7 +472,15 @@ export default function ActivityDetail() {
 
               {/* TAB: REVIEWS */}
               {activeTab === "reviews" && (
-                <ReviewsSection activityId={listing.id} activityTitle={listing.title} />
+                <ReviewsSection
+                  activityId={listing.id}
+                  activityTitle={listing.title}
+                  agencyUserId={
+                    user?.role === "agency" && user.id === listing.agency_id
+                      ? user.id
+                      : undefined
+                  }
+                />
               )}
             </div>
 
@@ -520,6 +577,20 @@ export default function ActivityDetail() {
                           </button>
                         </div>
                       </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-muted/50 border border-border/20">
+                      <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">
+                        Special Requests <span className="normal-case font-normal">(optional)</span>
+                      </Label>
+                      <Textarea
+                        value={specialRequests}
+                        onChange={(e) => setSpecialRequests(e.target.value)}
+                        placeholder="Dietary needs, accessibility requirements, etc."
+                        disabled={isBooking}
+                        rows={2}
+                        className="border-0 p-0 bg-transparent font-medium text-sm focus-visible:ring-0 shadow-none resize-none"
+                      />
                     </div>
                   </div>
 

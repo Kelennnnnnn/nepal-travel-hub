@@ -196,7 +196,7 @@ function MessageThread({
 }
 
 export default function Messages() {
-  const { data: conversations = [], isLoading } = useTravelerConversations();
+  const { data: conversations = [], isLoading, isError } = useTravelerConversations();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [userId, setUserId] = useState("");
 
@@ -233,6 +233,12 @@ export default function Messages() {
                       </div>
                     </div>
                   ))}
+                </div>
+              ) : isError ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+                  <MessageSquare className="h-10 w-10 text-muted-foreground mb-3" />
+                  <p className="font-medium mb-1 text-destructive">Failed to load messages</p>
+                  <p className="text-sm text-muted-foreground">Please refresh the page and try again.</p>
                 </div>
               ) : conversations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center px-6">

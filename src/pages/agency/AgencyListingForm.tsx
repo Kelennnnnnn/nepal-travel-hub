@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Plus, X, Save, Loader2, Eye, Check } from "lucide-react";
+import { ItinerarySection } from "@/components/agency/ItinerarySection";
 import { ImageUploader } from "@/components/uploads/ImageUploader";
 import { ListingPreviewDialog } from "@/components/agency/ListingPreviewDialog";
 import { useNavigate, useParams } from "react-router-dom";
@@ -36,7 +37,7 @@ const EXCLUDE_PRESETS = [
   "Travel Insurance", "Alcohol", "Snacks", "Laundry", "Gear Rental",
 ];
 
-interface ItineraryDay { day: number; title: string; description: string; }
+import type { ItineraryDay } from "@/components/agency/ItinerarySection";
 
 export default function AgencyListingForm() {
   const { id } = useParams();
@@ -53,6 +54,9 @@ export default function AgencyListingForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingEdit, setIsFetchingEdit] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  // Track the status the listing had when we loaded it for editing.
+  // Used to decide whether an update should go back to pending_review.
+  const [originalStatus, setOriginalStatus] = useState<ListingStatus | null>(null);
 
   const {
     register,
@@ -105,6 +109,7 @@ export default function AgencyListingForm() {
           excludes: listing.excludes ?? [],
         });
         setFeatured(listing.featured);
+        setOriginalStatus(listing.status);
         setItinerary(
           (listing.itinerary ?? []).map((item, i) => ({
             day: (item as Record<string, unknown>).day as number ?? i + 1,
@@ -166,6 +171,14 @@ export default function AgencyListingForm() {
     setIsLoading(true);
     try {
       const uploadedImages = await uploadImages(data.images);
+
+      // When updating a listing that was already published, send it back to
+      // pending_review so an admin must approve the changes before it goes live.
+      const effectiveStatus: ListingStatus =
+        isEditing && status === "published" && originalStatus === "published"
+          ? "pending_review"
+          : (status as ListingStatus);
+
       const payload = {
         title: data.title.trim(),
         description: data.description.trim(),
@@ -180,17 +193,21 @@ export default function AgencyListingForm() {
         excludes: data.excludes,
         itinerary: itinerary as Record<string, unknown>[],
         featured,
-        status: status as ListingStatus,
+        status: effectiveStatus,
       };
 
       if (isEditing && id) {
         const { error } = await updateListing(id, payload);
         if (error) { toast.error(error); return; }
-        toast.success("Listing updated successfully.");
+        toast.success(
+          effectiveStatus === "pending_review"
+            ? "Changes submitted for admin review."
+            : "Listing updated successfully."
+        );
       } else {
         const { error } = await createListing(payload);
         if (error) { toast.error(error); return; }
-        toast.success(status === "draft" ? "Listing saved as draft." : "Listing published successfully.");
+        toast.success(status === "draft" ? "Listing saved as draft." : "Listing submitted for review.");
       }
       navigate("/agency/listings");
     } catch {
@@ -473,49 +490,13 @@ export default function AgencyListingForm() {
           </CardContent>
         </Card>
 
-        {/* Itinerary */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-base">Itinerary</CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">Each click adds the next day in sequence</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={addDay} className="gap-1.5" disabled={isLoading}>
-              <Plus className="h-4 w-4" />
-              {itinerary.length === 0 ? "Add Day 1" : `Add Day ${itinerary.length + 1}`}
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {itinerary.length === 0 && (
-              <p className="text-sm text-muted-foreground py-2">
-                Click "Add Day 1" to start building your itinerary.
-              </p>
-            )}
-            {itinerary.map((day, i) => (
-              <div key={i} className="flex gap-3">
-                <div className="flex flex-col items-center flex-shrink-0">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold">
-                    {day.day}
-                  </div>
-                  {i < itinerary.length - 1 && <div className="w-px flex-1 bg-border mt-1" />}
-                </div>
-                <div className="flex-1 pb-3">
-                  <p className="text-sm font-semibold mb-1.5">Day {day.day}</p>
-                  <Textarea
-                    placeholder={`Describe what happens on Day ${day.day}…`}
-                    rows={3}
-                    value={day.description}
-                    onChange={(e) => updateDay(i, "description", e.target.value)}
-                    disabled={isLoading}
-                  />
-                </div>
-                <Button variant="ghost" size="icon" className="text-muted-foreground flex-shrink-0 mt-6" onClick={() => removeDay(i)} disabled={isLoading}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <ItinerarySection
+          itinerary={itinerary}
+          isLoading={isLoading}
+          onAdd={addDay}
+          onUpdate={updateDay}
+          onRemove={removeDay}
+        />
 
         {/* Actions */}
         <div className="flex flex-wrap gap-3 justify-end">
@@ -527,7 +508,14 @@ export default function AgencyListingForm() {
             {isLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : "Save as Draft"}
           </Button>
           <Button onClick={handlePublish} disabled={isLoading} className="gap-2">
-            {isLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : <><Save className="h-4 w-4" />{isEditing ? "Update Listing" : "Publish Listing"}</>}
+            {isLoading
+              ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</>
+              : isEditing && originalStatus === "published"
+                ? <><Save className="h-4 w-4" />Submit Changes for Review</>
+                : isEditing
+                  ? <><Save className="h-4 w-4" />Update Listing</>
+                  : <><Save className="h-4 w-4" />Publish Listing</>
+            }
           </Button>
         </div>
       </div>

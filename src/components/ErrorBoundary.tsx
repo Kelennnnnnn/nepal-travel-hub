@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { logger } from "@/lib/logger";
 
 interface Props { children: ReactNode; fallback?: ReactNode; }
 interface State { hasError: boolean; error?: Error; }
@@ -15,8 +16,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error("ErrorBoundary caught:", error, info);
-    // TODO: Send to error reporting service (Sentry, etc.)
+    logger.error("ErrorBoundary caught:", error, info);
   }
 
   render() {

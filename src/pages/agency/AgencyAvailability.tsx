@@ -2,12 +2,12 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { AgencyLayout } from "@/components/agency/AgencyLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   ChevronLeft, ChevronRight, CalendarRange, Zap,
@@ -23,18 +23,10 @@ import { useListingsStore } from "@/stores/listingsStore";
 import { useAuthStore } from "@/stores/authStore";
 import { supabase } from "@/lib/supabase";
 import type { AvailabilitySlot } from "@/stores/listingsStore";
+import { BulkRangeDialog } from "./availability/BulkRangeDialog";
+import { SeasonalPricingDialog } from "./availability/SeasonalPricingDialog";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const ALL_DOWS = [0, 1, 2, 3, 4, 5, 6];
-
-const SEASON_TEMPLATES = [
-  { label: "Autumn Peak (Oct – Nov)", start: "10-01", end: "11-30", mult: 1.5 },
-  { label: "Spring Peak (Mar – May)", start: "03-01", end: "05-31", mult: 1.4 },
-  { label: "Winter (Dec – Feb)", start: "12-01", end: "02-28", mult: 1.2 },
-  { label: "Monsoon Off-Peak (Jun – Aug)", start: "06-01", end: "08-31", mult: 0.8 },
-];
 
 const fmt = new Intl.NumberFormat(undefined, {
   style: "currency", currency: "USD",
@@ -85,42 +77,6 @@ function cellClasses(
   return cn(base, ring, "bg-green-50 border-green-200 hover:bg-green-100 dark:bg-green-950/20 dark:border-green-800");
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function DayToggle({ label, selected, onToggle }: { label: string; selected: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={cn(
-        "px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors",
-        selected
-          ? "bg-primary text-primary-foreground border-primary"
-          : "bg-background border-border text-muted-foreground hover:border-foreground/60",
-      )}
-    >
-      {label}
-    </button>
-  );
-}
-
-function DowPicker({ value, onChange }: { value: number[]; onChange: (v: number[]) => void }) {
-  return (
-    <div className="flex gap-1.5 flex-wrap">
-      {DOW_LABELS.map((d, i) => (
-        <DayToggle
-          key={d}
-          label={d}
-          selected={value.includes(i)}
-          onToggle={() =>
-            onChange(value.includes(i) ? value.filter(v => v !== i) : [...value, i])
-          }
-        />
-      ))}
-    </div>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AgencyAvailability() {
@@ -152,6 +108,11 @@ export default function AgencyAvailability() {
 
   // Saving
   const [isSaving, setIsSaving] = useState(false);
+
+  // Clear range dialog
+  const [clearOpen, setClearOpen] = useState(false);
+  const [clearStart, setClearStart] = useState("");
+  const [clearEnd, setClearEnd] = useState("");
 
   // Bulk range dialog
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -274,6 +235,35 @@ export default function AgencyAvailability() {
     setIsSaving(false);
   }, [selectedListing, fetchMyAvailability]);
 
+  const handleClearRange = async () => {
+    if (!clearStart || !clearEnd) return;
+    const dates = getDatesInRange(clearStart, clearEnd, [0, 1, 2, 3, 4, 5, 6]);
+    if (dates.length === 0) { toast.error("No dates in the selected range."); return; }
+    // Collect IDs of existing slots that fall in the range
+    const idsToDelete = dates
+      .map(d => slotMap[d]?.id)
+      .filter(Boolean) as string[];
+    if (idsToDelete.length === 0) {
+      toast.info("No slots found in the selected range.");
+      setClearOpen(false);
+      return;
+    }
+    setIsSaving(true);
+    const { error } = await supabase
+      .from("availability")
+      .delete()
+      .in("id", idsToDelete);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      await fetchMyAvailability(selectedListing);
+      toast.success(`Cleared ${idsToDelete.length} slot${idsToDelete.length !== 1 ? "s" : ""}.`);
+      setSelectedDate(null);
+    }
+    setIsSaving(false);
+    setClearOpen(false);
+  };
+
   const handleBulkApply = async () => {
     if (!user || !selectedListing || !activeListing) return;
     const dates = getDatesInRange(bulkStart, bulkEnd, bulkDows);
@@ -320,15 +310,6 @@ export default function AgencyAvailability() {
     });
     await bulkUpsertSlots(slots);
     setSeasonOpen(false);
-  };
-
-  const applySeasonTemplate = (idx: number) => {
-    const t = SEASON_TEMPLATES[idx];
-    const year = viewMonth.getFullYear();
-    const endYear = t.end.startsWith("02") ? year + 1 : year;
-    setSeasonStart(`${year}-${t.start}`);
-    setSeasonEnd(`${endYear}-${t.end}`);
-    if (seasonMode === "multiplier") setSeasonValue(String(t.mult));
   };
 
   // ── Calendar click ────────────────────────────────────────────────────────
@@ -386,6 +367,15 @@ export default function AgencyAvailability() {
               onClick={() => setSeasonOpen(true)}
             >
               <Zap className="h-4 w-4" /> Peak Pricing
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60"
+              disabled={!selectedListing}
+              onClick={() => { setClearStart(""); setClearEnd(""); setClearOpen(true); }}
+            >
+              <Trash2 className="h-4 w-4" /> Clear Range
             </Button>
           </div>
         </div>
@@ -672,208 +662,82 @@ export default function AgencyAvailability() {
         </div>
       </div>
 
-      {/* ── Bulk Range Dialog ────────────────────────────────────────────── */}
-      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
-        <DialogContent className="max-w-md">
+      {/* ── Clear Range Dialog ───────────────────────────────────────────── */}
+      <Dialog open={clearOpen} onOpenChange={setClearOpen}>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CalendarRange className="h-5 w-5 text-primary" /> Bulk Date Range
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" /> Clear Availability Range
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-1">
+            <p className="text-sm text-muted-foreground">
+              All availability slots (including price overrides and blocked dates) in the
+              selected range will be permanently deleted. Existing bookings are not affected.
+            </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Start date</Label>
-                <Input type="date" value={bulkStart} onChange={e => setBulkStart(e.target.value)} />
+                <Input type="date" value={clearStart} onChange={e => setClearStart(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">End date</Label>
-                <Input type="date" value={bulkEnd} onChange={e => setBulkEnd(e.target.value)} min={bulkStart} />
+                <Input type="date" value={clearEnd} onChange={e => setClearEnd(e.target.value)} min={clearStart} />
               </div>
             </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Days of week to include</Label>
-              <div className="flex items-center gap-2 mb-1.5">
-                <button
-                  type="button"
-                  className="text-[11px] text-primary underline underline-offset-2"
-                  onClick={() => setBulkDows(ALL_DOWS)}
-                >All</button>
-                <span className="text-muted-foreground/40 text-xs">·</span>
-                <button
-                  type="button"
-                  className="text-[11px] text-primary underline underline-offset-2"
-                  onClick={() => setBulkDows([1, 2, 3, 4, 5])}
-                >Weekdays</button>
-                <span className="text-muted-foreground/40 text-xs">·</span>
-                <button
-                  type="button"
-                  className="text-[11px] text-primary underline underline-offset-2"
-                  onClick={() => setBulkDows([0, 6])}
-                >Weekends</button>
-              </div>
-              <DowPicker value={bulkDows} onChange={setBulkDows} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Spots per date</Label>
-                <Input
-                  type="number" min={1}
-                  value={bulkSpots}
-                  onChange={e => setBulkSpots(e.target.value)}
-                  placeholder={String(activeListing?.max_participants ?? 10)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Price override (optional)</Label>
-                <Input
-                  type="number" min={0} step="0.01"
-                  value={bulkPrice}
-                  onChange={e => setBulkPrice(e.target.value)}
-                  placeholder="Default price"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Switch checked={bulkBlocked} onCheckedChange={setBulkBlocked} id="bulk-blocked" />
-              <Label htmlFor="bulk-blocked" className="text-sm cursor-pointer">
-                Block all selected dates
-              </Label>
-            </div>
-
-            <div className="pt-1">
-              <p className="text-xs text-muted-foreground mb-3">
-                {bulkStart && bulkEnd && bulkDows.length > 0
-                  ? `${getDatesInRange(bulkStart, bulkEnd, bulkDows).length} date(s) will be updated`
-                  : "Select a date range and days to see the count"}
-              </p>
-              <Button
-                className="w-full"
-                onClick={handleBulkApply}
-                disabled={isSaving || !bulkStart || !bulkEnd || !bulkDows.length}
-              >
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Apply to Range
-              </Button>
-            </div>
+            <Button
+              variant="destructive"
+              className="w-full"
+              onClick={handleClearRange}
+              disabled={isSaving || !clearStart || !clearEnd}
+            >
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Delete All Slots in Range
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* ── Seasonal Pricing Dialog ──────────────────────────────────────── */}
-      <Dialog open={seasonOpen} onOpenChange={setSeasonOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-primary" /> Set Peak / Seasonal Pricing
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-1">
-            {/* Templates */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">Quick templates</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {SEASON_TEMPLATES.map((t, i) => (
-                  <button
-                    key={t.label}
-                    type="button"
-                    onClick={() => applySeasonTemplate(i)}
-                    className="px-2.5 py-1 text-[11px] rounded-full border border-border hover:border-primary hover:text-primary transition-colors"
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+      <BulkRangeDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        activeListing={activeListing}
+        isSaving={isSaving}
+        bulkStart={bulkStart}
+        bulkEnd={bulkEnd}
+        bulkDows={bulkDows}
+        bulkSpots={bulkSpots}
+        bulkPrice={bulkPrice}
+        bulkBlocked={bulkBlocked}
+        setBulkStart={setBulkStart}
+        setBulkEnd={setBulkEnd}
+        setBulkDows={setBulkDows}
+        setBulkSpots={setBulkSpots}
+        setBulkPrice={setBulkPrice}
+        setBulkBlocked={setBulkBlocked}
+        onApply={handleBulkApply}
+      />
 
-            <Separator />
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Start date</Label>
-                <Input type="date" value={seasonStart} onChange={e => setSeasonStart(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">End date</Label>
-                <Input type="date" value={seasonEnd} onChange={e => setSeasonEnd(e.target.value)} min={seasonStart} />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Days of week</Label>
-              <DowPicker value={seasonDows} onChange={setSeasonDows} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Pricing mode</Label>
-              <div className="flex gap-2">
-                {(["multiplier", "fixed"] as const).map(mode => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setSeasonMode(mode)}
-                    className={cn(
-                      "flex-1 py-1.5 rounded-md text-sm border transition-colors",
-                      seasonMode === mode
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "border-border text-muted-foreground hover:border-foreground/40",
-                    )}
-                  >
-                    {mode === "multiplier" ? "Multiplier (e.g. 1.5×)" : "Fixed price"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">
-                  {seasonMode === "multiplier" ? "Multiplier (e.g. 1.5)" : "Fixed price ($)"}
-                </Label>
-                <Input
-                  type="number" min={0} step={seasonMode === "multiplier" ? "0.1" : "1"}
-                  value={seasonValue}
-                  onChange={e => setSeasonValue(e.target.value)}
-                  placeholder={seasonMode === "multiplier" ? "1.5" : "150"}
-                />
-                {seasonMode === "multiplier" && activeListing && seasonValue && (
-                  <p className="text-[11px] text-muted-foreground">
-                    → {fmt.format(Math.round(activeListing.price * Number(seasonValue)))} per person
-                  </p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Spots per date (optional)</Label>
-                <Input
-                  type="number" min={1}
-                  value={seasonSpots}
-                  onChange={e => setSeasonSpots(e.target.value)}
-                  placeholder="Keep existing"
-                />
-              </div>
-            </div>
-
-            <div className="pt-1">
-              <p className="text-xs text-muted-foreground mb-3">
-                {seasonStart && seasonEnd && seasonDows.length > 0
-                  ? `${getDatesInRange(seasonStart, seasonEnd, seasonDows).length} date(s) will be updated`
-                  : "Select a date range to see the count"}
-              </p>
-              <Button
-                className="w-full"
-                onClick={handleSeasonApply}
-                disabled={isSaving || !seasonStart || !seasonEnd || !seasonValue || !seasonDows.length}
-              >
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Apply Pricing
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <SeasonalPricingDialog
+        open={seasonOpen}
+        onOpenChange={setSeasonOpen}
+        activeListing={activeListing}
+        isSaving={isSaving}
+        viewMonth={viewMonth}
+        seasonStart={seasonStart}
+        seasonEnd={seasonEnd}
+        seasonDows={seasonDows}
+        seasonMode={seasonMode}
+        seasonValue={seasonValue}
+        seasonSpots={seasonSpots}
+        setSeasonStart={setSeasonStart}
+        setSeasonEnd={setSeasonEnd}
+        setSeasonDows={setSeasonDows}
+        setSeasonMode={setSeasonMode}
+        setSeasonValue={setSeasonValue}
+        setSeasonSpots={setSeasonSpots}
+        onApply={handleSeasonApply}
+      />
     </AgencyLayout>
   );
 }

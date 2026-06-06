@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useCanReviewListing, useTravelerBookings } from "@/lib/queries";
 import { useQueryClient } from "@tanstack/react-query";
+import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -126,7 +127,7 @@ function BookingCard({ booking, onCancelled }: { booking: Booking; onCancelled: 
   const [isCancelling, setIsCancelling] = useState(false);
 
   const tab = classifyBooking(booking);
-  const image = booking.listing?.images?.[0] || "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=400&h=300&fit=crop";
+  const image = booking.listing?.images?.[0] || FALLBACK_IMAGE_URL;
   const days = daysUntilTrip(booking.trip_date);
   const { pct, label } = refundPolicy(days);
   const refundAmount = (booking.total_amount * pct) / 100;
@@ -285,7 +286,7 @@ function BookingCard({ booking, onCancelled }: { booking: Booking; onCancelled: 
 
 export default function MyBookings() {
   const queryClient = useQueryClient();
-  const { data: bookings = [], isLoading } = useTravelerBookings();
+  const { data: bookings = [], isLoading, isError } = useTravelerBookings();
 
   const upcoming = bookings.filter((b) => classifyBooking(b as Booking) === "upcoming");
   const completed = bookings.filter((b) => classifyBooking(b as Booking) === "completed");
@@ -310,6 +311,14 @@ export default function MyBookings() {
               </div>
             </Card>
           ))}
+        </div>
+      );
+    }
+    if (isError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-destructive font-medium mb-4">Failed to load bookings. Please try again.</p>
+          <Button variant="outline" size="sm" onClick={refresh}>Retry</Button>
         </div>
       );
     }

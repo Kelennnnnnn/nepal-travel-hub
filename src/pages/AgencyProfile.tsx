@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { SEO } from "@/components/SEO";
+import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import {
   MapPin,
   Phone,
@@ -46,9 +47,7 @@ function listingToActivity(l: Listing): Activity {
     id: l.id,
     title: l.title,
     description: l.description,
-    image:
-      l.images?.[0] ||
-      "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&h=600&fit=crop",
+    image: l.images?.[0] || FALLBACK_IMAGE_URL,
     location: l.location,
     duration: l.duration,
     price: Number(l.price),

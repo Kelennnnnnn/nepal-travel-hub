@@ -14,22 +14,12 @@ import {
   Loader2,
 } from "lucide-react";
 import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  AreaChart,
-  Area,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
+  DashboardCharts,
+  type BookingStatRow,
+  type RevenueRow,
+  type AgencySignupRow,
+  type CategoryRow,
+} from "./dashboard/DashboardCharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,31 +44,6 @@ interface RecentBookingRow {
   listing: { title: string } | { title: string }[] | null;
 }
 
-interface BookingStatRow {
-  period: string;
-  booking_count: number;
-  total_revenue: number;
-  total_commission: number;
-}
-
-interface RevenueRow {
-  period: string;
-  total_revenue: number;
-  booking_count: number;
-}
-
-interface AgencySignupRow {
-  period: string;
-  new_applications: number;
-  cumulative: number;
-}
-
-interface CategoryRow {
-  category: string;
-  booking_count: number;
-  total_revenue: number;
-}
-
 interface CoreStats {
   totalRevenue: number;
   totalBookings: number;
@@ -95,8 +60,6 @@ const money = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 0,
 });
 
-const PIE_COLORS = ["#7c3aed", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
-
 function listingTitle(listing: RecentBookingRow["listing"]): string {
   if (!listing) return "—";
   if (Array.isArray(listing)) return listing[0]?.title ?? "—";
@@ -107,14 +70,6 @@ function badgeVariant(status: string): "default" | "secondary" | "destructive" {
   if (status === "confirmed" || status === "completed") return "default";
   if (status === "cancelled") return "destructive";
   return "secondary";
-}
-
-function formatPeriod(d: string, mode: "week" | "month") {
-  const date = new Date(d);
-  if (mode === "month") {
-    return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-  }
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function formatDate(dateStr: string) {
@@ -224,76 +179,89 @@ export default function AdminDashboard() {
       setChartsLoading(true);
       setRecentLoading(true);
 
-      const prevRange = getPrevDates(dateFrom, dateTo);
+      try {
+        const prevRange = getPrevDates(dateFrom, dateTo);
 
-      const [
-        paidRes,
-        prevPaidRes,
-        bookingsCountRes,
-        prevBookingsCountRes,
-        listingsCountRes,
-        recentRes,
-        weeklyRes,
-        monthlyRes,
-        agencyRes,
-        categoryRes,
-      ] = await Promise.all([
-        supabase.from("bookings").select("total_amount").eq("payment_status", "paid")
-          .gte("created_at", dateFrom).lte("created_at", dateTo + "T23:59:59"),
-        supabase.from("bookings").select("total_amount").eq("payment_status", "paid")
-          .gte("created_at", prevRange.from).lte("created_at", prevRange.to + "T23:59:59"),
-        supabase.from("bookings").select("*", { count: "exact", head: true })
-          .gte("created_at", dateFrom).lte("created_at", dateTo + "T23:59:59"),
-        supabase.from("bookings").select("*", { count: "exact", head: true })
-          .gte("created_at", prevRange.from).lte("created_at", prevRange.to + "T23:59:59"),
-        supabase.from("listings").select("*", { count: "exact", head: true }).eq("status", "published"),
-        supabase.from("bookings")
-          .select("id,booking_ref,agency_id,total_amount,status,created_at,traveler_name,listing:listings(title)")
-          .order("created_at", { ascending: false }).limit(5),
-        supabase.rpc("admin_booking_stats", { start_date: dateFrom, end_date: dateTo }),
-        supabase.rpc("admin_revenue_by_month", { start_date: dateFrom, end_date: dateTo }),
-        supabase.rpc("admin_agency_signups", { start_date: dateFrom, end_date: dateTo }),
-        supabase.rpc("admin_bookings_by_category", { start_date: dateFrom, end_date: dateTo }),
-      ]);
+        const [
+          paidRes,
+          prevPaidRes,
+          bookingsCountRes,
+          prevBookingsCountRes,
+          listingsCountRes,
+          recentRes,
+          weeklyRes,
+          monthlyRes,
+          agencyRes,
+          categoryRes,
+        ] = await Promise.all([
+          supabase.from("bookings").select("total_amount").eq("payment_status", "paid")
+            .gte("created_at", dateFrom).lte("created_at", dateTo + "T23:59:59"),
+          supabase.from("bookings").select("total_amount").eq("payment_status", "paid")
+            .gte("created_at", prevRange.from).lte("created_at", prevRange.to + "T23:59:59"),
+          supabase.from("bookings").select("*", { count: "exact", head: true })
+            .gte("created_at", dateFrom).lte("created_at", dateTo + "T23:59:59"),
+          supabase.from("bookings").select("*", { count: "exact", head: true })
+            .gte("created_at", prevRange.from).lte("created_at", prevRange.to + "T23:59:59"),
+          supabase.from("listings").select("*", { count: "exact", head: true }).eq("status", "published"),
+          supabase.from("bookings")
+            .select("id,booking_ref,agency_id,total_amount,status,created_at,traveler_name,listing:listings(title)")
+            .order("created_at", { ascending: false }).limit(5),
+          supabase.rpc("admin_booking_stats", { start_date: dateFrom, end_date: dateTo }),
+          supabase.rpc("admin_revenue_by_month", { start_date: dateFrom, end_date: dateTo }),
+          supabase.rpc("admin_agency_signups", { start_date: dateFrom, end_date: dateTo }),
+          supabase.rpc("admin_bookings_by_category", { start_date: dateFrom, end_date: dateTo }),
+        ]);
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      // Core stats
-      const revenue = paidRes.data?.reduce((s, r) => s + Number(r.total_amount ?? 0), 0) ?? 0;
-      const prevRevenue = prevPaidRes.data?.reduce((s, r) => s + Number(r.total_amount ?? 0), 0) ?? 0;
-      const bookingsCount = bookingsCountRes.count ?? 0;
-      const prevBookingsCount = prevBookingsCountRes.count ?? 0;
-      const verifiedCount = allApplications.filter((a) => a.status === "verified").length;
+        // Core stats — gracefully handle per-query errors
+        const revenue = !paidRes.error
+          ? (paidRes.data?.reduce((s, r) => s + Number(r.total_amount ?? 0), 0) ?? 0)
+          : 0;
+        const prevRevenue = !prevPaidRes.error
+          ? (prevPaidRes.data?.reduce((s, r) => s + Number(r.total_amount ?? 0), 0) ?? 0)
+          : 0;
+        const bookingsCount = !bookingsCountRes.error ? (bookingsCountRes.count ?? 0) : 0;
+        const prevBookingsCount = !prevBookingsCountRes.error ? (prevBookingsCountRes.count ?? 0) : 0;
+        const verifiedCount = allApplications.filter((a) => a.status === "verified").length;
 
-      setStats({
-        totalRevenue: revenue,
-        totalBookings: bookingsCount,
-        listedActivities: listingsCountRes.count ?? 0,
-        verifiedAgencies: verifiedCount,
-      });
-      setPrevStats({
-        totalRevenue: prevRevenue,
-        totalBookings: prevBookingsCount,
-        listedActivities: 0,
-        verifiedAgencies: 0,
-      });
-      setStatsLoading(false);
+        setStats({
+          totalRevenue: revenue,
+          totalBookings: bookingsCount,
+          listedActivities: !listingsCountRes.error ? (listingsCountRes.count ?? 0) : 0,
+          verifiedAgencies: verifiedCount,
+        });
+        setPrevStats({
+          totalRevenue: prevRevenue,
+          totalBookings: prevBookingsCount,
+          listedActivities: 0,
+          verifiedAgencies: 0,
+        });
+        setStatsLoading(false);
 
-      // Chart data
-      if (!weeklyRes.error)  setBookingStats((weeklyRes.data ?? []) as BookingStatRow[]);
-      if (!monthlyRes.error) setRevenueStats((monthlyRes.data ?? []) as RevenueRow[]);
-      if (!agencyRes.error)  setAgencyStats((agencyRes.data ?? []) as AgencySignupRow[]);
-      if (!categoryRes.error) setCategoryStats((categoryRes.data ?? []) as CategoryRow[]);
-      setChartsLoading(false);
+        // Chart data
+        if (!weeklyRes.error)   setBookingStats((weeklyRes.data ?? []) as BookingStatRow[]);
+        if (!monthlyRes.error)  setRevenueStats((monthlyRes.data ?? []) as RevenueRow[]);
+        if (!agencyRes.error)   setAgencyStats((agencyRes.data ?? []) as AgencySignupRow[]);
+        if (!categoryRes.error) setCategoryStats((categoryRes.data ?? []) as CategoryRow[]);
+        setChartsLoading(false);
 
-      // Recent bookings
-      if (recentRes.error) {
-        toast.error("Could not load recent bookings.");
-        setRecentRows([]);
-      } else {
-        setRecentRows((recentRes.data ?? []) as RecentBookingRow[]);
+        // Recent bookings
+        if (recentRes.error) {
+          toast.error("Could not load recent bookings.");
+          setRecentRows([]);
+        } else {
+          setRecentRows((recentRes.data ?? []) as RecentBookingRow[]);
+        }
+        setRecentLoading(false);
+      } catch {
+        if (!cancelled) {
+          toast.error("Failed to load dashboard data. Please refresh.");
+          setStatsLoading(false);
+          setChartsLoading(false);
+          setRecentLoading(false);
+        }
       }
-      setRecentLoading(false);
     }
 
     void loadAll();
@@ -451,179 +419,13 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        {/* Charts Row 1: Bookings per week + Revenue per month */}
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Bookings per week line chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Bookings per Week</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {chartsLoading ? (
-                <Skeleton className="h-48 w-full" />
-              ) : bookingStats.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-                  No booking data in this period
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={bookingStats}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis
-                      dataKey="period"
-                      tickFormatter={(v) => formatPeriod(v, "week")}
-                      tick={{ fontSize: 11 }}
-                    />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      formatter={(v: number, name: string) =>
-                        name === "total_revenue" ? [money.format(v), "Revenue"] : [v, "Bookings"]
-                      }
-                      labelFormatter={(l) => formatPeriod(String(l), "week")}
-                    />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="booking_count"
-                      name="Bookings"
-                      stroke="#7c3aed"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Revenue per month bar chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Revenue per Month</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {chartsLoading ? (
-                <Skeleton className="h-48 w-full" />
-              ) : revenueStats.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-                  No revenue data in this period
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={revenueStats}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis
-                      dataKey="period"
-                      tickFormatter={(v) => formatPeriod(v, "month")}
-                      tick={{ fontSize: 11 }}
-                    />
-                    <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      formatter={(v: number) => [money.format(v), "Revenue"]}
-                      labelFormatter={(l) => formatPeriod(String(l), "month")}
-                    />
-                    <Bar dataKey="total_revenue" name="Revenue" fill="#7c3aed" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Charts Row 2: Agency signups + Category breakdown */}
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Agency sign-ups area chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Agency Sign-ups (Cumulative)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {chartsLoading ? (
-                <Skeleton className="h-48 w-full" />
-              ) : agencyStats.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-                  No agency sign-ups in this period
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={agencyStats}>
-                    <defs>
-                      <linearGradient id="agencyGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor="#7c3aed" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis
-                      dataKey="period"
-                      tickFormatter={(v) => formatPeriod(v, "week")}
-                      tick={{ fontSize: 11 }}
-                    />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip labelFormatter={(l) => formatPeriod(String(l), "week")} />
-                    <Area
-                      type="monotone"
-                      dataKey="cumulative"
-                      name="Cumulative"
-                      stroke="#7c3aed"
-                      fill="url(#agencyGrad)"
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Category breakdown donut chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Bookings by Category</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {chartsLoading ? (
-                <Skeleton className="h-48 w-full" />
-              ) : categoryStats.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-                  No category data in this period
-                </div>
-              ) : (
-                <div className="flex items-center gap-4">
-                  <ResponsiveContainer width="60%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={categoryStats}
-                        dataKey="booking_count"
-                        nameKey="category"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={80}
-                      >
-                        {categoryStats.map((_, i) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(v: number) => [v, "Bookings"]} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex-1 space-y-2">
-                    {categoryStats.slice(0, 6).map((c, i) => (
-                      <div key={c.category} className="flex items-center gap-2 text-xs">
-                        <div
-                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
-                        />
-                        <span className="capitalize truncate flex-1">{c.category}</span>
-                        <span className="font-medium text-muted-foreground">{c.booking_count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <DashboardCharts
+          loading={chartsLoading}
+          bookingStats={bookingStats}
+          revenueStats={revenueStats}
+          agencyStats={agencyStats}
+          categoryStats={categoryStats}
+        />
 
         {/* Recent Bookings + Pending Agencies */}
         <div className="grid lg:grid-cols-3 gap-6">
