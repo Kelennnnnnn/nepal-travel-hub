@@ -205,6 +205,18 @@ export default function AgencySettings() {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast.error("Logo must be a JPEG, PNG, or WebP image.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Logo must be under 2MB.");
+      e.target.value = "";
+      return;
+    }
+
     setLogoFile(file);
     const reader = new FileReader();
     reader.onload = (ev) => { if (ev.target?.result) setLogoPreview(ev.target.result as string); };

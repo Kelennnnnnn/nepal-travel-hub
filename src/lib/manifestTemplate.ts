@@ -1,3 +1,13 @@
+/** Escapes HTML-significant characters so traveler/agency-supplied values can't inject markup or scripts when written into the print window via document.write. */
+function escapeHtml(input: string): string {
+  return String(input)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export interface TripGroup {
   key: string;
   date: string;
@@ -23,21 +33,24 @@ export function buildManifestHtml(group: TripGroup, agencyName: string): string 
     .map(
       (b) => `
       <tr>
-        <td>${b.booking_ref}</td>
-        <td>${b.customer}</td>
-        <td>${b.email}</td>
-        <td>${b.phone}</td>
+        <td>${escapeHtml(b.booking_ref)}</td>
+        <td>${escapeHtml(b.customer)}</td>
+        <td>${escapeHtml(b.email)}</td>
+        <td>${escapeHtml(b.phone)}</td>
         <td style="text-align:center">${b.guests}</td>
-        <td>${b.notes ?? "—"}</td>
+        <td>${b.notes ? escapeHtml(b.notes) : "—"}</td>
       </tr>`,
     )
     .join("");
+
+  const activityTitle = escapeHtml(group.activity);
+  const safeAgencyName = escapeHtml(agencyName);
 
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Guest Manifest – ${group.activity} – ${group.date}</title>
+  <title>Guest Manifest – ${activityTitle} – ${escapeHtml(group.date)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; max-width: 920px; margin: 0 auto; padding: 40px 32px; color: #111; font-size: 13px; }
@@ -61,10 +74,10 @@ export function buildManifestHtml(group: TripGroup, agencyName: string): string 
   </style>
 </head>
 <body>
-  <h1>${group.activity}</h1>
-  <p class="subtitle">Guest Manifest &nbsp;·&nbsp; Generated ${generatedDate} &nbsp;·&nbsp; ${agencyName}</p>
+  <h1>${activityTitle}</h1>
+  <p class="subtitle">Guest Manifest &nbsp;·&nbsp; Generated ${generatedDate} &nbsp;·&nbsp; ${safeAgencyName}</p>
   <div class="summary">
-    <div class="summary-item"><div class="label">Trip Date</div><div class="value">${group.date}</div></div>
+    <div class="summary-item"><div class="label">Trip Date</div><div class="value">${escapeHtml(group.date)}</div></div>
     <div class="summary-item"><div class="label">Total Guests</div><div class="value">${group.totalGuests}</div></div>
     <div class="summary-item"><div class="label">Bookings</div><div class="value">${group.bookings.length}</div></div>
     <div class="summary-item"><div class="label">Total Revenue</div><div class="value">$${group.totalRevenue.toLocaleString()}</div></div>

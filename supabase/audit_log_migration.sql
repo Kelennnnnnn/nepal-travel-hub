@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS public.audit_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  admin_user_id UUID NOT NULL REFERENCES auth.users(id),
+  admin_user_id UUID REFERENCES auth.users(id), -- NULL = automated/system event (no human admin)
   action TEXT NOT NULL,
   entity_type TEXT NOT NULL, -- 'agency', 'listing', 'booking', 'user', 'payout', 'settings'
   entity_id TEXT,

@@ -65,11 +65,14 @@ CREATE POLICY "agencies_insert_own"
   FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
--- Agencies can update their own application (e.g. resubmit)
+-- Agencies can update their own application (e.g. resubmit), but can never
+-- write a reviewer-only status (verified/rejected/suspended) themselves —
+-- that would auto-grant the agency role via on_agency_status_change.
 CREATE POLICY "agencies_update_own"
   ON public.agency_applications
   FOR UPDATE
-  USING (auth.uid() = user_id);
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id AND status IN ('pending', 'in_review'));
 
 -- Admins can read ALL applications
 CREATE POLICY "admins_read_all"

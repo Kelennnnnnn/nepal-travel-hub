@@ -60,8 +60,9 @@ Deno.serve(async (req: Request) => {
         .select(`
           id,
           booking_date,
-          participants,
+          guests,
           total_amount,
+          net_payout,
           traveler_name,
           traveler_email,
           listings (
@@ -95,7 +96,7 @@ Deno.serve(async (req: Request) => {
           bookingRef,
           activityTitle,
           tripDate: booking.booking_date,
-          guests: booking.participants,
+          guests: booking.guests,
           totalAmount: booking.total_amount,
           agencyName,
         });
@@ -110,14 +111,14 @@ Deno.serve(async (req: Request) => {
           .maybeSingle();
 
         if (prefs?.new_booking !== false) {
-          const netPayout = booking.total_amount * 0.9;
+          const netPayout = Number(booking.net_payout);
           const { subject, html } = newBookingAgencyEmail({
             agencyName,
             bookingRef,
             activityTitle,
             travelerName: booking.traveler_name ?? "A traveler",
             tripDate: booking.booking_date,
-            guests: booking.participants,
+            guests: booking.guests,
             totalAmount: booking.total_amount,
             netPayout,
           });
@@ -142,6 +143,7 @@ Deno.serve(async (req: Request) => {
 
       if (error) {
         console.error("Failed to update failed booking:", error.message);
+        return new Response("DB update failed", { status: 500 });
       }
       break;
     }
@@ -161,6 +163,7 @@ Deno.serve(async (req: Request) => {
 
         if (error) {
           console.error("Failed to update refunded booking:", error.message);
+          return new Response("DB update failed", { status: 500 });
         }
       }
       break;

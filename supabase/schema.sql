@@ -33,7 +33,7 @@ create policy "Users can insert own profile"
 create policy "Admins can read all profiles"
   on public.profiles for select
   using (
-    (auth.jwt() ->> 'role') = 'admin'
+    (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
   );
 
 -- 4. Trigger: auto-create profile on auth.users insert (bypasses RLS)

@@ -62,27 +62,6 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Missing required fields" }, 400);
     }
 
-    // Server-side availability check
-    if (availability_id) {
-      const { data: slot, error: slotError } = await supabaseAdmin
-        .from("availability")
-        .select("spots_remaining, blocked")
-        .eq("id", availability_id)
-        .single();
-
-      if (slotError || !slot) {
-        return json({ error: "Availability slot not found" }, 400);
-      }
-
-      if (slot.blocked) {
-        return json({ error: "This date is blocked and unavailable" }, 400);
-      }
-
-      if (slot.spots_remaining < guests) {
-        return json({ error: `Only ${slot.spots_remaining} spots available` }, 400);
-      }
-    }
-
     // Fetch the listing from DB — never trust client-supplied amounts.
     const { data: listing, error: listingErr } = await supabaseAdmin
       .from("listings")
@@ -98,6 +77,35 @@ Deno.serve(async (req: Request) => {
       return json({ error: `Group size must be between 1 and ${listing.max_participants}.` }, 400);
     }
 
+    // Atomically claim the spots in a single UPDATE ... WHERE spots_remaining >= n.
+    // This closes the race where two simultaneous requests both pass a SELECT-based
+    // check and oversell the last spot — the row lock makes "check and decrement"
+    // indivisible. If anything fails further down, the claim is released below.
+    let claimedAvailabilityId: string | null = null;
+    if (availability_id) {
+      const { error: claimError } = await supabaseAdmin.rpc("claim_availability_spots", {
+        p_availability_id: availability_id,
+        p_guests: guests,
+      });
+      if (claimError) {
+        if (claimError.message?.includes("INSUFFICIENT_SPOTS")) {
+          return json({ error: "Not enough spots remaining for this date." }, 400);
+        }
+        logError("create-payment-intent: claim spots", claimError);
+        return json({ error: "This date is no longer available. Please pick another." }, 400);
+      }
+      claimedAvailabilityId = availability_id;
+    }
+
+    const releaseClaimedSpots = async () => {
+      if (claimedAvailabilityId) {
+        await supabaseAdmin.rpc("release_availability_spots", {
+          p_availability_id: claimedAvailabilityId,
+          p_guests: guests,
+        });
+      }
+    };
+
     const pricePerPerson = Number(listing.price);
     const computedTotal  = Math.round(pricePerPerson * Number(guests) * 100) / 100;
     const commissionRate = await getCommissionRate(); // single source of truth
@@ -109,20 +117,26 @@ Deno.serve(async (req: Request) => {
     });
 
     const amountInCents = Math.round(computedTotal * 100);
-    const paymentIntent = await stripe.paymentIntents.create(
-      {
-        amount: amountInCents,
-        currency: "usd",
-        metadata: {
-          listing_id,
-          agency_id: listing.agency_id,
-          traveler_id,
-          trip_date,
-          guests: String(guests),
+    let paymentIntent: Stripe.PaymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.create(
+        {
+          amount: amountInCents,
+          currency: "usd",
+          metadata: {
+            listing_id,
+            agency_id: listing.agency_id,
+            traveler_id,
+            trip_date,
+            guests: String(guests),
+          },
         },
-      },
-      { idempotencyKey: `pi_${traveler_id}_${listing_id}_${trip_date}_${guests}_${amountInCents}` }
-    );
+        { idempotencyKey: `pi_${traveler_id}_${listing_id}_${trip_date}_${guests}_${amountInCents}` }
+      );
+    } catch (stripeErr) {
+      await releaseClaimedSpots();
+      throw stripeErr;
+    }
 
     const { data: booking, error: dbError } = await supabaseAdmin
       .from("bookings")
@@ -151,6 +165,7 @@ Deno.serve(async (req: Request) => {
 
     if (dbError) {
       await stripe.paymentIntents.cancel(paymentIntent.id);
+      await releaseClaimedSpots();
       return json({ error: dbError.message }, 500);
     }
 

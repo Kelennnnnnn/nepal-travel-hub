@@ -63,21 +63,6 @@ Deno.serve(async (req: Request) => {
       .eq("user_id", agency_user_id)
       .maybeSingle();
 
-    // Decrypt bank account number from Vault only if needed for manual transfer
-    const { data: bankRow } = await supabaseAdmin
-      .from("agency_bank_details")
-      .select("account_number_secret_id")
-      .eq("agency_user_id", agency_user_id)
-      .maybeSingle();
-    if (bankRow?.account_number_secret_id) {
-      const { data: _secret } = await supabaseAdmin
-        .from("vault.decrypted_secrets")
-        .select("decrypted_secret")
-        .eq("id", bankRow.account_number_secret_id)
-        .maybeSingle();
-      // _secret.decrypted_secret available here for manual payout flows
-    }
-
     if (!agency?.stripe_account_id) {
       return json({ error: "Agency has not connected a Stripe account" }, 400);
     }
