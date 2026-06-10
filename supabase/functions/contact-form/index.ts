@@ -56,10 +56,13 @@ Deno.serve(async (req) => {
     const safeSubject = subject ? escapeHtml(subject) : "";
     const safeMessage = escapeHtml(message);
 
+    const contactSubject = subject ? `Contact: ${subject}` : `New message from ${name}`;
+    const contactTimestamp = new Date().toISOString();
+
     // Send notification email to support inbox
     await sendEmail({
       to: "hello@yatranepal.com",
-      subject: subject ? `Contact: ${subject}` : `New message from ${name}`,
+      subject: contactSubject,
       html: `
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
           <h2 style="color:#1a1a1a">New Contact Form Submission</h2>
@@ -82,13 +85,16 @@ Deno.serve(async (req) => {
             <p style="margin:0;white-space:pre-wrap">${safeMessage}</p>
           </div>
           <p style="margin-top:16px;color:#999;font-size:12px">
-            Sent via the Yatra Nepal contact form on ${new Date().toISOString()}.
+            Sent via the Yatra Nepal contact form on ${contactTimestamp}.
           </p>
         </div>
       `,
+      text: `New Contact Form Submission\n\nName   : ${name}\nEmail  : ${email}${subject ? `\nSubject: ${subject}` : ""}\n\n${message}\n\n---\nSent via Yatra Nepal contact form on ${contactTimestamp}.`,
+      replyTo: email,
     });
 
     // Send auto-reply to the user
+    const previewMsg = message.slice(0, 200) + (message.length > 200 ? "…" : "");
     await sendEmail({
       to: email,
       subject: "We received your message — Yatra Nepal",
@@ -96,11 +102,12 @@ Deno.serve(async (req) => {
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
           <h2 style="color:#1a1a1a">Thanks for reaching out, ${safeName}!</h2>
           <p>We've received your message and will get back to you within one business day.</p>
-          <p style="color:#666;font-style:italic">"${escapeHtml(message.slice(0, 200))}${message.length > 200 ? "…" : ""}"</p>
+          <p style="color:#666;font-style:italic">"${escapeHtml(previewMsg)}"</p>
           <p>If your enquiry is urgent, you can also call us at <strong>+977 1-XXXXXXX</strong> (Sun–Fri, 9am–6pm NPT).</p>
           <p>— The Yatra Nepal Team</p>
         </div>
       `,
+      text: `Hi ${name},\n\nThanks for reaching out! We've received your message and will get back to you within one business day.\n\nYour message:\n"${previewMsg}"\n\nIf your enquiry is urgent, call us at +977 1-XXXXXXX (Sun–Fri, 9am–6pm NPT).\n\n— The Yatra Nepal Team\nhttps://yatranepal.com`,
     });
 
     await supabaseAdmin.from("contact_submissions").insert({

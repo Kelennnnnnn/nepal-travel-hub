@@ -56,11 +56,26 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         set({ user: buildUser(session.user), isAuthenticated: true, isLoading: false });
       } else {
         set({ user: null, isAuthenticated: false, isLoading: false });
+      }
+
+      // Fire welcome email the moment the browser sees EMAIL_CONFIRMED.
+      // The DB trigger (pg_net) is the primary delivery path; this is the
+      // browser-side fallback — the edge function deduplicates so it's safe
+      // to call from both paths.
+      if (event === "EMAIL_CONFIRMED" && session?.access_token) {
+        supabase.functions
+          .invoke("send-welcome-email", {
+            body: { user_id: session.user.id },
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          })
+          .catch(() => {
+            // Non-critical: welcome email failure must not break auth flow
+          });
       }
     });
 

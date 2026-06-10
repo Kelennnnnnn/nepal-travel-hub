@@ -157,13 +157,13 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       if (prefs?.payout !== false) {
-        const { subject, html } = payoutProcessedAgencyEmail({
+        const { subject, html, text } = payoutProcessedAgencyEmail({
           agencyName: agency.company_name ?? "Agency",
           amount: totalCents / 100,
           bookingCount: unpaid.length,
           transferId: transfer.id,
         });
-        await sendEmail({ to: agency.email, subject, html });
+        await sendEmail({ to: agency.email, subject, html, text });
       }
     }
 

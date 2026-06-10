@@ -174,7 +174,7 @@ async function sendCancellationEmails(opts: {
 
   // Always email the traveler
   if (booking.traveler_email) {
-    const { subject, html } = bookingCancellationEmail({
+    const { subject, html, text } = bookingCancellationEmail({
       travelerName: booking.traveler_name ?? "Traveler",
       bookingRef: booking.booking_ref,
       activityTitle,
@@ -182,7 +182,7 @@ async function sendCancellationEmails(opts: {
         ? `${refundPercentage}% refund ($${refundAmount.toFixed(2)}) will be processed within 5–10 business days.`
         : "No refund applicable (less than 3 days notice).",
     });
-    await sendEmail({ to: booking.traveler_email, subject, html });
+    await sendEmail({ to: booking.traveler_email, subject, html, text });
   }
 
   // Email agency if they have booking_cancel notifications enabled
@@ -204,7 +204,7 @@ async function sendCancellationEmails(opts: {
     const prefs = prefsResult.data;
 
     if (agency?.email && prefs?.booking_cancel !== false) {
-      const { subject, html } = bookingCancelledAgencyEmail({
+      const { subject, html, text } = bookingCancelledAgencyEmail({
         agencyName: agency.company_name ?? "Agency",
         bookingRef: booking.booking_ref,
         activityTitle,
@@ -212,7 +212,7 @@ async function sendCancellationEmails(opts: {
         refundAmount,
         refundPercentage,
       });
-      await sendEmail({ to: agency.email, subject, html });
+      await sendEmail({ to: agency.email, subject, html, text });
     }
   }
 }

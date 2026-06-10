@@ -84,16 +84,16 @@ Deno.serve(async (req: Request) => {
 
     if (agency?.email) {
       if (action === "approve") {
-        const { subject, html } = agencyApprovedEmail({
+        const { subject, html, text } = agencyApprovedEmail({
           agencyName: agency.company_name ?? "Agency",
         });
-        await sendEmail({ to: agency.email, subject, html });
+        await sendEmail({ to: agency.email, subject, html, text });
       } else {
-        const { subject, html } = agencyRejectedEmail({
+        const { subject, html, text } = agencyRejectedEmail({
           agencyName: agency.company_name ?? "Agency",
           reason: reason || "Your application did not meet our current requirements.",
         });
-        await sendEmail({ to: agency.email, subject, html });
+        await sendEmail({ to: agency.email, subject, html, text });
       }
     }
 

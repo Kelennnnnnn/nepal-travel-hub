@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
       }
 
       if (booking.traveler_email) {
-        const { subject, html } = bookingConfirmationEmail({
+        const { subject, html, text } = bookingConfirmationEmail({
           travelerName: booking.traveler_name ?? "Traveler",
           bookingRef,
           activityTitle,
@@ -100,7 +100,7 @@ Deno.serve(async (req: Request) => {
           totalAmount: booking.total_amount,
           agencyName,
         });
-        await sendEmail({ to: booking.traveler_email, subject, html });
+        await sendEmail({ to: booking.traveler_email, subject, html, text });
       }
 
       if (agencyId && agencyEmail) {
@@ -112,7 +112,7 @@ Deno.serve(async (req: Request) => {
 
         if (prefs?.new_booking !== false) {
           const netPayout = Number(booking.net_payout);
-          const { subject, html } = newBookingAgencyEmail({
+          const { subject, html, text } = newBookingAgencyEmail({
             agencyName,
             bookingRef,
             activityTitle,
@@ -122,7 +122,7 @@ Deno.serve(async (req: Request) => {
             totalAmount: booking.total_amount,
             netPayout,
           });
-          await sendEmail({ to: agencyEmail, subject, html });
+          await sendEmail({ to: agencyEmail, subject, html, text });
         }
       }
 
