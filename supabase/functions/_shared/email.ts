@@ -3,9 +3,12 @@ const FROM_EMAIL      = Deno.env.get("FROM_EMAIL")      ?? "onboarding@resend.de
 const REPLY_TO_EMAIL  = Deno.env.get("REPLY_TO_EMAIL")  ?? "hello@yatranepal.com";
 const PLATFORM_NAME   = "Yatra Nepal";
 
-// Mailtrap Email Testing — set these two secrets in dev/staging only.
-// Get them from: mailtrap.io → Email Testing → API Tokens  +  Inboxes → (inbox ID in URL)
-const MAILTRAP_API_TOKEN = Deno.env.get("MAILTRAP_API_TOKEN") ?? "";
+// Mailtrap Email Testing — set MAILTRAP_USER + MAILTRAP_PASS (the SMTP credentials
+// shown in mailtrap.io → Email Testing → Inboxes → Show Credentials).
+// The SMTP password doubles as the Bearer token for Mailtrap's HTTP API.
+// Also set MAILTRAP_INBOX_ID to the number in the inbox URL.
+const MAILTRAP_USER      = Deno.env.get("MAILTRAP_USER")      ?? "";
+const MAILTRAP_API_TOKEN = Deno.env.get("MAILTRAP_API_TOKEN") ?? Deno.env.get("MAILTRAP_PASS") ?? "";
 const MAILTRAP_INBOX_ID  = Deno.env.get("MAILTRAP_INBOX_ID")  ?? "";
 
 export interface EmailParams {
@@ -29,7 +32,7 @@ export async function sendEmail({
 }: EmailParams): Promise<{ error: string | null }> {
 
   // ── Mailtrap sandbox (dev / staging) ────────────────────────────────────
-  if (MAILTRAP_API_TOKEN && MAILTRAP_INBOX_ID) {
+  if ((MAILTRAP_USER || MAILTRAP_API_TOKEN) && MAILTRAP_INBOX_ID) {
     return sendViaMailtrap({ to, subject, html, text, replyTo });
   }
 

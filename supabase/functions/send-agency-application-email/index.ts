@@ -1,13 +1,14 @@
 /**
  * send-agency-application-email
  *
- * Called by a Postgres trigger (pg_net) when a new agency_applications row
- * is inserted or re-submitted. Sends the "Application Received" confirmation
- * email to the agency contact address.
+ * Sends the "Application Received" confirmation to the agency contact email.
+ * Called directly from the frontend (agencyStore) after a successful insert/update,
+ * so no pg_net DB trigger is required.
  *
- * Only accepts requests from the service-role key (DB trigger).
+ * Accepts: a valid Supabase user JWT  OR  the service-role key.
  */
 
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail } from "../_shared/email.ts";
 import { agencyApplicationReceivedEmail } from "../_shared/emailTemplates.ts";
 
@@ -28,11 +29,24 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  // This function is internal-only: caller must be the service role.
   const authHeader = req.headers.get("Authorization") ?? "";
+  if (!authHeader.startsWith("Bearer ")) {
+    return json({ error: "Missing Authorization header" }, 401);
+  }
+  const token = authHeader.slice(7);
+
+  // Accept either a valid user JWT or the service-role key
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!authHeader.startsWith("Bearer ") || authHeader.slice(7) !== serviceKey) {
-    return json({ error: "Forbidden" }, 403);
+  const isServiceRole = token === serviceKey;
+
+  if (!isServiceRole) {
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      serviceKey,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !user) return json({ error: "Invalid or expired token" }, 401);
   }
 
   let body: { agency_name?: string; owner_name?: string; email?: string };
@@ -61,7 +75,7 @@ Deno.serve(async (req: Request) => {
   });
 
   if (emailErr) {
-    console.error("send-agency-application-email: failed to send", emailErr);
+    console.error("send-agency-application-email failed:", emailErr);
     return json({ error: emailErr }, 500);
   }
 

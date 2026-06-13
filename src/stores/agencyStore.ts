@@ -174,6 +174,20 @@ export const useAgencyStore = create<AgencyStore>((set, get) => ({
         application: data as AgencyApplication,
         verificationStatus: "pending",
       });
+
+      // Send application received email (fire-and-forget — don't block UI)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        supabase.functions.invoke("send-agency-application-email", {
+          body: {
+            agency_name: form.companyName,
+            owner_name: form.ownerName,
+            email: form.email,
+          },
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }).catch(() => {});
+      }
+
       return { error: null };
     }
 
@@ -207,6 +221,20 @@ export const useAgencyStore = create<AgencyStore>((set, get) => ({
       application: data as AgencyApplication,
       verificationStatus: "pending",
     });
+
+    // Send application received email (fire-and-forget — don't block UI)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      supabase.functions.invoke("send-agency-application-email", {
+        body: {
+          agency_name: form.companyName,
+          owner_name: form.ownerName,
+          email: form.email,
+        },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      }).catch(() => {});
+    }
+
     return { error: null };
   },
 
