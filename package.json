@@ -1,8 +1,8 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "nepaltrails",
   "version": "0.0.0",
   "private": true,
-  "description": "**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID",
+  "description": "Book trekking, tours, and adventures across Nepal with verified local agencies.",
   "homepage": "https://github.com/Kelennnnnnn/nepal-travel-hub#readme",
   "bugs": {
     "url": "https://github.com/Kelennnnnnn/nepal-travel-hub/issues"
