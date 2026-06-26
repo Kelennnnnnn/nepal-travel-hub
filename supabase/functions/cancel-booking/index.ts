@@ -42,7 +42,7 @@ Deno.serve(async (req: Request) => {
   if (authError || !caller) {
     return json({ error: "Invalid or expired token" }, 401);
   }
-  const userRole = caller.user_metadata?.role as string | undefined;
+  const userRole = caller.app_metadata?.role as string | undefined;
 
   try {
     const { booking_id } = await req.json();

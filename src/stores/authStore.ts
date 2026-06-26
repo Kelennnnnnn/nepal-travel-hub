@@ -34,14 +34,15 @@ export const useAuthStore = create<AuthState>()((set) => ({
   isLoading: true,
 
   initialize: () => {
-    const buildUser = (authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }) => {
-      const meta = authUser.user_metadata ?? {};
-      const email = authUser.email ?? "";
+    const buildUser = (authUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> }) => {
+      const meta    = authUser.user_metadata ?? {};
+      const appMeta = authUser.app_metadata  ?? {};
+      const email   = authUser.email ?? "";
       return {
         id: authUser.id,
         name: (meta.name ?? meta.full_name ?? email.split("@")[0]) as string,
         email,
-        role: ((meta.role as Role) ?? "user") as Role,
+        role: ((appMeta.role as Role) ?? "user") as Role,
         agencyName: meta.agency_name as string | undefined,
       };
     };
@@ -95,9 +96,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return { error: error.message };
     }
 
-    // Read role directly from auth metadata — no DB query, no hang
-    const meta = data.user.user_metadata;
-    const role: Role = (meta?.role as Role) ?? "user";
+    // Role lives in app_metadata (server-only); display fields live in user_metadata
+    const meta    = data.user.user_metadata;
+    const appMeta = data.user.app_metadata ?? {};
+    const role: Role = (appMeta.role as Role) ?? "user";
 
     set({
       user: {

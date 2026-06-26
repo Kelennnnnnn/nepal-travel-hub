@@ -38,7 +38,7 @@ Deno.serve(async (req: Request) => {
   if (authError || !caller) return json({ error: "Invalid or expired token" }, 401);
 
   // Admin only
-  const role = caller.user_metadata?.role as string | undefined;
+  const role = caller.app_metadata?.role as string | undefined;
   if (role !== "admin") return json({ error: "Admin access required" }, 403);
 
   // Kill-switch: block if payouts are disabled

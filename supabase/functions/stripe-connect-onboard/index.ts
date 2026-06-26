@@ -35,7 +35,7 @@ Deno.serve(async (req: Request) => {
   if (authError || !caller) return json({ error: "Invalid or expired token" }, 401);
 
   // Agency role only
-  const role = caller.user_metadata?.role as string | undefined;
+  const role = caller.app_metadata?.role as string | undefined;
   if (role !== "agency") return json({ error: "Agency access required" }, 403);
 
   const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {

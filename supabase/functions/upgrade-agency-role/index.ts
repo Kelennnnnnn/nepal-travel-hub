@@ -38,7 +38,7 @@ Deno.serve(async (req: Request) => {
       { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-  if (caller.user_metadata?.role !== "admin") {
+  if (caller.app_metadata?.role !== "admin") {
     return new Response(
       JSON.stringify({ error: "Admin access required" }),
       { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
     const newRole = action === "approve" ? "agency" : "user";
 
     const { error } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
-      user_metadata: { role: newRole },
+      app_metadata: { role: newRole },
     });
 
     if (error) {

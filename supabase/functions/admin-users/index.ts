@@ -32,7 +32,7 @@ Deno.serve(async (req: Request) => {
   // Verify caller is admin
   const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
   if (authError || !caller) return json({ error: "Invalid or expired token" }, 401);
-  if (caller.user_metadata?.role !== "admin") return json({ error: "Admin access required" }, 403);
+  if (caller.app_metadata?.role !== "admin") return json({ error: "Admin access required" }, 403);
 
   try {
     const body = await req.json() as {
@@ -60,9 +60,9 @@ Deno.serve(async (req: Request) => {
       // Platform-wide stats (always from full list, regardless of search)
       const stats = {
         total:     all.length,
-        travelers: all.filter((u) => (u.user_metadata?.role ?? "user") === "user").length,
-        agencies:  all.filter((u) => u.user_metadata?.role === "agency").length,
-        admins:    all.filter((u) => u.user_metadata?.role === "admin").length,
+        travelers: all.filter((u) => (u.app_metadata?.role ?? "user") === "user").length,
+        agencies:  all.filter((u) => u.app_metadata?.role === "agency").length,
+        admins:    all.filter((u) => u.app_metadata?.role === "admin").length,
         suspended: all.filter((u) => u.banned_until && new Date(u.banned_until) > new Date()).length,
       };
 
@@ -108,7 +108,7 @@ Deno.serve(async (req: Request) => {
         return json({ error: 'role must be "user", "agency", or "admin"' }, 400);
       }
       const { error } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
-        user_metadata: { role },
+        app_metadata: { role },
       });
       if (error) return json({ error: error.message }, 500);
       return json({ success: true, role });
