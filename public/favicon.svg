@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Green rounded background -->
+  <rect width="32" height="32" rx="8" fill="#16a34a"/>
+  <!-- Mountain triangle -->
+  <polygon points="16,6 28,26 4,26" fill="white"/>
+  <!-- Snow cap -->
+  <polygon points="16,6 20,14 12,14" fill="#dcfce7"/>
+</svg>
