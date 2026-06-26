@@ -243,6 +243,5 @@ export default function AgencyVerificationStatus() {
           </Card>
         </div>
       </div>
-    </div>
   );
 }
