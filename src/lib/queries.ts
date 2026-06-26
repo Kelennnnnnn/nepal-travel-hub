@@ -142,7 +142,10 @@ export function usePublishedListings(filters?: {
         default: query = query.order("created_at", { ascending: false });
       }
 
-      if (!filters?.durationRange) {
+      if (filters?.durationRange) {
+        // Fetch all matching rows for client-side duration filtering (duration stored as free text)
+        query = query.limit(2000);
+      } else {
         query = query.range(from, to);
       }
 
@@ -153,7 +156,6 @@ export function usePublishedListings(filters?: {
         const filtered = (data ?? []).filter((listing) =>
           matchesDurationRange((listing as { duration?: string }).duration, filters.durationRange)
         );
-
         return {
           listings: filtered.slice(from, to + 1),
           total: filtered.length,

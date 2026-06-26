@@ -24,7 +24,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { usePublishedListings } from "@/lib/queries";
 import { SEO } from "@/components/SEO";
-import { categories, locations } from "@/data/activities";
+import { categories, locations, DURATION_RANGES } from "@/data/activities";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import { FilterPanel } from "@/components/activities/FilterPanel";
 import type { Listing } from "@/stores/listingsStore";

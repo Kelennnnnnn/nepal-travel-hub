@@ -6,15 +6,9 @@ import { Separator } from "@/components/ui/separator";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { DURATION_RANGES } from "@/data/activities";
 
 const DIFFICULTIES = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
-
-const DURATION_RANGES = [
-  { value: "1",   label: "1 day" },
-  { value: "2-3", label: "2-3 days" },
-  { value: "4-7", label: "4-7 days" },
-  { value: "8+",  label: "8+ days" },
-];
 
 interface FilterPanelProps {
   priceMinInput: string;
