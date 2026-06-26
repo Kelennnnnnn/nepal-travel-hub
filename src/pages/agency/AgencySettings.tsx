@@ -545,6 +545,8 @@ export default function AgencySettings() {
           onToggle={handleNotificationToggle}
         />
 
+        <ChangePasswordCard />
+
         <div className="flex justify-end pb-6">
           <Button onClick={handleSave} disabled={isLoading || profileLoading} className="gap-2">
             <Save className="h-4 w-4" />
@@ -553,5 +555,70 @@ export default function AgencySettings() {
         </div>
       </div>
     </AgencyLayout>
+  );
+}
+
+function ChangePasswordCard() {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [show, setShow] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 8) { toast.error("Password must be at least 8 characters"); return; }
+    if (newPassword !== confirm) { toast.error("Passwords do not match"); return; }
+    setSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Password updated successfully");
+    setNewPassword(""); setConfirm("");
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Lock className="h-4 w-4 text-primary" />
+          Change Password
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4 max-w-sm">
+          <div className="space-y-2">
+            <Label>New Password</Label>
+            <div className="relative">
+              <Input
+                type={show ? "text" : "password"}
+                placeholder="Min. 8 characters"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="pr-10"
+                required
+              />
+              <button type="button" onClick={() => setShow(!show)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Confirm New Password</Label>
+            <Input
+              type={show ? "text" : "password"}
+              placeholder="Repeat new password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+            />
+          </div>
+          <Button type="submit" disabled={saving} className="gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            {saving ? "Updating…" : "Update Password"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
