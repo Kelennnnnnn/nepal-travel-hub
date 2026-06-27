@@ -58,6 +58,13 @@ export const useAuthStore = create<AuthState>()((set) => ({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      // INITIAL_SESSION is handled exclusively by getSession() above.
+      // On mobile, INITIAL_SESSION can fire with session=null while an expired
+      // JWT is still being refreshed over the network. If we act on that null
+      // here we set isLoading:false with no user, causing ProtectedRoute to
+      // redirect admins to /admin/login before the real session arrives.
+      if (event === "INITIAL_SESSION") return;
+
       if (session?.user) {
         set({ user: buildUser(session.user), isAuthenticated: true, isLoading: false });
       } else {
@@ -74,9 +81,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
             body: { user_id: session.user.id },
             headers: { Authorization: `Bearer ${session.access_token}` },
           })
-          .catch(() => {
-            // Non-critical: welcome email failure must not break auth flow
-          });
+          .catch(() => {});
       }
     });
 

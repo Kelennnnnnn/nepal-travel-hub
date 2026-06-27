@@ -116,7 +116,10 @@ export function usePublishedListings(filters?: {
 
       let query = supabase
         .from("listings")
-        .select("*", { count: "exact" })
+        .select(
+          "id, title, images, location, duration, price, rating, review_count, category, agency_id, max_participants, featured, status, difficulty, created_at",
+          { count: "estimated" }
+        )
         .eq("status", "published");
 
       if (filters?.category) query = query.eq("category", filters.category);

@@ -52,6 +52,7 @@ export function ActivityCard({ activity, className }: ActivityCardProps) {
           <img
             src={activity.image}
             alt={activity.title}
+            loading="lazy"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
