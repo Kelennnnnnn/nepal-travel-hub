@@ -35,6 +35,13 @@ export default function AdminLogin() {
       return;
     }
 
+    // MFA gate — disabled for testing via VITE_DISABLE_MFA=true
+    // Remove the env var (or set to false) to re-enable before launch.
+    if (import.meta.env.VITE_DISABLE_MFA === "true") {
+      navigate("/admin", { replace: true });
+      return;
+    }
+
     // Check MFA enrollment status
     const { data: factors } = await supabase.auth.mfa.listFactors();
     const verifiedTotp = factors?.totp?.find((f) => f.status === "verified");
@@ -42,12 +49,10 @@ export default function AdminLogin() {
     setIsLoading(false);
 
     if (!verifiedTotp) {
-      // Admin has no MFA enrolled — send to setup
       navigate("/admin/mfa-setup", { replace: true });
       return;
     }
 
-    // Admin has MFA enrolled — require verification
     navigate("/admin/mfa-verify", { replace: true });
   };
 
