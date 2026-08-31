@@ -84,7 +84,7 @@ const steps = [
 const testimonials = [
   {
     quote:
-      "NepalTrails has transformed our business. We now reach customers we never could before.",
+      "Into Nepal has transformed our business. We now reach customers we never could before.",
     author: "Ram Thapa",
     role: "Owner, Himalayan Expeditions",
     image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
@@ -113,7 +113,7 @@ export default function AgencyLanding() {
               Partner Program
             </span>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
-              Grow Your Travel Business with NepalTrails
+              Grow Your Travel Business with Into Nepal
             </h1>
             <p className="text-lg md:text-xl text-primary-foreground/80 mb-8 max-w-2xl mx-auto">
               Join our network of verified agencies and reach thousands of travelers
@@ -302,7 +302,7 @@ export default function AgencyLanding() {
               </h2>
               <p className="text-primary-foreground/80 mb-8 max-w-2xl mx-auto">
                 Join 150+ verified agencies already growing their business with
-                NepalTrails. Apply today and start receiving bookings.
+                Into Nepal. Apply today and start receiving bookings.
               </p>
               <Link to="/agency/onboarding">
                 <Button variant="hero" size="xl">

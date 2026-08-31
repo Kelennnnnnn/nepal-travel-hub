@@ -46,7 +46,7 @@ export default function ForgotPassword() {
             <div className="p-2 rounded-xl bg-primary-foreground/20">
               <Mountain className="h-6 w-6" />
             </div>
-            <span className="text-xl font-bold">NepalTrails</span>
+            <span className="text-xl font-bold">Into Nepal</span>
           </Link>
           <div>
             <h1 className="text-4xl font-bold mb-4">Reset Your Password</h1>
@@ -56,7 +56,7 @@ export default function ForgotPassword() {
             </p>
           </div>
           <p className="text-sm text-primary-foreground/60">
-            © {new Date().getFullYear()} NepalTrails. All rights reserved.
+            © {new Date().getFullYear()} Into Nepal. All rights reserved.
           </p>
         </div>
       </div>
@@ -70,7 +70,7 @@ export default function ForgotPassword() {
               <div className="p-2 rounded-xl bg-primary">
                 <Mountain className="h-6 w-6 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold">NepalTrails</span>
+              <span className="text-xl font-bold">Into Nepal</span>
             </Link>
           </div>
 

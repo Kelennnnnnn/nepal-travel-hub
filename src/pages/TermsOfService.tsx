@@ -19,7 +19,7 @@ export default function TermsOfService() {
               1. Acceptance of Terms
             </h2>
             <p className="text-muted-foreground">
-              By accessing or using the NepalTrails platform ("Platform"), you
+              By accessing or using the Into Nepal platform ("Platform"), you
               agree to be bound by these Terms of Service ("Terms"). If you do
               not agree to these Terms, please do not use the Platform. These
               Terms apply to all visitors, travelers, and registered users,
@@ -32,7 +32,7 @@ export default function TermsOfService() {
               2. Use of the Platform
             </h2>
             <p className="text-muted-foreground mb-3">
-              NepalTrails is a marketplace that connects travelers with verified
+              Into Nepal is a marketplace that connects travelers with verified
               local travel agencies operating in Nepal. We do not directly
               provide travel services; we facilitate bookings between travelers
               and independent agency partners.
@@ -50,8 +50,8 @@ export default function TermsOfService() {
               3. Bookings & Payments
             </h2>
             <p className="text-muted-foreground mb-3">
-              When you make a booking through NepalTrails, you enter into a
-              direct agreement with the relevant travel agency. NepalTrails
+              When you make a booking through Into Nepal, you enter into a
+              direct agreement with the relevant travel agency. Into Nepal
               facilitates the transaction but is not a party to the contract
               between you and the agency.
             </p>
@@ -61,7 +61,7 @@ export default function TermsOfService() {
                 include applicable taxes where required.
               </li>
               <li>
-                Payment is processed securely through Stripe. NepalTrails does
+                Payment is processed securely through Stripe. Into Nepal does
                 not store your full card details.
               </li>
               <li>
@@ -116,7 +116,7 @@ export default function TermsOfService() {
               5. Commission Structure
             </h2>
             <p className="text-muted-foreground">
-              NepalTrails charges travel agencies a platform commission of
+              Into Nepal charges travel agencies a platform commission of
               between <span className="font-medium text-foreground">12% and 15%</span>{" "}
               of the total booking value. This commission covers platform
               maintenance, payment processing, customer support, and marketing.
@@ -131,8 +131,8 @@ export default function TermsOfService() {
               6. Limitation of Liability
             </h2>
             <p className="text-muted-foreground mb-3">
-              NepalTrails acts solely as an intermediary marketplace. To the
-              fullest extent permitted by law, NepalTrails shall not be liable
+              Into Nepal acts solely as an intermediary marketplace. To the
+              fullest extent permitted by law, Into Nepal shall not be liable
               for:
             </p>
             <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
@@ -164,11 +164,11 @@ export default function TermsOfService() {
             </h2>
             <p className="text-muted-foreground">
               Users may submit reviews and other content related to their
-              experiences. By submitting content, you grant NepalTrails a
+              experiences. By submitting content, you grant Into Nepal a
               non-exclusive, royalty-free licence to display that content on the
               Platform. You are responsible for ensuring your content is accurate
               and does not infringe third-party rights or violate applicable law.
-              NepalTrails reserves the right to remove any content that violates
+              Into Nepal reserves the right to remove any content that violates
               these Terms or our community standards.
             </p>
           </section>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -197,7 +198,8 @@ function MessageThread({
 
 export default function Messages() {
   const { data: conversations = [], isLoading, isError } = useTravelerConversations();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("conversation"));
   const [userId, setUserId] = useState("");
 
   useEffect(() => {

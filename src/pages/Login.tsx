@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Mountain, Mail, Lock, User, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,6 +24,8 @@ function GoogleIcon() {
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const defaultTab = searchParams.get("tab") === "signup" ? "signup" : "login";
   const { signIn, signUp, signInWithGoogle } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -79,7 +81,7 @@ export default function Login() {
       return;
     }
 
-    toast.success("Welcome to NepalTrails!");
+    toast.success("Welcome to Into Nepal!");
     navigate("/");
   };
 
@@ -99,7 +101,7 @@ export default function Login() {
             <div className="p-2 rounded-xl bg-primary-foreground/20">
               <Mountain className="h-6 w-6" />
             </div>
-            <span className="text-xl font-bold">NepalTrails</span>
+            <span className="text-xl font-bold">Into Nepal</span>
           </Link>
 
           <div>
@@ -113,7 +115,7 @@ export default function Login() {
           </div>
 
           <p className="text-sm text-primary-foreground/60">
-            © {new Date().getFullYear()} NepalTrails. All rights reserved.
+            © {new Date().getFullYear()} Into Nepal. All rights reserved.
           </p>
         </div>
       </div>
@@ -127,7 +129,7 @@ export default function Login() {
               <div className="p-2 rounded-xl bg-primary">
                 <Mountain className="h-6 w-6 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold">NepalTrails</span>
+              <span className="text-xl font-bold">Into Nepal</span>
             </Link>
           </div>
 
@@ -138,7 +140,7 @@ export default function Login() {
             </p>
           </div>
 
-          <Tabs defaultValue="login" className="w-full">
+          <Tabs defaultValue={defaultTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="login">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>

@@ -71,7 +71,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 <Mountain className="h-5 w-5 text-primary-foreground" />
               </div>
               {sidebarOpen && (
-                <span className="font-bold text-sm">NepalTrails Admin</span>
+                <span className="font-bold text-sm">Into Nepal Admin</span>
               )}
             </Link>
             <Button

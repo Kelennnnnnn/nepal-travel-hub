@@ -215,6 +215,43 @@ export function useSendMessage() {
   });
 }
 
+// ── Start (or reuse) a conversation with an agency ────────────
+
+export function useStartConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ agencyId, listingId = null }: { agencyId: string; listingId?: string | null }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Please sign in to message this agency.");
+
+      let existingQuery = supabase
+        .from("conversations")
+        .select("id")
+        .eq("traveler_id", user.id)
+        .eq("agency_id", agencyId);
+      existingQuery = listingId
+        ? existingQuery.eq("listing_id", listingId)
+        : existingQuery.is("listing_id", null);
+
+      const { data: existing } = await existingQuery.maybeSingle();
+      if (existing) return existing.id as string;
+
+      const { data, error } = await supabase
+        .from("conversations")
+        .insert({ traveler_id: user.id, agency_id: agencyId, listing_id: listingId })
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      return data.id as string;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+}
+
 // ── Mark messages as read ─────────────────────────────────────
 
 export async function markConversationAsRead(conversationId: string, userId: string) {

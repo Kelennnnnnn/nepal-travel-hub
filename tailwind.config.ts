@@ -18,8 +18,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['DM Sans', 'system-ui', 'sans-serif'],
-        serif: ['Playfair Display', 'Georgia', 'serif'],
+        sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        serif: ['Fraunces', 'Georgia', 'serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -71,6 +71,23 @@ export default {
           dark: "hsl(18 83% 30%)",
         },
         cream: "hsl(var(--secondary))",
+        brand: {
+          amber: {
+            DEFAULT: "hsl(34 90% 48%)",
+            light: "hsl(34 90% 62%)",
+            dark: "hsl(34 90% 36%)",
+          },
+          navy: {
+            DEFAULT: "hsl(213 46% 15%)",
+            light: "hsl(213 40% 24%)",
+            dark: "hsl(213 55% 10%)",
+          },
+          blue: {
+            DEFAULT: "hsl(216 65% 34%)",
+            light: "hsl(216 55% 48%)",
+            dark: "hsl(216 70% 24%)",
+          },
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

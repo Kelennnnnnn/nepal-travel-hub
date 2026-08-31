@@ -10,7 +10,7 @@ interface SEOProps {
 
 const DEFAULT_DESC = "Discover authentic Nepal travel experiences — trekking, rafting, cultural tours and more with verified local agencies.";
 const DEFAULT_IMAGE = "https://yatranepal.com/og-image.jpg";
-const SITE_NAME = "Yatra Nepal";
+const SITE_NAME = "Into Nepal";
 
 export function SEO({ title, description, image, url, type = "website" }: SEOProps) {
   const fullTitle = `${title} | ${SITE_NAME}`;

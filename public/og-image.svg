@@ -23,7 +23,7 @@
   <polygon points="104,86 112,102 96,102" fill="#dcfce7"/>
 
   <!-- Brand name -->
-  <text x="152" y="118" font-family="Georgia, serif" font-size="52" font-weight="700" fill="white" letter-spacing="-1">NepalTrails</text>
+  <text x="152" y="118" font-family="Georgia, serif" font-size="52" font-weight="700" fill="white" letter-spacing="-1">Into Nepal</text>
 
   <!-- Tagline -->
   <text x="72" y="200" font-family="Arial, sans-serif" font-size="28" fill="#86efac" letter-spacing="0.5">Book Treks, Tours &amp; Adventures in Nepal</text>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { toast } from "sonner";
 import { SEO } from "@/components/SEO";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import {
@@ -15,6 +16,8 @@ import {
   Loader2,
   AlertCircle,
   BadgeCheck,
+  MessageSquare,
+  Compass,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,9 +25,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ActivityCard } from "@/components/activities/ActivityCard";
+import { ReviewSummary } from "@/components/reviews/ReviewSummary";
+import { ReviewCard } from "@/components/reviews/ReviewCard";
 import { supabase } from "@/lib/supabase";
+import { useAgencyReviews } from "@/lib/queries";
+import { useStartConversation } from "@/hooks/useMessages";
+import { useAuthStore } from "@/stores/authStore";
 import type { Activity } from "@/components/activities/ActivityCard";
 import type { Listing } from "@/stores/listingsStore";
+import type { Review } from "@/lib/queries";
 
 interface AgencyPublicProfile {
   user_id: string;
@@ -41,6 +50,8 @@ interface AgencyPublicProfile {
   registration_number: string;
   logo_url: string;
 }
+
+type ReviewFilter = "all" | "5" | "4" | "3-";
 
 function listingToActivity(l: Listing): Activity {
   return {
@@ -60,13 +71,26 @@ function listingToActivity(l: Listing): Activity {
   };
 }
 
+function filterReviews(reviews: Review[], filter: ReviewFilter): Review[] {
+  if (filter === "5") return reviews.filter((r) => r.rating === 5);
+  if (filter === "4") return reviews.filter((r) => r.rating === 4);
+  if (filter === "3-") return reviews.filter((r) => r.rating <= 3);
+  return reviews;
+}
+
 export default function AgencyProfile() {
   const { agencyId } = useParams<{ agencyId: string }>();
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuthStore();
 
   const [agency, setAgency] = useState<AgencyPublicProfile | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
+
+  const { data: reviews = [], isLoading: reviewsLoading } = useAgencyReviews(agencyId);
+  const startConversation = useStartConversation();
 
   useEffect(() => {
     if (!agencyId) {
@@ -113,42 +137,58 @@ export default function AgencyProfile() {
 
   // Compute aggregate stats from listings
   const totalActivities = listings.length;
+  const ratedListings = listings.map((l) => Number(l.rating)).filter((r) => r > 0);
   const avgRating =
-    listings.length > 0
-      ? (
-          listings
-            .map((l) => Number(l.rating))
-            .filter((r) => r > 0)
-            .reduce((s, r, _, a) => s + r / a.length, 0)
-        ).toFixed(1)
+    ratedListings.length > 0
+      ? (ratedListings.reduce((s, r) => s + r, 0) / ratedListings.length).toFixed(1)
       : null;
-  const totalReviews = listings.reduce((s, l) => s + l.review_count, 0);
-  const memberSince = agency
-    ? new Date(agency.created_at).getFullYear()
-    : null;
+  const memberSince = agency ? new Date(agency.created_at).getFullYear() : null;
+  const yearsActive = memberSince ? Math.max(1, new Date().getFullYear() - memberSince) : null;
+  const specialties = [...new Set(listings.map((l) => l.category))];
+  const coverImage = listings.find((l) => l.images?.[0])?.images?.[0] ?? FALLBACK_IMAGE_URL;
+
+  const summary = (() => {
+    if (reviews.length === 0) return { average: 0, count: 0, distribution: [0, 0, 0, 0, 0] };
+    const distribution = [0, 0, 0, 0, 0];
+    let total = 0;
+    reviews.forEach((r) => {
+      total += r.rating;
+      distribution[r.rating - 1]++;
+    });
+    return { average: total / reviews.length, count: reviews.length, distribution };
+  })();
+
+  const filteredReviews = filterReviews(reviews, reviewFilter);
+
+  const handleMessageAgency = async () => {
+    if (!agency) return;
+    if (!isAuthenticated) {
+      toast.info("Sign in to message this agency.");
+      navigate("/login");
+      return;
+    }
+    try {
+      const conversationId = await startConversation.mutateAsync({ agencyId: agency.user_id });
+      navigate(`/messages?conversation=${conversationId}`);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
 
   // ── Loading ─────────────────────────────────────────────────
   if (isLoading) {
     return (
       <Layout>
-        <div className="pt-24 md:pt-28 pb-16">
+        <div className="pt-16 md:pt-20 pb-16">
+          <Skeleton className="h-[280px] md:h-[360px] w-full rounded-none" />
           <div className="container mx-auto px-4 max-w-5xl">
-            <Skeleton className="h-6 w-32 mb-8" />
-            <div className="flex flex-col md:flex-row gap-8">
-              <div className="md:w-72 space-y-4">
-                <Skeleton className="h-44 w-full rounded-xl" />
-                <Skeleton className="h-32 w-full rounded-xl" />
-              </div>
-              <div className="flex-1 space-y-4">
-                <Skeleton className="h-9 w-64" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                  {[1, 2, 3, 4].map((i) => (
-                    <Skeleton key={i} className="h-20 rounded-xl" />
-                  ))}
-                </div>
-              </div>
+            <div className="-mt-14 mb-6">
+              <Skeleton className="h-28 w-28 rounded-full border-4 border-background" />
+            </div>
+            <div className="space-y-4">
+              <Skeleton className="h-9 w-64" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
             </div>
           </div>
         </div>
@@ -187,172 +227,74 @@ export default function AgencyProfile() {
         title={agency.company_name}
         description={agency.description || `Explore tours and activities by ${agency.company_name}, a verified Nepal travel agency.`}
       />
-      <div className="pt-20 md:pt-24 pb-16">
-        <div className="container mx-auto px-4 max-w-5xl">
 
-          {/* Back link */}
+      <div className="pt-16 md:pt-20 pb-16">
+        {/* Cover */}
+        <div className="relative w-full h-[280px] md:h-[360px] bg-muted overflow-hidden">
+          <img src={coverImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-foreground/50 via-foreground/10 to-transparent" />
           <Link
             to="/activities"
-            className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors mb-8"
+            className="absolute top-4 left-4 md:left-8 inline-flex items-center gap-1 text-sm font-medium text-white/90 hover:text-white bg-foreground/30 hover:bg-foreground/40 backdrop-blur-sm rounded-full px-3 py-1.5 transition-colors"
           >
-            <ChevronLeft className="h-4 w-4 mr-1" />
+            <ChevronLeft className="h-4 w-4" />
             Back to Activities
           </Link>
 
-          <div className="flex flex-col lg:flex-row gap-8">
+          {/* Logo badge */}
+          <div className="absolute -bottom-14 left-4 md:left-8 w-28 h-28 md:w-32 md:h-32 rounded-full border-4 border-background bg-card shadow-lg overflow-hidden flex items-center justify-center">
+            {agency.logo_url ? (
+              <img src={agency.logo_url} alt={agency.company_name} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-3xl font-bold text-primary">{initials}</span>
+            )}
+          </div>
+        </div>
 
-            {/* ── LEFT SIDEBAR ────────────────────────────────── */}
-            <aside className="lg:w-72 space-y-4">
-
-              {/* Identity card */}
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl font-bold text-primary mx-auto mb-4 overflow-hidden">
-                    {agency.logo_url
-                      ? <img src={agency.logo_url} alt={agency.company_name} className="w-full h-full object-cover" />
-                      : initials}
-                  </div>
-                  <h1 className="text-lg font-bold text-foreground leading-tight mb-2">
+        <div className="container mx-auto px-4 max-w-5xl">
+          <div className="flex flex-col lg:flex-row gap-10 mt-20">
+            {/* ── MAIN CONTENT ─────────────────────────────────── */}
+            <div className="flex-1 min-w-0 space-y-10">
+              {/* Header info */}
+              <section className="flex flex-col gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h1 className="font-serif text-3xl md:text-4xl font-bold text-foreground">
                     {agency.company_name}
                   </h1>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-4">
+                  <Badge variant="verified" className="gap-1">
                     <ShieldCheck className="h-3.5 w-3.5" />
-                    Verified Partner
-                  </div>
-                  <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
-                    <MapPin className="h-3.5 w-3.5" />
+                    Government Verified
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap items-center gap-5 text-muted-foreground text-sm">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4" />
                     {agency.city}, {agency.district}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Contact card */}
-              <Card>
-                <CardContent className="p-5 space-y-3">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                    Contact
-                  </p>
-                  {agency.phone && (
-                    <a
-                      href={`tel:${agency.phone}`}
-                      className="flex items-center gap-3 text-sm text-foreground hover:text-primary transition-colors"
-                    >
-                      <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      {agency.phone}
-                    </a>
+                  </span>
+                  {yearsActive && (
+                    <span className="flex items-center gap-1.5">
+                      <CalendarDays className="h-4 w-4" />
+                      {yearsActive} year{yearsActive !== 1 ? "s" : ""} on Into Nepal
+                    </span>
                   )}
-                  {agency.email && (
-                    <a
-                      href={`mailto:${agency.email}`}
-                      className="flex items-center gap-3 text-sm text-foreground hover:text-primary transition-colors break-all"
-                    >
-                      <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      {agency.email}
-                    </a>
-                  )}
-                  {agency.website && (
-                    <a
-                      href={agency.website.startsWith("http") ? agency.website : `https://${agency.website}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-3 text-sm text-primary hover:underline break-all"
-                    >
-                      <Globe className="h-4 w-4 flex-shrink-0" />
-                      {agency.website.replace(/^https?:\/\//, "")}
-                    </a>
-                  )}
-                  {agency.address && (
-                    <div className="flex items-start gap-3 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                      <span>{agency.address}, {agency.city}</span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Verification details */}
-              <Card>
-                <CardContent className="p-5 space-y-3">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                    Verification
-                  </p>
-                  <div className="flex items-center gap-2 text-sm">
-                    <BadgeCheck className="h-4 w-4 text-primary flex-shrink-0" />
-                    <span className="text-foreground">Government Registered</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Shield className="h-4 w-4 text-primary flex-shrink-0" />
-                    <span className="text-foreground">License Verified</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <BadgeCheck className="h-4 w-4 text-primary flex-shrink-0" />
-                    <span className="text-foreground">PAN / VAT Verified</span>
-                  </div>
-                  {memberSince && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <CalendarDays className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="text-muted-foreground">Partner since {memberSince}</span>
-                    </div>
-                  )}
-                  {agency.registration_number && (
-                    <div className="mt-3 pt-3 border-t border-border">
-                      <p className="text-xs text-muted-foreground mb-1">Reg. Number</p>
-                      <code className="text-xs font-mono text-foreground">
-                        {agency.registration_number}
-                      </code>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </aside>
-
-            {/* ── MAIN CONTENT ─────────────────────────────────── */}
-            <div className="flex-1 space-y-8 min-w-0">
-
-              {/* Stats row */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-2xl font-bold text-foreground">{totalActivities}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Activities</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-2xl font-bold text-foreground">{avgRating ?? "—"}</p>
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <Star className="h-3 w-3 fill-secondary text-secondary" />
-                      <p className="text-xs text-muted-foreground">Avg rating</p>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-2xl font-bold text-foreground">{totalReviews}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Reviews</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-2xl font-bold text-foreground">{memberSince ?? "—"}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Member since</p>
-                  </CardContent>
-                </Card>
-              </div>
+                  <span className="flex items-center gap-1.5">
+                    <Compass className="h-4 w-4" />
+                    {totalActivities} activit{totalActivities !== 1 ? "ies" : "y"} listed
+                  </span>
+                </div>
+              </section>
 
               {/* About */}
               {agency.description && (
-                <div>
-                  <h2 className="text-lg font-semibold mb-3">About</h2>
+                <section className="bg-muted/40 rounded-xl p-6 md:p-7 border border-border">
+                  <h2 className="font-bold text-lg text-foreground mb-3">About the Agency</h2>
                   <p className="text-muted-foreground leading-relaxed">{agency.description}</p>
-                </div>
+                </section>
               )}
 
-              {/* Listings */}
-              <div>
-                <h2 className="text-lg font-semibold mb-4">
-                  Activities by {agency.company_name}
-                </h2>
+              {/* Their Trips */}
+              <section>
+                <h2 className="font-bold text-lg text-foreground mb-4">Their Trips</h2>
                 {listings.length === 0 ? (
                   <Card>
                     <CardContent className="py-12 text-center text-muted-foreground">
@@ -366,9 +308,154 @@ export default function AgencyProfile() {
                     ))}
                   </div>
                 )}
-              </div>
+              </section>
 
+              {/* Reviews */}
+              <section className="border-t border-border pt-8">
+                <h2 className="font-bold text-lg text-foreground mb-5">Traveler Reviews</h2>
+
+                {reviewsLoading ? (
+                  <div className="text-center py-12 text-muted-foreground text-sm">Loading reviews…</div>
+                ) : summary.count > 0 ? (
+                  <>
+                    <div className="bg-muted/40 rounded-xl p-6 border border-border mb-6">
+                      <ReviewSummary
+                        average={summary.average}
+                        count={summary.count}
+                        distribution={summary.distribution}
+                      />
+                    </div>
+
+                    <div className="flex gap-2 overflow-x-auto pb-1 mb-2">
+                      {([
+                        ["all", "All Reviews"],
+                        ["5", "5 Stars"],
+                        ["4", "4 Stars"],
+                        ["3-", "3 Stars & Below"],
+                      ] as [ReviewFilter, string][]).map(([value, label]) => (
+                        <button
+                          key={value}
+                          onClick={() => setReviewFilter(value)}
+                          className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                            reviewFilter === value
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-card border border-border text-foreground hover:bg-muted"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {filteredReviews.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-6">No reviews match this filter.</p>
+                    ) : (
+                      <div>
+                        {filteredReviews.map((review) => (
+                          <ReviewCard key={review.id} review={review} />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-12 bg-muted/30 rounded-xl">
+                    <MessageSquare className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                    <h3 className="font-medium mb-1">No reviews yet</h3>
+                    <p className="text-sm text-muted-foreground">
+                      This agency hasn't received any traveler reviews yet.
+                    </p>
+                  </div>
+                )}
+              </section>
             </div>
+
+            {/* ── SIDEBAR ─────────────────────────────────────── */}
+            <aside className="lg:w-80 flex-shrink-0">
+              <div className="lg:sticky lg:top-24 space-y-4">
+                <Card>
+                  <CardContent className="p-6 flex flex-col gap-3">
+                    <Button className="w-full" onClick={handleMessageAgency} disabled={startConversation.isPending}>
+                      {startConversation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <MessageSquare className="h-4 w-4" />
+                      )}
+                      Message Agency
+                    </Button>
+                    {agency.phone && (
+                      <a href={`tel:${agency.phone}`}>
+                        <Button variant="outline" className="w-full">
+                          <Phone className="h-4 w-4" />
+                          Call Agency
+                        </Button>
+                      </a>
+                    )}
+
+                    <hr className="border-border my-1" />
+
+                    <ul className="flex flex-col gap-4">
+                      <li className="flex items-start gap-3 text-sm">
+                        <BadgeCheck className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                        <div>
+                          <span className="block font-semibold text-foreground">License Verified</span>
+                          <span className="text-muted-foreground">Nepal Tourism Board</span>
+                        </div>
+                      </li>
+                      {avgRating && (
+                        <li className="flex items-start gap-3 text-sm">
+                          <Star className="h-4 w-4 text-primary mt-0.5 flex-shrink-0 fill-primary" />
+                          <div>
+                            <span className="block font-semibold text-foreground">{avgRating} Average Rating</span>
+                            <span className="text-muted-foreground">Across all listed activities</span>
+                          </div>
+                        </li>
+                      )}
+                      {specialties.length > 0 && (
+                        <li className="flex items-start gap-3 text-sm">
+                          <Compass className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="block font-semibold text-foreground">Specialties</span>
+                            <span className="text-muted-foreground">{specialties.join(", ")}</span>
+                          </div>
+                        </li>
+                      )}
+                      {agency.website && (
+                        <li className="flex items-start gap-3 text-sm">
+                          <Globe className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                          <a
+                            href={agency.website.startsWith("http") ? agency.website : `https://${agency.website}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline break-all"
+                          >
+                            {agency.website.replace(/^https?:\/\//, "")}
+                          </a>
+                        </li>
+                      )}
+                      {agency.email && (
+                        <li className="flex items-start gap-3 text-sm">
+                          <Mail className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                          <a href={`mailto:${agency.email}`} className="text-muted-foreground hover:text-primary break-all">
+                            {agency.email}
+                          </a>
+                        </li>
+                      )}
+                      {agency.registration_number && (
+                        <li className="flex items-start gap-3 text-sm">
+                          <Shield className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="block font-semibold text-foreground">Reg. Number</span>
+                            <code className="text-xs font-mono text-muted-foreground">
+                              {agency.registration_number}
+                            </code>
+                          </div>
+                        </li>
+                      )}
+                    </ul>
+                  </CardContent>
+                </Card>
+              </div>
+            </aside>
           </div>
         </div>
       </div>

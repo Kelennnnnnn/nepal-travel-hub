@@ -124,7 +124,7 @@ export default function AgencyOnboarding() {
               <span className="text-2xl font-bold">Nepal<span className="text-primary">Trails</span></span>
             </div>
             <h1 className="text-3xl font-bold mb-2">Partner Registration</h1>
-            <p className="text-muted-foreground">Complete the form below to register your agency on NepalTrails</p>
+            <p className="text-muted-foreground">Complete the form below to register your agency on Into Nepal</p>
           </div>
 
           {/* Progress Steps */}

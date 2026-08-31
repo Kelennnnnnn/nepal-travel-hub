@@ -64,7 +64,7 @@ export default function VerifyEmail() {
           <div className="p-2 rounded-xl bg-primary">
             <Mountain className="h-6 w-6 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold">NepalTrails</span>
+          <span className="text-xl font-bold">Into Nepal</span>
         </Link>
 
         {/* Icon */}
@@ -95,7 +95,7 @@ export default function VerifyEmail() {
         {/* Steps */}
         <div className="bg-white rounded-xl border border-border p-5 text-left space-y-3">
           {[
-            "Open the email from NepalTrails",
+            "Open the email from Into Nepal",
             'Click the "Confirm your email" link',
             "Return here and sign in",
           ].map((step, i) => (

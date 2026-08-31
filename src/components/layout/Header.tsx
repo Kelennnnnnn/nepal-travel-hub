@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Mountain, User, LogIn, LayoutDashboard, LogOut, BookOpen, Heart, MessageSquare } from "lucide-react";
+import { Menu, X, User, LogIn, LayoutDashboard, LogOut, BookOpen, Heart, MessageSquare } from "lucide-react";
 import { MobileMenu } from "./MobileMenu";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,16 +19,15 @@ import { toast } from "sonner";
 
 const navigation = [
   { name: "Activities", href: "/activities" },
-  { name: "How It Works", href: "/#how-it-works" },
-  { name: "For Agencies", href: "/agency" },
+  { name: "About", href: "/about" },
+  { name: "Support", href: "/contact" },
 ];
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
-  const isHome = location.pathname === "/";
-  
+
   const { user, isAuthenticated, logout } = useAuthStore();
   const { data: unreadCount = 0 } = useUnreadCount();
 
@@ -47,7 +46,7 @@ export function Header() {
 
   const getDashboardLink = () => {
     if (!user) return "/";
-    switch(user.role) {
+    switch (user.role) {
       case "admin": return "/admin";
       case "agency": return "/agency/dashboard";
       case "user": return "/";
@@ -58,60 +57,46 @@ export function Header() {
   return (
     <header
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
-        isScrolled || !isHome
-          ? "bg-card/95 backdrop-blur-xl shadow-md"
-          : "bg-transparent"
+        "fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-xl transition-shadow duration-300",
+        isScrolled ? "shadow-md" : "border-b border-border/70"
       )}
     >
       <div className="container mx-auto px-4">
-        <div className="flex h-16 md:h-20 items-center justify-between">
+        <div className="flex h-16 md:h-20 items-center justify-between gap-4">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className={cn(
-              "p-2 rounded-xl transition-colors",
-              isScrolled || !isHome ? "bg-primary" : "bg-primary-foreground/20"
-            )}>
-              <Mountain className={cn(
-                "h-6 w-6 transition-colors",
-                isScrolled || !isHome ? "text-primary-foreground" : "text-primary-foreground"
-              )} />
-            </div>
-            <span className={cn(
-              "text-xl font-bold transition-colors",
-              isScrolled || !isHome ? "text-foreground" : "text-primary-foreground"
-            )}>
-              NepalTrails
+          <Link to="/" className="flex items-center shrink-0">
+            <span className="font-serif italic text-2xl font-bold text-primary">
+              Into Nepal
             </span>
           </Link>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
-            {navigation.map((item) => (
-              <Link
-                key={item.name}
-                to={item.href}
-                className={cn(
-                  "text-sm font-medium transition-colors hover:text-primary",
-                  isScrolled || !isHome
-                    ? "text-foreground/80"
-                    : "text-primary-foreground/90 hover:text-primary-foreground"
-                )}
-              >
-                {item.name}
-              </Link>
-            ))}
+            {navigation.map((item) => {
+              const isActive = location.pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={cn(
+                    "text-sm font-medium transition-colors hover:text-primary pb-1 border-b-2",
+                    isActive
+                      ? "text-primary border-primary"
+                      : "text-foreground/80 border-transparent"
+                  )}
+                >
+                  {item.name}
+                </Link>
+              );
+            })}
           </nav>
 
           {/* Desktop Actions */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-5 shrink-0">
             {isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className={cn(
-                    "relative h-10 w-10 rounded-full",
-                    !isScrolled && isHome && "hover:bg-primary-foreground/20"
-                  )}>
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
                     <Avatar className="h-10 w-10 border-2 border-primary/20">
                       <AvatarFallback className="bg-primary/10 text-primary font-bold">
                         {user?.name?.charAt(0).toUpperCase() || "U"}
@@ -132,7 +117,7 @@ export function Header() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  
+
                   {user?.role !== "user" && (
                     <Link to={getDashboardLink()}>
                       <DropdownMenuItem className="cursor-pointer">
@@ -175,7 +160,7 @@ export function Header() {
                       </Link>
                     </>
                   )}
-                  
+
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
@@ -185,24 +170,16 @@ export function Header() {
               </DropdownMenu>
             ) : (
               <>
+                <Link
+                  to="/agency"
+                  className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
+                >
+                  List your property
+                </Link>
                 <Link to="/login">
-                  <Button 
-                    variant={isScrolled || !isHome ? "ghost" : "heroOutline"} 
-                    size="sm"
-                    className={cn(
-                      !isScrolled && isHome && "text-primary-foreground"
-                    )}
-                  >
+                  <Button size="sm">
                     <LogIn className="h-4 w-4" />
                     Sign In
-                  </Button>
-                </Link>
-                <Link to="/agency/login">
-                  <Button 
-                    variant={isScrolled || !isHome ? "default" : "hero"} 
-                    size="sm"
-                  >
-                    Agent Login
                   </Button>
                 </Link>
               </>
@@ -213,17 +190,12 @@ export function Header() {
           <button
             className="md:hidden p-2"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
           >
             {isMobileMenuOpen ? (
-              <X className={cn(
-                "h-6 w-6",
-                isScrolled || !isHome ? "text-foreground" : "text-primary-foreground"
-              )} />
+              <X className="h-6 w-6 text-foreground" />
             ) : (
-              <Menu className={cn(
-                "h-6 w-6",
-                isScrolled || !isHome ? "text-foreground" : "text-primary-foreground"
-              )} />
+              <Menu className="h-6 w-6 text-foreground" />
             )}
           </button>
         </div>

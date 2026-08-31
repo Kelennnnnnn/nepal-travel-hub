@@ -16,7 +16,7 @@ export default function PrivacyPolicy() {
         <div className="space-y-10 text-[15px] leading-relaxed">
           <section>
             <p className="text-muted-foreground">
-              NepalTrails ("we", "us", or "our") is committed to protecting your
+              Into Nepal ("we", "us", or "our") is committed to protecting your
               personal information. This Privacy Policy explains what data we
               collect, how we use it, and your rights regarding that data. By
               using the Platform, you agree to the practices described below.

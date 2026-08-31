@@ -209,6 +209,25 @@ export function useListingReviews(listingId: string | undefined) {
   });
 }
 
+export function useAgencyReviews(agencyId: string | undefined) {
+  return useQuery({
+    queryKey: ["reviews", "agency", agencyId],
+    queryFn: async () => {
+      if (!agencyId) throw new Error("No agency ID");
+      // admin_note is omitted: the live reviews table doesn't have this column yet,
+      // unlike what useListingReviews/useRespondToReview assume.
+      const { data, error } = await supabase
+        .from("reviews")
+        .select("id, listing_id, agency_id, traveler_name, rating, title, comment, helpful_count, verified, created_at")
+        .eq("agency_id", agencyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return ((data as Record<string, unknown>[] | null) ?? []).map(mapReviewRow);
+    },
+    enabled: !!agencyId,
+  });
+}
+
 export function useCanReviewListing(listingId: string | undefined) {
   return useQuery({
     queryKey: ["reviews", "can-review", listingId],

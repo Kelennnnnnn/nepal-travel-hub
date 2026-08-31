@@ -59,7 +59,7 @@ export default function AdminLogin() {
             <div className="p-2 rounded-xl bg-primary">
               <Mountain className="h-6 w-6 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold text-zinc-100">NepalTrails</span>
+            <span className="text-xl font-bold text-zinc-100">Into Nepal</span>
           </Link>
         </div>
 

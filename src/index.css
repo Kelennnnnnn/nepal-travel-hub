@@ -4,64 +4,61 @@
 
 @layer base {
   :root {
-    /* Warm ivory background — #fdfaf6 */
-    --background: 36 60% 98%;
-    --foreground: 31 54% 8%;
+    /* Base — white, not warm ivory */
+    --background: 0 0% 100%;
+    --foreground: 211 33% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 211 33% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 211 33% 14%;
 
-    /* Cards share background warmth */
-    --card: 36 60% 98%;
-    --card-foreground: 31 54% 8%;
-
-    --popover: 36 60% 98%;
-    --popover-foreground: 31 54% 8%;
-
-    /* Primary = burnt sienna #c2450b */
-    --primary: 18 83% 40%;
+    /* Primary = amber #E8890C (CTAs, prices) */
+    --primary: 34 90% 48%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary = warm sand surface #f5ede2 */
-    --secondary: 36 52% 93%;
-    --secondary-foreground: 31 54% 8%;
+    /* Secondary = cream surface #FBF8F3 */
+    --secondary: 39 49% 97%;
+    --secondary-foreground: 211 33% 14%;
 
-    /* Muted = warm tan */
-    --muted: 36 30% 88%;
-    --muted-foreground: 32 19% 35%;
+    /* Muted = light slate */
+    --muted: 214 22% 94%;
+    --muted-foreground: 210 16% 42%;
 
-    /* Accent shares primary for this warm system */
-    --accent: 18 83% 40%;
+    /* Accent = deep blue #1E4B8F (links, review chips, secondary actions) */
+    --accent: 216 65% 34%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 3 63% 48%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Warm border #ddd0be */
-    --border: 36 25% 80%;
-    --input: 36 25% 80%;
-    --ring: 18 83% 40%;
+    /* Borders — cool light grey #ECEFF3 */
+    --border: 214 22% 94%;
+    --input: 214 22% 94%;
+    --ring: 216 65% 34%;
 
-    --radius: 0.75rem;
+    --radius: 0.7rem;
 
-    /* Warm shadows — rgba(60,25,5,...) */
-    --shadow-sm: 0 2px 8px rgba(60,25,5,.07);
-    --shadow-md: 0 8px 32px rgba(60,25,5,.11);
-    --shadow-lg: 0 16px 48px rgba(60,25,5,.15);
-    --shadow-glow: 0 0 40px rgba(194,69,11,.18);
+    /* MATTE shadows — very subtle, no glow */
+    --shadow-sm: none;
+    --shadow-md: 0 2px 6px rgba(23,34,46,.045);
+    --shadow-lg: 0 6px 18px rgba(23,34,46,.06);
+    --shadow-glow: none;
 
-    /* Gradients */
-    --gradient-hero: linear-gradient(135deg, rgba(194,69,11,.88), rgba(28,16,7,.82));
-    --gradient-card: linear-gradient(180deg, hsl(36 60% 98%), hsl(36 52% 93%));
-    --gradient-accent: linear-gradient(135deg, hsl(18 83% 40%), hsl(18 83% 32%));
-    --gradient-glass: linear-gradient(135deg, rgba(253,250,246,.92), rgba(253,250,246,.75));
+    /* Flat — no glossy gradients */
+    --gradient-hero: linear-gradient(180deg, rgba(23,34,46,.55), rgba(23,34,46,.25));
+    --gradient-card: none;
+    --gradient-accent: none;
+    --gradient-glass: none;
 
-    /* Espresso dark sidebar #1c1007 */
-    --sidebar-background: 31 65% 7%;
-    --sidebar-foreground: 36 40% 82%;
-    --sidebar-primary: 18 83% 40%;
+    /* Sidebar — deep navy instead of espresso */
+    --sidebar-background: 213 46% 15%;
+    --sidebar-foreground: 210 20% 82%;
+    --sidebar-primary: 34 90% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 31 50% 12%;
-    --sidebar-accent-foreground: 18 83% 40%;
-    --sidebar-border: 31 45% 15%;
-    --sidebar-ring: 18 83% 40%;
+    --sidebar-accent: 213 40% 20%;
+    --sidebar-accent-foreground: 34 90% 48%;
+    --sidebar-border: 213 35% 24%;
+    --sidebar-ring: 34 90% 48%;
   }
 
   .dark {
@@ -116,13 +113,13 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     font-size: 14px;
     line-height: 1.5;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     @apply font-semibold tracking-tight;
   }
 
@@ -130,13 +127,13 @@
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 99px; }
-  ::-webkit-scrollbar-thumb:hover { background: hsl(36 22% 72%); }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); }
 }
 
 @layer utilities {
   .glass {
     @apply backdrop-blur-xl border;
-    background: rgba(253,250,246,.88);
+    background: rgba(255,255,255,.88);
     border-color: hsl(var(--border));
   }
 
@@ -146,16 +143,16 @@
 
   .text-gradient {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(18 75% 52%));
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(34 80% 60%));
   }
 
   .text-gradient-accent {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(32 80% 48%));
+    background-image: linear-gradient(135deg, hsl(var(--accent)), hsl(216 55% 48%));
   }
 
   .font-display {
-    font-family: 'Playfair Display', Georgia, serif;
+    font-family: 'Fraunces', Georgia, serif;
     font-style: italic;
   }
 
@@ -173,6 +170,16 @@
 
   .animate-scale-in {
     animation: scaleIn 0.5s ease-out forwards;
+  }
+
+  .animate-hero-zoom {
+    animation: heroZoom 7s ease-out forwards;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-hero-zoom {
+    animation: none;
   }
 }
 
@@ -194,6 +201,11 @@
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes heroZoom {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
 }
 
 .scrollbar-none::-webkit-scrollbar { display: none; }

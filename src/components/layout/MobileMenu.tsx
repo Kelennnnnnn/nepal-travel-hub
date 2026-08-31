@@ -1,12 +1,12 @@
 import { Link } from "react-router-dom";
-import { LogIn, LogOut, LayoutDashboard, MessageSquare, BookOpen, Heart, User } from "lucide-react";
+import { LogIn, LogOut, LayoutDashboard, MessageSquare, BookOpen, Heart, User, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const navigation = [
   { name: "Activities", href: "/activities" },
-  { name: "How It Works", href: "/#how-it-works" },
-  { name: "For Agencies", href: "/agency" },
+  { name: "About", href: "/about" },
+  { name: "Support", href: "/contact" },
 ];
 
 interface AuthUser {
@@ -102,13 +102,15 @@ export function MobileMenu({ isAuthenticated, user, unreadCount, dashboardLink, 
             </>
           ) : (
             <>
-              <Link to="/login" onClick={onClose}>
-                <Button variant="outline" className="w-full">
-                  <LogIn className="mr-2 h-4 w-4" /> Traveler Sign In
+              <Link to="/agency" onClick={onClose}>
+                <Button variant="outline" className="w-full justify-start">
+                  <Building2 className="mr-2 h-4 w-4" /> List your property
                 </Button>
               </Link>
-              <Link to="/agency/login" onClick={onClose}>
-                <Button className="w-full">Agent Login</Button>
+              <Link to="/login" onClick={onClose}>
+                <Button className="w-full">
+                  <LogIn className="mr-2 h-4 w-4" /> Sign In
+                </Button>
               </Link>
             </>
           )}
