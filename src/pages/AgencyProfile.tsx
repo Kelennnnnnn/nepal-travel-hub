@@ -53,7 +53,7 @@ interface AgencyPublicProfile {
 
 type ReviewFilter = "all" | "5" | "4" | "3-";
 
-function listingToActivity(l: Listing): Activity {
+function listingToActivity(l: Listing, agencyName: string): Activity {
   return {
     id: l.id,
     title: l.title,
@@ -65,7 +65,7 @@ function listingToActivity(l: Listing): Activity {
     rating: Number(l.rating),
     reviewCount: l.review_count,
     category: l.category,
-    agency: l.agency_id,
+    agency: agencyName,
     maxParticipants: l.max_participants,
     featured: l.featured,
   };
@@ -179,7 +179,7 @@ export default function AgencyProfile() {
   if (isLoading) {
     return (
       <Layout>
-        <div className="pt-16 md:pt-20 pb-16">
+        <div className="pt-24 md:pt-28 pb-16">
           <Skeleton className="h-[280px] md:h-[360px] w-full rounded-none" />
           <div className="container mx-auto px-4 max-w-5xl">
             <div className="-mt-14 mb-6">
@@ -228,7 +228,7 @@ export default function AgencyProfile() {
         description={agency.description || `Explore tours and activities by ${agency.company_name}, a verified Nepal travel agency.`}
       />
 
-      <div className="pt-16 md:pt-20 pb-16">
+      <div className="pt-24 md:pt-28 pb-16">
         {/* Cover */}
         <div className="relative w-full h-[280px] md:h-[360px] bg-muted overflow-hidden">
           <img src={coverImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -304,7 +304,7 @@ export default function AgencyProfile() {
                 ) : (
                   <div className="grid sm:grid-cols-2 gap-5">
                     {listings.map((l) => (
-                      <ActivityCard key={l.id} activity={listingToActivity(l)} />
+                      <ActivityCard key={l.id} activity={listingToActivity(l, agency.company_name)} />
                     ))}
                   </div>
                 )}

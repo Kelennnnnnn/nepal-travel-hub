@@ -22,7 +22,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
-import { usePublishedListings } from "@/lib/queries";
+import { usePublishedListings, usePublicAgencies } from "@/lib/queries";
 import { SEO } from "@/components/SEO";
 import { categories, locations, DURATION_RANGES } from "@/data/activities";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
@@ -32,7 +32,7 @@ import type { Activity } from "@/components/activities/ActivityCard";
 
 const PAGE_SIZE = 20;
 
-function listingToActivity(listing: Listing): Activity {
+function listingToActivity(listing: Listing, agencyName?: string): Activity {
   return {
     id: listing.id,
     title: listing.title,
@@ -44,7 +44,7 @@ function listingToActivity(listing: Listing): Activity {
     rating: Number(listing.rating),
     reviewCount: listing.review_count,
     category: listing.category,
-    agency: listing.agency_id,
+    agency: agencyName || "Verified Local Agency",
     maxParticipants: listing.max_participants,
     featured: listing.featured,
   };
@@ -131,7 +131,9 @@ export default function Activities() {
     availableOnDate,
   });
 
-  const activities = (data?.listings ?? []).map((l) => listingToActivity(l as Listing));
+  const listings = (data?.listings ?? []) as Listing[];
+  const { data: agencyMap = {} } = usePublicAgencies(listings.map((l) => l.agency_id));
+  const activities = listings.map((l) => listingToActivity(l, agencyMap[l.agency_id]?.name));
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -174,7 +176,7 @@ export default function Activities() {
         description="Browse 100+ authentic Nepal travel experiences — trekking, cultural tours, wildlife, rafting and more. Filter by category, price and availability."
       />
       {/* Header */}
-      <section className="pt-24 md:pt-32 pb-8 bg-muted/30">
+      <section className="pt-32 md:pt-40 pb-8 bg-muted/30">
         <div className="container mx-auto px-4">
           <h1 className="text-3xl md:text-4xl font-bold mb-2">Explore Nepal Activities</h1>
           <p className="text-muted-foreground">

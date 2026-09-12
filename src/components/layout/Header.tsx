@@ -18,8 +18,9 @@ import { useUnreadCount } from "@/hooks/useMessages";
 import { toast } from "sonner";
 
 const navigation = [
+  { name: "Home", href: "/" },
   { name: "Activities", href: "/activities" },
-  { name: "About", href: "/about" },
+  { name: "IntoNepal", href: "/about" },
   { name: "Support", href: "/contact" },
 ];
 
@@ -57,7 +58,7 @@ export function Header() {
   return (
     <header
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-xl transition-shadow duration-300",
+        "fixed top-8 left-0 right-0 z-50 bg-background/95 backdrop-blur-xl transition-shadow duration-300",
         isScrolled ? "shadow-md" : "border-b border-border/70"
       )}
     >
@@ -65,8 +66,13 @@ export function Header() {
         <div className="flex h-16 md:h-20 items-center justify-between gap-4">
           {/* Logo */}
           <Link to="/" className="flex items-center shrink-0">
-            <span className="font-serif italic text-2xl font-bold text-primary">
-              Into Nepal
+            <span className="flex flex-col leading-none">
+              <span className="font-serif italic text-2xl font-bold text-primary">
+                Into Nepal
+              </span>
+              <span className="hidden sm:block text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground mt-0.5">
+                Himalayan Expeditions
+              </span>
             </span>
           </Link>
 

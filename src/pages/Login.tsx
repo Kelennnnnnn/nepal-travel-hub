@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import { loginSchema, signUpSchema, type LoginFormData, type SignUpFormData } from "@/lib/validations";
+import { homeForRole, resolveAdminDestination } from "@/lib/roleRedirect";
 
 function GoogleIcon() {
   return (
@@ -54,14 +55,24 @@ export default function Login() {
       return;
     }
 
-    if (role !== "user") {
-      toast.error("This login is for travelers only. Please use the correct portal.");
-      await useAuthStore.getState().logout();
+    // Route each role to its own portal instead of rejecting them.
+    if (role === "admin") {
+      // Admins still have to clear the TOTP gate — never jump straight to
+      // /admin from here, or a plain password sign-in would skip MFA entirely.
+      const dest = await resolveAdminDestination();
+      toast.success("Welcome back! Let's verify it's really you.");
+      navigate(dest, { replace: true });
+      return;
+    }
+
+    if (role === "agency") {
+      toast.success("Welcome back! Taking you to your agency dashboard.");
+      navigate(homeForRole(role), { replace: true });
       return;
     }
 
     toast.success("Welcome back!");
-    navigate("/");
+    navigate(homeForRole(role), { replace: true });
   };
 
   const handleSignup = async (data: SignUpFormData) => {

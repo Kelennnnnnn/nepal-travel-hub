@@ -173,6 +173,35 @@ export function usePublishedListings(filters?: {
   });
 }
 
+// Public agency names/logos for a set of agency (user) ids — used to attribute
+// listings to their operator without exposing unverified/private application fields.
+export function usePublicAgencies(agencyIds: string[]) {
+  const uniqueIds = [...new Set(agencyIds)].filter(Boolean).sort();
+  return useQuery({
+    queryKey: ["agencies", "public", uniqueIds],
+    queryFn: async () => {
+      if (uniqueIds.length === 0) return {} as Record<string, { name: string; logoUrl: string | null }>;
+      const { data, error } = await supabase
+        .from("agency_applications")
+        .select("user_id, company_name, logo_url")
+        .in("user_id", uniqueIds)
+        .eq("status", "verified");
+      if (error) throw error;
+
+      const map: Record<string, { name: string; logoUrl: string | null }> = {};
+      for (const row of data ?? []) {
+        map[row.user_id as string] = {
+          name: row.company_name as string,
+          logoUrl: (row.logo_url as string | null) ?? null,
+        };
+      }
+      return map;
+    },
+    enabled: uniqueIds.length > 0,
+    staleTime: 5 * 60_000,
+  });
+}
+
 // Single listing
 export function useListing(id: string | undefined) {
   return useQuery({

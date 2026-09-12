@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { MapPin, Clock, Star, Heart } from "lucide-react";
+import { MapPin, Clock, Star, Heart, BadgeCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -114,7 +114,10 @@ export function ActivityCard({ activity, className }: ActivityCardProps) {
             </span>
           </div>
 
-          <p className="text-[11px] text-muted-foreground/60 mt-1.5 truncate">by {activity.agency}</p>
+          <p className="flex items-center gap-1 text-[11px] text-muted-foreground/60 mt-1.5 truncate">
+            <span className="truncate">Led by {activity.agency}</span>
+            <BadgeCheck className="h-3 w-3 text-emerald-600 shrink-0" />
+          </p>
         </CardContent>
       </Card>
     </Link>

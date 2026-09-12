@@ -195,7 +195,7 @@ export default function Account() {
 
   return (
     <Layout>
-      <div className="pt-24 md:pt-32 pb-16">
+      <div className="pt-32 md:pt-40 pb-16">
         <div className="container mx-auto px-4 max-w-2xl">
           <h1 className="text-2xl font-bold mb-6">My Account</h1>
 

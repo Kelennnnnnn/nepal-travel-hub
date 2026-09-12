@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const navigation = [
+  { name: "Home", href: "/" },
   { name: "Activities", href: "/activities" },
-  { name: "About", href: "/about" },
+  { name: "IntoNepal", href: "/about" },
   { name: "Support", href: "/contact" },
 ];
 

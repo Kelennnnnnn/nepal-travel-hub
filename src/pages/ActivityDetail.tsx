@@ -195,7 +195,7 @@ export default function ActivityDetail() {
 
   return (
     <Layout>
-      <div className="pt-20 md:pt-24 bg-background min-h-screen">
+      <div className="pt-28 md:pt-32 bg-background min-h-screen">
         <div className="max-w-screen-xl mx-auto px-4 md:px-8 py-6 md:py-10">
 
           {/* Breadcrumb */}

@@ -46,7 +46,7 @@ export default function FAQ() {
   return (
     <Layout>
       <SEO title="Frequently Asked Questions" description="Find answers to common questions about booking Nepal travel experiences, cancellations, payments and more." />
-      <div className="pt-24 pb-16 min-h-screen bg-muted/30">
+      <div className="pt-32 pb-16 min-h-screen bg-muted/30">
         <div className="container mx-auto px-4 max-w-3xl">
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold mb-3">Frequently Asked Questions</h1>

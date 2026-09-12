@@ -160,7 +160,7 @@ export default function BookingConfirmation() {
 
   return (
     <Layout>
-      <div className="pt-20 md:pt-24 bg-background min-h-screen pb-20">
+      <div className="pt-28 md:pt-32 bg-background min-h-screen pb-20">
         <div className="max-w-3xl mx-auto px-4 md:px-6 py-10">
 
           {/* ── Celebration header ─────────────────────────── */}

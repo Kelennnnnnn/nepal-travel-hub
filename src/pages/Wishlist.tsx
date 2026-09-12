@@ -55,7 +55,7 @@ export default function Wishlist() {
 
   return (
     <Layout>
-      <div className="pt-24 md:pt-32 pb-16">
+      <div className="pt-32 md:pt-40 pb-16">
         <div className="container mx-auto px-4">
           <h1 className="text-2xl font-bold mb-2">Saved Activities</h1>
           <p className="text-muted-foreground mb-8">

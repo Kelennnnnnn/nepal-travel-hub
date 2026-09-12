@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
-import { supabase } from "@/lib/supabase";
+import { resolveAdminDestination } from "@/lib/roleRedirect";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -35,25 +35,9 @@ export default function AdminLogin() {
       return;
     }
 
-    // MFA gate — disabled for testing via VITE_DISABLE_MFA=true
-    // Remove the env var (or set to false) to re-enable before launch.
-    if (import.meta.env.VITE_DISABLE_MFA === "true") {
-      navigate("/admin", { replace: true });
-      return;
-    }
-
-    // Check MFA enrollment status
-    const { data: factors } = await supabase.auth.mfa.listFactors();
-    const verifiedTotp = factors?.totp?.find((f) => f.status === "verified");
-
+    const dest = await resolveAdminDestination();
     setIsLoading(false);
-
-    if (!verifiedTotp) {
-      navigate("/admin/mfa-setup", { replace: true });
-      return;
-    }
-
-    navigate("/admin/mfa-verify", { replace: true });
+    navigate(dest, { replace: true });
   };
 
   return (

@@ -334,7 +334,7 @@ export default function MyBookings() {
 
   return (
     <Layout>
-      <div className="pt-24 md:pt-32 pb-16">
+      <div className="pt-32 md:pt-40 pb-16">
         <div className="container mx-auto px-4 max-w-3xl">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold">My Bookings</h1>

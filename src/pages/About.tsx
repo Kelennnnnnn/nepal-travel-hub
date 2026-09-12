@@ -36,7 +36,7 @@ export default function About() {
   return (
     <Layout>
       <SEO title="About Us" description="Learn about Yatra Nepal — our mission to connect travelers with authentic Nepal experiences through verified local agencies." />
-      <div className="pt-24 pb-16 min-h-screen">
+      <div className="pt-32 pb-16 min-h-screen">
         {/* Hero */}
         <div className="bg-muted/30 py-16 mb-16">
           <div className="container mx-auto px-4 max-w-4xl text-center">

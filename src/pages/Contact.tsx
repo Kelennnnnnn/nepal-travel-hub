@@ -34,7 +34,7 @@ export default function Contact() {
   return (
     <Layout>
       <SEO title="Contact Us" description="Get in touch with the Yatra Nepal team. We're here to help with your Nepal travel questions." />
-      <div className="pt-24 pb-16 min-h-screen bg-muted/30">
+      <div className="pt-32 pb-16 min-h-screen bg-muted/30">
         <div className="container mx-auto px-4 max-w-5xl">
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold mb-3">Contact Us</h1>

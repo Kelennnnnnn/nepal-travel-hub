@@ -212,7 +212,7 @@ export default function Messages() {
 
   return (
     <Layout>
-      <div className="pt-16 md:pt-20 h-screen flex flex-col">
+      <div className="pt-24 md:pt-28 h-screen flex flex-col">
         <div className="flex flex-1 overflow-hidden border-t border-border">
 
           {/* Left: Conversation list */}
