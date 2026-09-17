@@ -8,7 +8,6 @@ import {
   Phone,
   Mail,
   Globe,
-  Shield,
   ShieldCheck,
   Star,
   CalendarDays,
@@ -36,8 +35,8 @@ import type { Listing } from "@/stores/listingsStore";
 import type { Review } from "@/lib/queries";
 
 interface AgencyPublicProfile {
-  user_id: string;
-  company_name: string;
+  id: string;
+  display_name: string;
   description: string;
   city: string;
   district: string;
@@ -45,10 +44,7 @@ interface AgencyPublicProfile {
   phone: string;
   email: string;
   website: string;
-  status: string;
   created_at: string;
-  registration_number: string;
-  logo_url: string;
 }
 
 type ReviewFilter = "all" | "5" | "4" | "3-";
@@ -60,8 +56,8 @@ function listingToActivity(l: Listing, agencyName: string): Activity {
     description: l.description,
     image: l.images?.[0] || FALLBACK_IMAGE_URL,
     location: l.location,
-    duration: l.duration,
-    price: Number(l.price),
+    duration: l.duration_label,
+    price: Number(l.base_price),
     rating: Number(l.rating),
     reviewCount: l.review_count,
     category: l.category,
@@ -102,14 +98,19 @@ export default function AgencyProfile() {
     const load = async () => {
       setIsLoading(true);
 
-      // Fetch agency profile — only show verified agencies
+      // Fetch agency profile. agencies_public_select_approved (RLS) already
+      // guarantees a non-staff/non-admin caller can only ever see approved
+      // agencies — do NOT also embed agency_verification!inner(status) here,
+      // that hits agency_verification's own RLS (no anon-visible policy)
+      // and silently returns nothing even for a genuinely approved agency
+      // (see src/lib/queries.ts's usePublicAgencies comment for the full
+      // diagnosis — found and fixed in Phase 5 testing).
       const { data: agencyData, error: agencyErr } = await supabase
-        .from("agency_applications")
+        .from("agencies")
         .select(
-          "user_id, company_name, description, city, district, address, phone, email, website, status, created_at, registration_number, logo_url"
+          "id, display_name, description, city, district, address, phone, email, website, created_at"
         )
-        .eq("user_id", agencyId)
-        .eq("status", "verified")
+        .eq("id", agencyId)
         .single();
 
       if (agencyErr || !agencyData) {
@@ -168,7 +169,7 @@ export default function AgencyProfile() {
       return;
     }
     try {
-      const conversationId = await startConversation.mutateAsync({ agencyId: agency.user_id });
+      const conversationId = await startConversation.mutateAsync({ agencyId: agency.id });
       navigate(`/messages?conversation=${conversationId}`);
     } catch (err) {
       toast.error((err as Error).message);
@@ -214,7 +215,7 @@ export default function AgencyProfile() {
     );
   }
 
-  const initials = agency.company_name
+  const initials = agency.display_name
     .split(" ")
     .map((w) => w[0])
     .join("")
@@ -224,8 +225,8 @@ export default function AgencyProfile() {
   return (
     <Layout>
       <SEO
-        title={agency.company_name}
-        description={agency.description || `Explore tours and activities by ${agency.company_name}, a verified Nepal travel agency.`}
+        title={agency.display_name}
+        description={agency.description || `Explore tours and activities by ${agency.display_name}, a verified Nepal travel agency.`}
       />
 
       <div className="pt-24 md:pt-28 pb-16">
@@ -241,13 +242,10 @@ export default function AgencyProfile() {
             Back to Activities
           </Link>
 
-          {/* Logo badge */}
+          {/* Logo badge — agencies has no logo_url column (Phase 5 decision,
+              see PHASE_5 report), so this is always the initials fallback. */}
           <div className="absolute -bottom-14 left-4 md:left-8 w-28 h-28 md:w-32 md:h-32 rounded-full border-4 border-background bg-card shadow-lg overflow-hidden flex items-center justify-center">
-            {agency.logo_url ? (
-              <img src={agency.logo_url} alt={agency.company_name} className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-3xl font-bold text-primary">{initials}</span>
-            )}
+            <span className="text-3xl font-bold text-primary">{initials}</span>
           </div>
         </div>
 
@@ -259,7 +257,7 @@ export default function AgencyProfile() {
               <section className="flex flex-col gap-3">
                 <div className="flex items-center gap-3 flex-wrap">
                   <h1 className="font-serif text-3xl md:text-4xl font-bold text-foreground">
-                    {agency.company_name}
+                    {agency.display_name}
                   </h1>
                   <Badge variant="verified" className="gap-1">
                     <ShieldCheck className="h-3.5 w-3.5" />
@@ -304,7 +302,7 @@ export default function AgencyProfile() {
                 ) : (
                   <div className="grid sm:grid-cols-2 gap-5">
                     {listings.map((l) => (
-                      <ActivityCard key={l.id} activity={listingToActivity(l, agency.company_name)} />
+                      <ActivityCard key={l.id} activity={listingToActivity(l, agency.display_name)} />
                     ))}
                   </div>
                 )}
@@ -438,17 +436,6 @@ export default function AgencyProfile() {
                           <a href={`mailto:${agency.email}`} className="text-muted-foreground hover:text-primary break-all">
                             {agency.email}
                           </a>
-                        </li>
-                      )}
-                      {agency.registration_number && (
-                        <li className="flex items-start gap-3 text-sm">
-                          <Shield className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                          <div>
-                            <span className="block font-semibold text-foreground">Reg. Number</span>
-                            <code className="text-xs font-mono text-muted-foreground">
-                              {agency.registration_number}
-                            </code>
-                          </div>
                         </li>
                       )}
                     </ul>

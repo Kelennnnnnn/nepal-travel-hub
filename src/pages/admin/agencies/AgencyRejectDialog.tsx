@@ -6,12 +6,12 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import type { AgencyApplication } from "@/stores/agencyStore";
+import type { AgencyListItem } from "@/stores/agencyStore";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  agency: AgencyApplication | null;
+  agency: AgencyListItem | null;
   rejectionReason: string;
   onReasonChange: (value: string) => void;
   onConfirm: () => void;
@@ -28,7 +28,7 @@ export function AgencyRejectDialog({
           <DialogTitle>Reject Application</DialogTitle>
           <DialogDescription>
             Provide a reason for rejecting{" "}
-            <strong>{agency?.company_name}</strong>. The agency will
+            <strong>{agency?.agency.display_name}</strong>. The agency will
             see this feedback and can resubmit.
           </DialogDescription>
         </DialogHeader>

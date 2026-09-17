@@ -1,58 +1,132 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
 
-export type Role = "user" | "admin" | "agency";
+// Platform-wide role (target §28) — lives ONLY in auth.users.app_metadata,
+// never user_metadata (client-editable, never trusted for authorization —
+// AUDIT_REPORT.md AUTH-07/RLS-02, fixed structurally in the Phase 2 schema).
+// "traveler" replaces the old system's "user" to match the target vocabulary
+// exactly (and the Phase 2 DB default — supabase/migrations/20260916000002_
+// identity.sql's set_default_role_on_signup() already writes "traveler").
+export type Role = "traveler" | "agency" | "admin" | "super_admin" | "support" | "finance";
+
+/** Roles that require MFA (aal2) before they can do anything — mirrors the
+ *  is_admin()/is_finance_or_admin()/is_support_or_admin() Postgres
+ *  functions and requirePlatformRole() in the edge functions exactly
+ *  (PHASE_3_AUTH.md — all three must stay in sync by hand). */
+export const ELEVATED_ROLES: Role[] = ["admin", "super_admin", "support", "finance"];
+
+export type AuthAssuranceLevel = "aal1" | "aal2";
+
+export interface AgencyMembership {
+  agencyId: string;
+  agencyRole: "owner" | "manager" | "staff";
+}
 
 export interface User {
   id: string;
   name: string;
   email: string;
   role: Role;
-  agencyName?: string;
 }
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  aal: AuthAssuranceLevel;
+  /** Empty for travelers/admins; populated for `role: "agency"` accounts.
+   *  A user can belong to more than one agency (rare, but the schema
+   *  allows it — e.g. a consultant staffing two agencies). */
+  agencyMemberships: AgencyMembership[];
+  /** True once an elevated-role account has at least one verified TOTP
+   *  factor enrolled — distinct from `aal`, which reflects the CURRENT
+   *  session, not whether enrollment has ever happened. Used to decide
+   *  "send them to /admin/mfa-setup" vs "send them to /admin/mfa-verify". */
+  hasVerifiedMfaFactor: boolean;
   initialize: () => () => void;
   signIn: (email: string, password: string) => Promise<{ error: string | null; role?: Role }>;
   signUp: (params: {
     name: string;
     email: string;
     password: string;
-    agencyName?: string;
   }) => Promise<{ error: string | null; requiresConfirmation: boolean }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
+  /** Re-reads MFA factor/AAL state from Supabase — call after a successful
+   *  mfa.enroll()/mfa.verify() so the store reflects the new session
+   *  immediately rather than waiting for the next auth event. */
+  refreshMfaState: () => Promise<void>;
 }
 
+/** Decodes the `aal` claim from a Supabase session's access token. Supabase
+ *  also exposes `auth.mfa.getAuthenticatorAssuranceLevel()`, which is
+ *  preferred where available (it also returns nextLevel/methods) — this
+ *  raw decode is the fallback used inside onAuthStateChange, where we
+ *  already have the session/token in hand and don't want an extra round
+ *  trip on every single auth event. */
+function decodeAal(accessToken: string | undefined): AuthAssuranceLevel {
+  if (!accessToken) return "aal1";
+  try {
+    const payload = accessToken.split(".")[1];
+    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return json.aal === "aal2" ? "aal2" : "aal1";
+  } catch {
+    return "aal1";
+  }
+}
+
+async function fetchAgencyMemberships(userId: string): Promise<AgencyMembership[]> {
+  const { data, error } = await supabase
+    .from("agency_users")
+    .select("agency_id, agency_role")
+    .eq("user_id", userId)
+    .is("removed_at", null);
+  if (error || !data) return [];
+  return data.map((row) => ({ agencyId: row.agency_id as string, agencyRole: row.agency_role as AgencyMembership["agencyRole"] }));
+}
+
+async function fetchHasVerifiedMfaFactor(): Promise<boolean> {
+  const { data } = await supabase.auth.mfa.listFactors();
+  return !!data?.totp?.some((f) => f.status === "verified");
+}
 
 export const useAuthStore = create<AuthState>()((set) => ({
   user: null,
   isAuthenticated: false,
   isLoading: true,
+  aal: "aal1",
+  agencyMemberships: [],
+  hasVerifiedMfaFactor: false,
 
   initialize: () => {
-    const buildUser = (authUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> }) => {
-      const meta    = authUser.user_metadata ?? {};
-      const appMeta = authUser.app_metadata  ?? {};
-      const email   = authUser.email ?? "";
+    const buildUser = (authUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> }): User => {
+      const meta  = authUser.user_metadata ?? {};
+      const email = authUser.email ?? "";
       return {
         id: authUser.id,
-        name: (meta.name ?? meta.full_name ?? email.split("@")[0]) as string,
+        name: (meta.full_name ?? meta.name ?? email.split("@")[0]) as string,
         email,
-        role: ((appMeta.role as Role) ?? "user") as Role,
-        agencyName: meta.agency_name as string | undefined,
+        // Role lives in app_metadata (server-only) — never user_metadata.
+        role: ((authUser.app_metadata?.role as Role) ?? "traveler"),
       };
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        set({ user: buildUser(session.user), isAuthenticated: true, isLoading: false });
-      } else {
-        set({ isLoading: false });
+    const applySession = async (session: { user: Parameters<typeof buildUser>[0]; access_token: string } | null) => {
+      if (!session?.user) {
+        set({ user: null, isAuthenticated: false, isLoading: false, aal: "aal1", agencyMemberships: [], hasVerifiedMfaFactor: false });
+        return;
       }
+      const user = buildUser(session.user);
+      const aal = decodeAal(session.access_token);
+      const [agencyMemberships, hasVerifiedMfaFactor] = await Promise.all([
+        user.role === "agency" ? fetchAgencyMemberships(user.id) : Promise.resolve([]),
+        ELEVATED_ROLES.includes(user.role) ? fetchHasVerifiedMfaFactor() : Promise.resolve(false),
+      ]);
+      set({ user, isAuthenticated: true, isLoading: false, aal, agencyMemberships, hasVerifiedMfaFactor });
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      void applySession(session);
     });
 
     const {
@@ -65,11 +139,13 @@ export const useAuthStore = create<AuthState>()((set) => ({
       // redirect admins to /admin/login before the real session arrives.
       if (event === "INITIAL_SESSION") return;
 
-      if (session?.user) {
-        set({ user: buildUser(session.user), isAuthenticated: true, isLoading: false });
-      } else {
-        set({ user: null, isAuthenticated: false, isLoading: false });
-      }
+      // MFA_CHALLENGE_VERIFIED fires the moment mfa.verify() succeeds — the
+      // session's aal claim is aal2 from this point on. Re-applying the
+      // session here (rather than only in refreshMfaState()) means
+      // ProtectedRoute sees the elevated AAL immediately even if the
+      // component that called mfa.verify() doesn't itself call
+      // refreshMfaState().
+      void applySession(session as Parameters<typeof applySession>[0]);
 
       // Fire welcome email the moment the browser sees EMAIL_CONFIRMED.
       // The DB trigger (pg_net) is the primary delivery path; this is the
@@ -88,6 +164,12 @@ export const useAuthStore = create<AuthState>()((set) => ({
     return () => subscription.unsubscribe();
   },
 
+  refreshMfaState: async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const hasVerifiedMfaFactor = await fetchHasVerifiedMfaFactor();
+    set({ aal: decodeAal(session?.access_token), hasVerifiedMfaFactor });
+  },
+
   signIn: async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
@@ -101,31 +183,31 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return { error: error.message };
     }
 
-    // Role lives in app_metadata (server-only); display fields live in user_metadata
-    const meta    = data.user.user_metadata;
-    const appMeta = data.user.app_metadata ?? {};
-    const role: Role = (appMeta.role as Role) ?? "user";
+    const meta = data.user.user_metadata;
+    const role: Role = (data.user.app_metadata?.role as Role) ?? "traveler";
+    const aal = decodeAal(data.session?.access_token);
+    const [agencyMemberships, hasVerifiedMfaFactor] = await Promise.all([
+      role === "agency" ? fetchAgencyMemberships(data.user.id) : Promise.resolve([]),
+      ELEVATED_ROLES.includes(role) ? fetchHasVerifiedMfaFactor() : Promise.resolve(false),
+    ]);
 
     set({
-      user: {
-        id: data.user.id,
-        name: meta?.name ?? meta?.full_name ?? email.split("@")[0],
-        email,
-        role,
-        agencyName: meta?.agency_name ?? undefined,
-      },
+      user: { id: data.user.id, name: meta?.full_name ?? meta?.name ?? email.split("@")[0], email, role },
       isAuthenticated: true,
+      aal,
+      agencyMemberships,
+      hasVerifiedMfaFactor,
     });
 
     return { error: null, role };
   },
 
-  signUp: async ({ name, email, password, agencyName }) => {
+  signUp: async ({ name, email, password }) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { name, agency_name: agencyName ?? null },
+        data: { name },
         emailRedirectTo: `${window.location.origin}/`,
       },
     });
@@ -144,9 +226,16 @@ export const useAuthStore = create<AuthState>()((set) => ({
     const requiresConfirmation = !data.session;
 
     if (data.session) {
+      // New accounts always start as "traveler" (enforced server-side by
+      // set_default_role_on_signup() regardless of what's sent here) —
+      // becoming an agency happens through the dedicated application flow
+      // (Phase 4), not by passing a role/agency name at signup time.
       set({
-        user: { id: data.user.id, name, email, role: "user", agencyName },
+        user: { id: data.user.id, name, email, role: "traveler" },
         isAuthenticated: true,
+        aal: "aal1",
+        agencyMemberships: [],
+        hasVerifiedMfaFactor: false,
       });
     }
 
@@ -166,6 +255,15 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
   logout: async () => {
     await supabase.auth.signOut();
-    set({ user: null, isAuthenticated: false });
+    set({ user: null, isAuthenticated: false, aal: "aal1", agencyMemberships: [], hasVerifiedMfaFactor: false });
   },
 }));
+
+/** True if the current session satisfies the auth requirements for `role`:
+ *  authenticated, and — for elevated roles — at aal2. Use this instead of
+ *  re-deriving the ELEVATED_ROLES check ad hoc in components. */
+export function isFullyAuthorizedForRole(role: Role | undefined, aal: AuthAssuranceLevel): boolean {
+  if (!role) return false;
+  if (!ELEVATED_ROLES.includes(role)) return true;
+  return aal === "aal2";
+}

@@ -53,16 +53,16 @@ export function MobileMenu({ isAuthenticated, user, unreadCount, dashboardLink, 
                 </div>
               </div>
 
-              {user?.role !== "user" && (
+              {user?.role !== "traveler" && (
                 <Link to={dashboardLink} onClick={onClose}>
                   <Button variant="outline" className="w-full justify-start">
                     <LayoutDashboard className="mr-2 h-4 w-4" />
-                    {user?.role === "admin" ? "Admin Dashboard" : "Agency Dashboard"}
+                    {user?.role === "agency" ? "Agency Dashboard" : "Admin Dashboard"}
                   </Button>
                 </Link>
               )}
 
-              {user?.role === "user" && (
+              {user?.role === "traveler" && (
                 <>
                   <Link to="/messages" onClick={onClose}>
                     <Button variant="outline" className="w-full justify-start">

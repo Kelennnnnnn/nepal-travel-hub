@@ -19,9 +19,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useAgencyStore } from "@/stores/agencyStore";
+import { useAgencyStore, type AgencyDocumentType } from "@/stores/agencyStore";
 import { useAuthStore } from "@/stores/authStore";
-import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { onboardingSchema, type OnboardingFormData } from "@/lib/validations";
 
@@ -37,13 +36,25 @@ const STEP_FIELDS: Record<number, (keyof OnboardingFormData)[]> = {
   2: ["ownerName", "ownerPhone", "description"],
 };
 
+// Maps the wizard's document slots to the agency_documents.document_type
+// values Phase 2's schema defines. "insuranceFile" -> "insurance" is
+// optional; the other two are required for submission (enforced server-
+// side in agency-application's "submit" action, not just here).
+const DOC_TYPES: Record<"licenseFile" | "panFile" | "insuranceFile", AgencyDocumentType> = {
+  licenseFile: "tourism_license",
+  panFile: "pan_certificate",
+  insuranceFile: "insurance",
+};
+
 export default function AgencyOnboarding() {
   const navigate = useNavigate();
-  const { submitApplication } = useAgencyStore();
+  const { saveDraft, uploadDocument, submitApplication } = useAgencyStore();
   const authUser = useAuthStore((s) => s.user);
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [website, setWebsite] = useState("");
+  const [agencyId, setAgencyId] = useState<string | null>(null);
   const [files, setFiles] = useState({ licenseFile: "", panFile: "", insuranceFile: "" });
   const [uploading, setUploading] = useState({ licenseFile: false, panFile: false, insuranceFile: false });
 
@@ -57,7 +68,7 @@ export default function AgencyOnboarding() {
     resolver: zodResolver(onboardingSchema),
     mode: "onTouched",
     defaultValues: {
-      companyName: authUser?.agencyName ?? "",
+      companyName: authUser?.name ?? "",
       email: authUser?.email ?? "",
       ownerName: authUser?.name ?? "",
       registrationNumber: "",
@@ -74,15 +85,12 @@ export default function AgencyOnboarding() {
   const description = watch("description");
 
   const handleFileUpload = async (key: keyof typeof files, label: string, file: File | undefined) => {
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast.error("File must be under 5MB"); return; }
-    const ext = file.name.split(".").pop();
-    const filePath = `${authUser?.id}/${key}-${Date.now()}.${ext}`;
+    if (!file || !agencyId) return;
     setUploading((prev) => ({ ...prev, [key]: true }));
-    const { error } = await supabase.storage.from("agency-docs").upload(filePath, file, { upsert: true });
+    const { error } = await uploadDocument(agencyId, DOC_TYPES[key], file);
     setUploading((prev) => ({ ...prev, [key]: false }));
-    if (error) { toast.error(error.message); return; }
-    setFiles((prev) => ({ ...prev, [key]: filePath }));
+    if (error) { toast.error(error); return; }
+    setFiles((prev) => ({ ...prev, [key]: file.name }));
     toast.success(`${label.replace(" *", "")} uploaded successfully`);
   };
 
@@ -92,6 +100,33 @@ export default function AgencyOnboarding() {
       const valid = await trigger(fields);
       if (!valid) return;
     }
+
+    // Moving into the Documents step: save a draft now so a real agency_id
+    // exists to scope document storage paths to (agency_documents' RLS
+    // requires an existing agency_users membership — see
+    // PHASE_4_AGENCY_ONBOARDING.md). Safe to call again later; save_draft
+    // is idempotent.
+    if (step === 2 && !agencyId) {
+      setIsSavingDraft(true);
+      const { error, agencyId: newId } = await saveDraft({
+        companyName: watch("companyName"),
+        registrationNumber: watch("registrationNumber"),
+        panNumber: watch("panNumber"),
+        address: watch("address"),
+        city: watch("city"),
+        district: watch("district"),
+        phone: watch("phone"),
+        email: watch("email"),
+        website,
+        ownerName: watch("ownerName"),
+        ownerPhone: watch("ownerPhone"),
+        description: watch("description"),
+      });
+      setIsSavingDraft(false);
+      if (error) { toast.error(`Could not save your application: ${error}`); return; }
+      if (newId) setAgencyId(newId);
+    }
+
     // Step 3: require license + pan files
     if (step === 3 && (!files.licenseFile || !files.panFile)) {
       toast.error("Please upload the Tourism License and PAN Certificate.");
@@ -107,7 +142,7 @@ export default function AgencyOnboarding() {
       return;
     }
     setIsSubmitting(true);
-    const { error } = await submitApplication({ ...data, website, ...files });
+    const { error } = await submitApplication({ ...data, website });
     setIsSubmitting(false);
     if (error) { toast.error(error); return; }
     toast.success("Application submitted! We'll review your details within 2-3 business days.");
@@ -121,7 +156,7 @@ export default function AgencyOnboarding() {
           <div className="text-center mb-10">
             <div className="flex items-center justify-center gap-2 mb-4">
               <Mountain className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold">Nepal<span className="text-primary">Trails</span></span>
+              <span className="text-2xl font-bold font-serif italic">Into Nepal</span>
             </div>
             <h1 className="text-3xl font-bold mb-2">Partner Registration</h1>
             <p className="text-muted-foreground">Complete the form below to register your agency on Into Nepal</p>
@@ -279,7 +314,7 @@ export default function AgencyOnboarding() {
                             ) : files[doc.key] ? (
                               <div className="flex items-center justify-center gap-2 text-primary">
                                 <Check className="h-5 w-5" />
-                                <span className="font-medium">{files[doc.key].split("/").pop()}</span>
+                                <span className="font-medium">{files[doc.key]}</span>
                               </div>
                             ) : (
                               <>
@@ -321,15 +356,15 @@ export default function AgencyOnboarding() {
                       <div className="space-y-1 text-sm">
                         <div className="flex items-center gap-2">
                           <Check className="h-4 w-4 text-primary" />
-                          Tourism License: {files.licenseFile ? files.licenseFile.split("/").pop() : "Not uploaded"}
+                          Tourism License: {files.licenseFile || "Not uploaded"}
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="h-4 w-4 text-primary" />
-                          PAN Certificate: {files.panFile ? files.panFile.split("/").pop() : "Not uploaded"}
+                          PAN Certificate: {files.panFile || "Not uploaded"}
                         </div>
                         <div className="flex items-center gap-2">
                           {files.insuranceFile ? <Check className="h-4 w-4 text-primary" /> : <span className="h-4 w-4 rounded-full border border-muted-foreground inline-block" />}
-                          Insurance: {files.insuranceFile ? files.insuranceFile.split("/").pop() : "Not uploaded (optional)"}
+                          Insurance: {files.insuranceFile || "Not uploaded (optional)"}
                         </div>
                       </div>
                     </div>
@@ -352,7 +387,8 @@ export default function AgencyOnboarding() {
                   </Button>
 
                   {step < 4 ? (
-                    <Button type="button" onClick={handleNext}>
+                    <Button type="button" onClick={handleNext} disabled={isSavingDraft}>
+                      {isSavingDraft ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
                       Continue<ChevronRight className="h-4 w-4 ml-1" />
                     </Button>
                   ) : (

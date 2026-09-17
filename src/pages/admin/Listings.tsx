@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MapPin,
   Search,
@@ -10,6 +10,7 @@ import {
   Loader2,
   Pause,
   Play,
+  Archive,
   ImageIcon,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,41 +34,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
 import { logAdminAction } from "@/lib/audit";
-import { logger } from "@/lib/logger";
-import {
-  useAgencyStore,
-  type AgencyApplication,
-} from "@/stores/agencyStore";
-import type { Listing, ListingStatus } from "@/stores/listingsStore";
+import { useAgencyStore, type AgencyListItem } from "@/stores/agencyStore";
+import { useListingsStore, type Listing, type ListingStatus } from "@/stores/listingsStore";
 import { ListingDetailDialog } from "./listings/ListingDetailDialog";
 import { ListingRejectDialog } from "./listings/ListingRejectDialog";
 
-function companyForAgency(
-  agencyId: string,
-  applications: AgencyApplication[]
-): string {
-  return applications.find((a) => a.user_id === agencyId)?.company_name ?? "—";
-}
-
-function agencyApplication(
-  agencyId: string,
-  applications: AgencyApplication[]
-): AgencyApplication | undefined {
-  return applications.find((a) => a.user_id === agencyId);
+function companyForAgency(agencyId: string, agencies: AgencyListItem[]): string {
+  return agencies.find((a) => a.agency.id === agencyId)?.agency.display_name ?? "—";
 }
 
 export default function AdminListings() {
-  const {
-    allApplications,
-    isLoadingAll,
-    fetchAllApplications,
-    subscribeToAllApplications,
-  } = useAgencyStore();
+  const { allAgencies, isLoadingAll, fetchAllAgencies, subscribeToAllAgencies } = useAgencyStore();
+  const { allListings, isLoadingAll: isLoadingListings, fetchAllListings, subscribeToAllListings, adminSetStatus } = useListingsStore();
 
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [isLoadingListings, setIsLoadingListings] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
@@ -76,76 +56,39 @@ export default function AdminListings() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const fetchListings = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("listings")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      logger.error("Failed to load listings:", error.message);
-      toast.error(`Failed to load listings: ${error.message}`);
-      setListings([]);
-      setIsLoadingListings(false);
-      return;
-    }
-
-    setListings((data ?? []) as Listing[]);
-    setIsLoadingListings(false);
-  }, []);
-
   useEffect(() => {
-    void fetchListings();
-  }, [fetchListings]);
-
-  useEffect(() => {
-    fetchAllApplications();
-    const unsubscribe = subscribeToAllApplications();
+    fetchAllListings();
+    const unsubscribe = subscribeToAllListings();
     return unsubscribe;
-  }, [fetchAllApplications, subscribeToAllApplications]);
+  }, [fetchAllListings, subscribeToAllListings]);
 
   useEffect(() => {
-    const channel = supabase
-      .channel("admin-listings-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "listings" },
-        () => {
-          void fetchListings();
-        }
-      )
-      .subscribe();
+    fetchAllAgencies();
+    const unsubscribe = subscribeToAllAgencies();
+    return unsubscribe;
+  }, [fetchAllAgencies, subscribeToAllAgencies]);
 
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [fetchListings]);
-
-  const updateListingStatus = async (id: string, status: ListingStatus) => {
-    setActionLoading(id);
-    const { error } = await supabase
-      .from("listings")
-      .update({ status })
-      .eq("id", id);
+  const changeStatus = async (listing: Listing, status: ListingStatus) => {
+    setActionLoading(listing.id);
+    const { error } = await adminSetStatus(listing.id, status);
     setActionLoading(null);
     if (error) {
-      toast.error(`Update failed: ${error.message}`);
+      toast.error(`Update failed: ${error}`);
       return false;
     }
-    await fetchListings();
     return true;
   };
 
   const handleApprove = async (listing: Listing) => {
-    const ok = await updateListingStatus(listing.id, "published");
+    const ok = await changeStatus(listing, "approved");
     if (ok) {
-      toast.success(`"${listing.title}" is now published.`);
-      void logAdminAction("publish_listing", "listing", listing.id, { title: listing.title });
+      toast.success(`"${listing.title}" approved — the agency can now publish it.`);
+      void logAdminAction("approve_listing", "listing", listing.id, { title: listing.title });
     }
   };
 
   const handlePause = async (listing: Listing) => {
-    const ok = await updateListingStatus(listing.id, "paused");
+    const ok = await changeStatus(listing, "paused");
     if (ok) {
       toast.success(`"${listing.title}" has been paused.`);
       void logAdminAction("pause_listing", "listing", listing.id, { title: listing.title });
@@ -153,25 +96,25 @@ export default function AdminListings() {
   };
 
   const handleUnpause = async (listing: Listing) => {
-    const ok = await updateListingStatus(listing.id, "published");
+    const ok = await changeStatus(listing, "published");
     if (ok) {
       toast.success(`"${listing.title}" is live again.`);
       void logAdminAction("unpause_listing", "listing", listing.id, { title: listing.title });
     }
   };
 
+  const handleArchive = async (listing: Listing) => {
+    const ok = await changeStatus(listing, "archived");
+    if (ok) {
+      toast.success(`"${listing.title}" has been archived.`);
+      void logAdminAction("archive_listing", "listing", listing.id, { title: listing.title });
+    }
+  };
+
   const handleRejectSubmit = async () => {
     if (!selectedListing || !rejectionReason.trim()) return;
-    setActionLoading(selectedListing.id);
-    const { error } = await supabase
-      .from("listings")
-      .update({ status: "rejected" as ListingStatus })
-      .eq("id", selectedListing.id);
-    setActionLoading(null);
-    if (error) {
-      toast.error(`Reject failed: ${error.message}`);
-      return;
-    }
+    const ok = await changeStatus(selectedListing, "rejected");
+    if (!ok) return;
     toast.success(`Listing rejected`, { description: rejectionReason.trim() });
     void logAdminAction("reject_listing", "listing", selectedListing.id, {
       title: selectedListing.title,
@@ -180,20 +123,19 @@ export default function AdminListings() {
     setShowRejectDialog(false);
     setRejectionReason("");
     setSelectedListing(null);
-    await fetchListings();
   };
 
   const filteredListings = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    return listings.filter((l) => {
-      const company = companyForAgency(l.agency_id, allApplications).toLowerCase();
+    return allListings.filter((l) => {
+      const company = companyForAgency(l.agency_id, allAgencies).toLowerCase();
       const matchesSearch =
         l.title.toLowerCase().includes(q) || company.includes(q);
       const matchesStatus =
         statusFilter === "all" || l.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [listings, searchQuery, statusFilter, allApplications]);
+  }, [allListings, searchQuery, statusFilter, allAgencies]);
 
   const handleExportCSV = () => {
     if (filteredListings.length === 0) {
@@ -201,16 +143,16 @@ export default function AdminListings() {
       return;
     }
     const csvEscape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
-    const headers = ["Title", "Category", "Location", "Price (USD)", "Duration", "Max Guests", "Status", "Agency", "Rating", "Reviews", "Submitted"];
+    const headers = ["Title", "Category", "Location", "Price (NPR)", "Duration", "Max Guests", "Status", "Agency", "Rating", "Reviews", "Submitted"];
     const rows = filteredListings.map((l) => [
       csvEscape(l.title),
       csvEscape(l.category),
       csvEscape(l.location),
-      csvEscape(Number(l.price)),
-      csvEscape(l.duration),
+      csvEscape(Number(l.base_price)),
+      csvEscape(l.duration_label),
       csvEscape(l.max_participants),
       csvEscape(l.status),
-      csvEscape(companyForAgency(l.agency_id, allApplications)),
+      csvEscape(companyForAgency(l.agency_id, allAgencies)),
       csvEscape(Number(l.rating).toFixed(1)),
       csvEscape(l.review_count),
       csvEscape(formatDate(l.created_at)),
@@ -231,23 +173,19 @@ export default function AdminListings() {
   const getStatusBadge = (status: ListingStatus) => {
     switch (status) {
       case "published":
-        return (
-          <Badge className="bg-primary text-primary-foreground">Published</Badge>
-        );
+        return <Badge className="bg-primary text-primary-foreground">Published</Badge>;
+      case "approved":
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Approved</Badge>;
       case "pending_review":
-        return (
-          <Badge className="bg-amber-100 text-amber-800 border-amber-200">
-            Pending Review
-          </Badge>
-        );
+        return <Badge className="bg-amber-100 text-amber-800 border-amber-200">Pending Review</Badge>;
       case "draft":
         return <Badge variant="secondary">Draft</Badge>;
       case "paused":
-        return (
-          <Badge className="bg-muted text-muted-foreground border">Paused</Badge>
-        );
+        return <Badge className="bg-muted text-muted-foreground border">Paused</Badge>;
       case "rejected":
         return <Badge variant="destructive">Rejected</Badge>;
+      case "archived":
+        return <Badge variant="outline">Archived</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -267,22 +205,22 @@ export default function AdminListings() {
       minimumFractionDigits: 0,
     }).format(n);
 
-  const totalListed = listings.length;
-  const pendingReviewCount = listings.filter(
-    (l) => l.status === "pending_review"
-  ).length;
-  const publishedCount = listings.filter((l) => l.status === "published").length;
-  const rejectedCount = listings.filter((l) => l.status === "rejected").length;
+  const totalListed = allListings.length;
+  const pendingReviewCount = allListings.filter((l) => l.status === "pending_review").length;
+  const publishedCount = allListings.filter((l) => l.status === "published").length;
+  const rejectedCount = allListings.filter((l) => l.status === "rejected").length;
 
   const filterButtons: { value: string; label: string }[] = [
     { value: "all", label: "All" },
     { value: "pending_review", label: "Pending Review" },
+    { value: "approved", label: "Approved" },
     { value: "published", label: "Published" },
     { value: "paused", label: "Paused" },
     { value: "rejected", label: "Rejected" },
+    { value: "archived", label: "Archived" },
   ];
 
-  const showTableSkeleton = isLoadingListings && listings.length === 0;
+  const showTableSkeleton = isLoadingListings && allListings.length === 0;
 
   return (
     <AdminLayout>
@@ -311,45 +249,25 @@ export default function AdminListings() {
           <Card>
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">Total Listed</p>
-              {showTableSkeleton ? (
-                <Skeleton className="h-8 w-16 mt-1" />
-              ) : (
-                <p className="text-2xl font-bold">{totalListed}</p>
-              )}
+              {showTableSkeleton ? <Skeleton className="h-8 w-16 mt-1" /> : <p className="text-2xl font-bold">{totalListed}</p>}
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">Pending Review</p>
-              {showTableSkeleton ? (
-                <Skeleton className="h-8 w-16 mt-1" />
-              ) : (
-                <p className="text-2xl font-bold text-amber-600">
-                  {pendingReviewCount}
-                </p>
-              )}
+              {showTableSkeleton ? <Skeleton className="h-8 w-16 mt-1" /> : <p className="text-2xl font-bold text-amber-600">{pendingReviewCount}</p>}
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">Published</p>
-              {showTableSkeleton ? (
-                <Skeleton className="h-8 w-16 mt-1" />
-              ) : (
-                <p className="text-2xl font-bold text-primary">{publishedCount}</p>
-              )}
+              {showTableSkeleton ? <Skeleton className="h-8 w-16 mt-1" /> : <p className="text-2xl font-bold text-primary">{publishedCount}</p>}
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">Rejected</p>
-              {showTableSkeleton ? (
-                <Skeleton className="h-8 w-16 mt-1" />
-              ) : (
-                <p className="text-2xl font-bold text-destructive">
-                  {rejectedCount}
-                </p>
-              )}
+              {showTableSkeleton ? <Skeleton className="h-8 w-16 mt-1" /> : <p className="text-2xl font-bold text-destructive">{rejectedCount}</p>}
             </CardContent>
           </Card>
         </div>
@@ -422,20 +340,14 @@ export default function AdminListings() {
                         <TableCell>
                           <div className="w-10 h-10 rounded-lg bg-muted overflow-hidden flex items-center justify-center flex-shrink-0">
                             {thumb ? (
-                              <img
-                                src={thumb}
-                                alt=""
-                                className="w-full h-full object-cover"
-                              />
+                              <img src={thumb} alt="" className="w-full h-full object-cover" />
                             ) : (
                               <ImageIcon className="h-4 w-4 text-muted-foreground" />
                             )}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <p className="font-medium line-clamp-2 max-w-[200px]">
-                            {listing.title}
-                          </p>
+                          <p className="font-medium line-clamp-2 max-w-[200px]">{listing.title}</p>
                         </TableCell>
                         <TableCell className="text-sm">{listing.category}</TableCell>
                         <TableCell>
@@ -444,81 +356,52 @@ export default function AdminListings() {
                             <span className="truncate">{listing.location}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium whitespace-nowrap">
-                          {money(Number(listing.price))}
-                        </TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">{money(Number(listing.base_price))}</TableCell>
                         <TableCell className="text-sm max-w-[140px] truncate">
-                          {isLoadingAll ? (
-                            <Skeleton className="h-4 w-24" />
-                          ) : (
-                            companyForAgency(listing.agency_id, allApplications)
-                          )}
+                          {isLoadingAll ? <Skeleton className="h-4 w-24" /> : companyForAgency(listing.agency_id, allAgencies)}
                         </TableCell>
                         <TableCell>{getStatusBadge(listing.status)}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                          {formatDate(listing.created_at)}
-                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{formatDate(listing.created_at)}</TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                disabled={actionLoading === listing.id}
-                              >
-                                {actionLoading === listing.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <MoreHorizontal className="h-4 w-4" />
-                                )}
+                              <Button variant="ghost" size="icon" disabled={actionLoading === listing.id}>
+                                {actionLoading === listing.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setSelectedListing(listing);
-                                  setShowDetailDialog(true);
-                                }}
-                              >
+                              <DropdownMenuItem onClick={() => { setSelectedListing(listing); setShowDetailDialog(true); }}>
                                 <Eye className="h-4 w-4 mr-2" />
                                 View Details
                               </DropdownMenuItem>
-                              {(listing.status === "pending_review" ||
-                                listing.status === "draft") && (
-                                <DropdownMenuItem
-                                  onClick={() => handleApprove(listing)}
-                                >
+                              {listing.status === "pending_review" && (
+                                <DropdownMenuItem onClick={() => handleApprove(listing)}>
                                   <CheckCircle className="h-4 w-4 mr-2" />
                                   Approve
                                 </DropdownMenuItem>
                               )}
-                              {(listing.status === "pending_review" ||
-                                listing.status === "draft" ||
-                                listing.status === "published") && (
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setSelectedListing(listing);
-                                    setShowRejectDialog(true);
-                                  }}
-                                >
+                              {listing.status === "pending_review" && (
+                                <DropdownMenuItem onClick={() => { setSelectedListing(listing); setShowRejectDialog(true); }}>
                                   <XCircle className="h-4 w-4 mr-2" />
                                   Reject
                                 </DropdownMenuItem>
                               )}
                               {listing.status === "published" && (
-                                <DropdownMenuItem
-                                  onClick={() => handlePause(listing)}
-                                >
+                                <DropdownMenuItem onClick={() => handlePause(listing)}>
                                   <Pause className="h-4 w-4 mr-2" />
                                   Pause
                                 </DropdownMenuItem>
                               )}
                               {listing.status === "paused" && (
-                                <DropdownMenuItem
-                                  onClick={() => handleUnpause(listing)}
-                                >
+                                <DropdownMenuItem onClick={() => handleUnpause(listing)}>
                                   <Play className="h-4 w-4 mr-2" />
                                   Unpause
+                                </DropdownMenuItem>
+                              )}
+                              {listing.status !== "archived" && (
+                                <DropdownMenuItem onClick={() => handleArchive(listing)}>
+                                  <Archive className="h-4 w-4 mr-2" />
+                                  Archive
                                 </DropdownMenuItem>
                               )}
                             </DropdownMenuContent>
@@ -537,7 +420,7 @@ export default function AdminListings() {
           open={showDetailDialog}
           onOpenChange={setShowDetailDialog}
           listing={selectedListing}
-          allApplications={allApplications}
+          allAgencies={allAgencies}
           isLoadingAll={isLoadingAll}
           statusBadge={getStatusBadge}
           onApprove={handleApprove}

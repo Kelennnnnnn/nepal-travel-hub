@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { Listing, ListingDifficulty } from "@/stores/listingsStore";
+import type { ListingDifficulty } from "@/stores/listingsStore";
+import type { PublishedListingRow } from "@/lib/queries";
 
 interface Level {
   levels: string;
@@ -40,7 +41,7 @@ const LEVELS: Level[] = [
 ];
 
 interface AdventureFrameworkProps {
-  listings: Listing[];
+  listings: PublishedListingRow[];
 }
 
 export function AdventureFramework({ listings }: AdventureFrameworkProps) {

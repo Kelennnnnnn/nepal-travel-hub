@@ -4,9 +4,8 @@ import { Star, Users, BadgeCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { usePublicAgencies } from "@/lib/queries";
+import { usePublicAgencies, type PublishedListingRow } from "@/lib/queries";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
-import type { Listing } from "@/stores/listingsStore";
 
 type TabKey = "all" | "best-sellers" | "remote" | "cultural";
 
@@ -17,7 +16,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "cultural", label: "Cultural Homestays" },
 ];
 
-function matchesTab(listing: Listing, tab: TabKey): boolean {
+function matchesTab(listing: PublishedListingRow, tab: TabKey): boolean {
   switch (tab) {
     case "best-sellers":
       return listing.featured || listing.review_count >= 20;
@@ -31,7 +30,7 @@ function matchesTab(listing: Listing, tab: TabKey): boolean {
 }
 
 interface FeaturedAdventuresProps {
-  listings: Listing[];
+  listings: PublishedListingRow[];
 }
 
 export function FeaturedAdventures({ listings }: FeaturedAdventuresProps) {

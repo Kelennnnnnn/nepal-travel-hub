@@ -11,6 +11,8 @@ import {
   DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 
+export type PlatformRole = "traveler" | "agency" | "admin" | "super_admin" | "support" | "finance";
+
 export interface AdminUser {
   id: string;
   email: string;
@@ -20,8 +22,14 @@ export interface AdminUser {
   user_metadata: {
     name?: string;
     full_name?: string;
-    role?: "user" | "agency" | "admin";
-    agency_name?: string;
+  };
+  // Role lives in app_metadata — server-controlled, never client-editable
+  // (AUDIT_REPORT.md AUTH-07/RLS-02). The old version of this file read
+  // role from user_metadata, which meant the admin panel's own role badges
+  // could show a value the account itself had set, not its real
+  // authorization — fixed here, not carried forward.
+  app_metadata: {
+    role?: PlatformRole;
   };
 }
 
@@ -36,8 +44,8 @@ export function displayName(u: AdminUser): string {
   return u.user_metadata?.name ?? u.user_metadata?.full_name ?? u.email.split("@")[0];
 }
 
-export function userRole(u: AdminUser): "user" | "agency" | "admin" {
-  return u.user_metadata?.role ?? "user";
+export function userRole(u: AdminUser): PlatformRole {
+  return u.app_metadata?.role ?? "traveler";
 }
 
 export function isSuspended(u: AdminUser): boolean {
@@ -57,11 +65,14 @@ export function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
-export function RoleBadge({ role }: { role: "user" | "agency" | "admin" }) {
-  const cfg = {
-    admin:  { label: "Admin",    className: "bg-amber-100 text-amber-800 border-amber-200" },
-    agency: { label: "Agency",   className: "bg-primary/10 text-primary border-primary/20" },
-    user:   { label: "Traveler", className: "bg-blue-100 text-blue-800 border-blue-200" },
+export function RoleBadge({ role }: { role: PlatformRole }) {
+  const cfg: Record<PlatformRole, { label: string; className: string }> = {
+    super_admin: { label: "Super Admin", className: "bg-red-100 text-red-800 border-red-200" },
+    admin:       { label: "Admin",       className: "bg-amber-100 text-amber-800 border-amber-200" },
+    finance:     { label: "Finance",     className: "bg-emerald-100 text-emerald-800 border-emerald-200" },
+    support:     { label: "Support",     className: "bg-violet-100 text-violet-800 border-violet-200" },
+    agency:      { label: "Agency",      className: "bg-primary/10 text-primary border-primary/20" },
+    traveler:    { label: "Traveler",    className: "bg-blue-100 text-blue-800 border-blue-200" },
   };
   const { label, className } = cfg[role];
   return <Badge className={className}>{label}</Badge>;
@@ -69,10 +80,13 @@ export function RoleBadge({ role }: { role: "user" | "agency" | "admin" }) {
 
 export function AvatarInitials({ user }: { user: AdminUser }) {
   const role = userRole(user);
-  const colorMap = {
-    admin:  "bg-amber-100 text-amber-700",
-    agency: "bg-primary/10 text-primary",
-    user:   "bg-blue-100 text-blue-700",
+  const colorMap: Record<PlatformRole, string> = {
+    super_admin: "bg-red-100 text-red-700",
+    admin:       "bg-amber-100 text-amber-700",
+    finance:     "bg-emerald-100 text-emerald-700",
+    support:     "bg-violet-100 text-violet-700",
+    agency:      "bg-primary/10 text-primary",
+    traveler:    "bg-blue-100 text-blue-700",
   };
   return (
     <div className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0 ${colorMap[role]}`}>

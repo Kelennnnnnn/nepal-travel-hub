@@ -8,9 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore, ELEVATED_ROLES } from "@/stores/authStore";
 import { loginSchema, signUpSchema, type LoginFormData, type SignUpFormData } from "@/lib/validations";
-import { homeForRole, resolveAdminDestination } from "@/lib/roleRedirect";
+import { homeForRole, resolveElevatedDestination } from "@/lib/roleRedirect";
 
 function GoogleIcon() {
   return (
@@ -56,10 +56,11 @@ export default function Login() {
     }
 
     // Route each role to its own portal instead of rejecting them.
-    if (role === "admin") {
-      // Admins still have to clear the TOTP gate — never jump straight to
-      // /admin from here, or a plain password sign-in would skip MFA entirely.
-      const dest = await resolveAdminDestination();
+    if (role && ELEVATED_ROLES.includes(role)) {
+      // Admin/super_admin/support/finance all still have to clear the TOTP
+      // gate — never jump straight to /admin from here, or a plain
+      // password sign-in would skip MFA entirely.
+      const dest = await resolveElevatedDestination();
       toast.success("Welcome back! Let's verify it's really you.");
       navigate(dest, { replace: true });
       return;

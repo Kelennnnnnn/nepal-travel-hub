@@ -64,24 +64,34 @@ The Stripe publishable key is in **Stripe Dashboard → Developers → API Keys*
 1. Go to [supabase.com/dashboard](https://supabase.com/dashboard) and create a new project.
 2. Copy the **Project URL** and **anon key** from **Settings → API** into `.env.local`.
 
-### 3b. Run migrations in order
+### 3b. Run migrations
 
-Open **Supabase Dashboard → SQL Editor** and run each file below in this exact order. Each migration depends on the previous one.
+> **Note (2026-09):** this project is mid-redesign — see `PHASE_0_FORENSIC_AUDIT.md`
+> and `PHASE_1_ARCHITECTURE.md` at the repo root for why, and `PHASE_2_DATABASE.md`
+> for what changed here specifically. The old loose `supabase_*.sql` files and
+> `MIGRATION_ORDER.md` are gone; `supabase/migrations/` is now the single
+> authoritative, ordered migration sequence (target: one real migration history,
+> not manually-pasted SQL Editor scripts).
 
-| # | File | What it creates |
-|---|---|---|
-| 1 | `supabase_migration.sql` | `agency_applications` table, `update_updated_at_column` helper, Realtime |
-| 2 | `supabase_listings_migration.sql` | `listings` + `availability` tables, RLS policies, Realtime |
-| 3 | `supabase_bookings_migration.sql` | `bookings` table, availability spot triggers, Realtime |
-| 4 | `supabase_reviews_migration.sql` | `reviews` table, rating recalculation trigger |
+```bash
+supabase login
+supabase link --project-ref <your-project-ref>
+supabase db push
+```
 
-Paste the contents of each file into the SQL Editor and click **Run** before moving to the next.
-
-> For a detailed description of every table and policy each file creates, see [`MIGRATION_ORDER.md`](MIGRATION_ORDER.md).
+This applies every file in `supabase/migrations/` in order. For local development,
+`supabase start` followed by `supabase db reset` spins up the full schema (including
+seeded `platform_settings` defaults) against a local Postgres instance — no manual
+SQL Editor steps required either way.
 
 ### 3c. Verify Realtime
 
-In **Supabase Dashboard → Database → Replication**, confirm that `agency_applications`, `listings`, and `bookings` are enabled. The migration files include `ALTER PUBLICATION` statements, but it's worth double-checking.
+This redesign does not yet enable Supabase Realtime on any table (the old
+schema's `ALTER PUBLICATION supabase_realtime ADD TABLE ...` statements were
+tied to tables that no longer exist in this shape). Realtime for bookings/
+messages/notifications is reintroduced deliberately in a later phase (see
+target spec §56 — "Use realtime only where useful... apply authorization to
+realtime channels"), not carried over by default.
 
 ---
 
@@ -210,16 +220,13 @@ nepal-travel-hub/
 │   ├── stores/             # Zustand: auth, listings, bookings, agencies, reviews
 │   └── lib/supabase.ts     # Supabase browser client
 ├── supabase/
-│   ├── functions/
-│   │   ├── admin-users/            # List/suspend/change-role via service role
-│   │   ├── create-payment-intent/  # Stripe payment intent creation
-│   │   └── upgrade-agency-role/    # Promote user to agency role on approval
-│   └── schema.sql                  # Reference schema (informational only)
-├── supabase_migration.sql
-├── supabase_listings_migration.sql
-├── supabase_bookings_migration.sql
-├── supabase_reviews_migration.sql
-└── MIGRATION_ORDER.md
+│   ├── functions/           # Edge functions — being redesigned around NIC ASIA
+│   │                          and the quote/booking engine (see PHASE_1_ARCHITECTURE.md);
+│   │                          this listing is stale until that phase lands, so it's
+│   │                          intentionally omitted here rather than left wrong.
+│   ├── migrations/          # THE authoritative, ordered schema (supabase db push
+│   │                          applies these in order) — see PHASE_2_DATABASE.md
+│   └── schema.types.ts      # Generated TypeScript types for the new schema
 ```
 
 ---

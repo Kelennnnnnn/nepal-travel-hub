@@ -1,5 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "./supabase";
+import type { ListingCategory, ListingDifficulty } from "@/stores/listingsStore";
+
+// Shape returned by usePublishedListings()'s select — a deliberate subset
+// of listings columns, with price/duration aliased back from base_price/
+// duration_label so existing card/homepage components didn't all need
+// their internal field names rewritten (see Phase 5 report). This is NOT
+// the full Listing type from listingsStore — do not use interchangeably.
+export interface PublishedListingRow {
+  id: string;
+  title: string;
+  images: string[];
+  location: string;
+  duration: string;
+  duration_days: number;
+  price: number;
+  rating: number;
+  review_count: number;
+  category: ListingCategory;
+  agency_id: string;
+  max_participants: number;
+  featured: boolean;
+  status: string;
+  difficulty: ListingDifficulty | null;
+  created_at: string;
+}
 
 export interface Review {
   id: string;
@@ -49,38 +74,19 @@ function mapReviewRow(row: Record<string, unknown>): Review {
   };
 }
 
-function parseDurationDays(duration: string | null | undefined): number | null {
-  if (!duration) return null;
-  const lower = duration.toLowerCase();
-  const numbers = lower.match(/\d+/g)?.map(Number) ?? [];
-  if (numbers.length === 0) return null;
-
-  const value = Math.max(...numbers);
-  if (lower.includes("week")) return value * 7;
-  if (lower.includes("month")) return value * 30;
-  return value;
-}
-
-function matchesDurationRange(duration: string | null | undefined, range: string | undefined) {
-  if (!range) return true;
-  const days = parseDurationDays(duration);
-  if (days == null) return false;
-
-  switch (range) {
-    case "1":
-      return days === 1;
-    case "2-3":
-      return days >= 2 && days <= 3;
-    case "4-7":
-      return days >= 4 && days <= 7;
-    case "8+":
-      return days >= 8;
-    default:
-      return true;
-  }
-}
-
-// Published listings with filters
+// Published listings with filters.
+//
+// Phase 5 note: durationRange now filters server-side on the real numeric
+// duration_days column (supabase/migrations/20260916000004_catalog.sql,
+// made required in Phase 5) instead of fetching up to 2000 rows and
+// parsing free-text duration in JS — this was AUDIT_REPORT.md FE-01, a
+// concrete, named audit finding, not just incidental cleanup.
+//
+// availableOnDate is dropped for now: the old system's listings_available_
+// on_date RPC read the old flat `availability` table directly, which no
+// longer exists — real departure/inventory-aware availability filtering is
+// Phase 7's job (see supabase/migrations/20260916000005_inventory.sql).
+// Passing this filter is a silent no-op rather than an error until then.
 export function usePublishedListings(filters?: {
   category?: string;
   location?: string;
@@ -102,22 +108,10 @@ export function usePublishedListings(filters?: {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
 
-      // If date filter is set, get available listing IDs first via RPC
-      let availableIds: string[] | null = null;
-      if (filters?.availableOnDate) {
-        const { data: rpcData } = await supabase.rpc("listings_available_on_date", {
-          target_date: filters.availableOnDate,
-        });
-        availableIds = (rpcData as string[] | null) ?? [];
-        if (availableIds.length === 0) {
-          return { listings: [], total: 0, page, pageSize };
-        }
-      }
-
       let query = supabase
         .from("listings")
         .select(
-          "id, title, images, location, duration, price, rating, review_count, category, agency_id, max_participants, featured, status, difficulty, created_at",
+          "id, title, images, location, duration:duration_label, duration_days, price:base_price, rating, review_count, category, agency_id, max_participants, featured, status, difficulty, created_at",
           { count: "estimated" }
         )
         .eq("status", "published");
@@ -129,52 +123,56 @@ export function usePublishedListings(filters?: {
           `title.ilike.%${filters.search}%,description.ilike.%${filters.search}%,location.ilike.%${filters.search}%`
         );
       }
-      if (filters?.priceMin != null) query = query.gte("price", filters.priceMin);
-      if (filters?.priceMax != null) query = query.lte("price", filters.priceMax);
+      if (filters?.priceMin != null) query = query.gte("base_price", filters.priceMin);
+      if (filters?.priceMax != null) query = query.lte("base_price", filters.priceMax);
       if (filters?.difficulties && filters.difficulties.length > 0) {
         query = query.in("difficulty", filters.difficulties);
       }
-      if (availableIds) {
-        query = query.in("id", availableIds);
+      switch (filters?.durationRange) {
+        case "1": query = query.eq("duration_days", 1); break;
+        case "2-3": query = query.gte("duration_days", 2).lte("duration_days", 3); break;
+        case "4-7": query = query.gte("duration_days", 4).lte("duration_days", 7); break;
+        case "8+": query = query.gte("duration_days", 8); break;
+        default: break;
       }
 
       switch (filters?.sortBy) {
-        case "price_asc": query = query.order("price", { ascending: true }); break;
-        case "price_desc": query = query.order("price", { ascending: false }); break;
+        case "price_asc": query = query.order("base_price", { ascending: true }); break;
+        case "price_desc": query = query.order("base_price", { ascending: false }); break;
         case "rating": query = query.order("rating", { ascending: false }); break;
         default: query = query.order("created_at", { ascending: false });
       }
 
-      if (filters?.durationRange) {
-        // Fetch all matching rows for client-side duration filtering (duration stored as free text)
-        query = query.limit(2000);
-      } else {
-        query = query.range(from, to);
-      }
+      query = query.range(from, to);
 
       const { data, error, count } = await query;
       if (error) throw error;
 
-      if (filters?.durationRange) {
-        const filtered = (data ?? []).filter((listing) =>
-          matchesDurationRange((listing as { duration?: string }).duration, filters.durationRange)
-        );
-        return {
-          listings: filtered.slice(from, to + 1),
-          total: filtered.length,
-          page,
-          pageSize,
-        };
-      }
-
-      return { listings: data ?? [], total: count ?? 0, page, pageSize };
+      return { listings: (data ?? []) as unknown as PublishedListingRow[], total: count ?? 0, page, pageSize };
     },
     staleTime: 60_000,
   });
 }
 
-// Public agency names/logos for a set of agency (user) ids — used to attribute
-// listings to their operator without exposing unverified/private application fields.
+// Public agency names for a set of agency ids — used to attribute listings
+// to their operator. listings.agency_id references agencies.id directly
+// (Phase 4's schema; the old agency_applications table this used to query,
+// keyed by user_id, no longer exists). agencies has no logo_url column
+// (Phase 5 deliberately did not add one — see PHASE_5 report), so logoUrl
+// is always null; kept in the return shape only so existing call sites
+// that destructure it don't need to change.
+//
+// Deliberately does NOT filter/embed on agency_verification.status here —
+// agencies_public_select_approved (migration 3, fixed in Phase 5) already
+// enforces "only approved agencies are visible to a non-staff/non-admin
+// caller" at the RLS layer via is_agency_publicly_approved(), so any row
+// this query can even see is already guaranteed approved. Embedding
+// agency_verification!inner(status) here, as an earlier version of this
+// query did, hits the exact same cross-table RLS wall the migration 3
+// comment describes: agency_verification has no anon-visible SELECT policy
+// of its own, so the embedded join's OWN visibility check (separate from
+// the agencies row policy) silently drops every row — caught in Phase 5
+// testing, when this returned empty for a confirmed-approved agency.
 export function usePublicAgencies(agencyIds: string[]) {
   const uniqueIds = [...new Set(agencyIds)].filter(Boolean).sort();
   return useQuery({
@@ -182,18 +180,14 @@ export function usePublicAgencies(agencyIds: string[]) {
     queryFn: async () => {
       if (uniqueIds.length === 0) return {} as Record<string, { name: string; logoUrl: string | null }>;
       const { data, error } = await supabase
-        .from("agency_applications")
-        .select("user_id, company_name, logo_url")
-        .in("user_id", uniqueIds)
-        .eq("status", "verified");
+        .from("agencies")
+        .select("id, display_name")
+        .in("id", uniqueIds);
       if (error) throw error;
 
       const map: Record<string, { name: string; logoUrl: string | null }> = {};
       for (const row of data ?? []) {
-        map[row.user_id as string] = {
-          name: row.company_name as string,
-          logoUrl: (row.logo_url as string | null) ?? null,
-        };
+        map[row.id as string] = { name: row.display_name as string, logoUrl: null };
       }
       return map;
     },
@@ -202,7 +196,9 @@ export function usePublicAgencies(agencyIds: string[]) {
   });
 }
 
-// Single listing
+// Single listing. Aliases price/duration alongside the real base_price/
+// duration_label columns (via `*`) so ActivityDetail.tsx's existing field
+// references keep working unchanged.
 export function useListing(id: string | undefined) {
   return useQuery({
     queryKey: ["listing", id],
@@ -210,7 +206,7 @@ export function useListing(id: string | undefined) {
       if (!id) throw new Error("No listing ID");
       const { data, error } = await supabase
         .from("listings")
-        .select("*")
+        .select("*, price:base_price, duration:duration_label")
         .eq("id", id)
         .single();
       if (error) throw error;

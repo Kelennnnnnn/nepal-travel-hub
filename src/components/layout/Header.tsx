@@ -48,9 +48,13 @@ export function Header() {
   const getDashboardLink = () => {
     if (!user) return "/";
     switch (user.role) {
-      case "admin": return "/admin";
+      case "admin":
+      case "super_admin":
+      case "support":
+      case "finance":
+        return "/admin";
       case "agency": return "/agency/dashboard";
-      case "user": return "/";
+      case "traveler": return "/";
       default: return "/";
     }
   };
@@ -124,7 +128,7 @@ export function Header() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
 
-                  {user?.role !== "user" && (
+                  {user?.role !== "traveler" && (
                     <Link to={getDashboardLink()}>
                       <DropdownMenuItem className="cursor-pointer">
                         <LayoutDashboard className="mr-2 h-4 w-4" />
@@ -133,7 +137,7 @@ export function Header() {
                     </Link>
                   )}
 
-                  {user?.role === "user" && (
+                  {user?.role === "traveler" && (
                     <>
                       <Link to="/messages">
                         <DropdownMenuItem className="cursor-pointer">

@@ -8,18 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Plus, X, Save, Loader2, Eye, Check } from "lucide-react";
+import { ArrowLeft, Plus, X, Save, Loader2, Eye, Check, Send } from "lucide-react";
 import { ItinerarySection } from "@/components/agency/ItinerarySection";
 import { ImageUploader } from "@/components/uploads/ImageUploader";
 import { ListingPreviewDialog } from "@/components/agency/ListingPreviewDialog";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
 import { useListingsStore } from "@/stores/listingsStore";
 import { useAuthStore } from "@/stores/authStore";
-import type { ListingCategory, ListingDifficulty, ListingStatus } from "@/stores/listingsStore";
+import type { ListingStatus } from "@/stores/listingsStore";
 import { listingFormSchema, type ListingFormData } from "@/lib/validations";
 
 const categories = ["Trekking", "Adventure", "Cultural", "Wildlife", "Rafting", "Mountaineering", "Wellness", "Photography"];
@@ -39,23 +37,33 @@ const EXCLUDE_PRESETS = [
 
 import type { ItineraryDay } from "@/components/agency/ItinerarySection";
 
+function extFromMime(mime: string): string {
+  const part = mime.split("/")[1];
+  return part ? part.split("+")[0] : "png";
+}
+
+async function dataUriToBlob(dataUri: string): Promise<Blob> {
+  const res = await fetch(dataUri);
+  return res.blob();
+}
+
 export default function AgencyListingForm() {
   const { id } = useParams();
   const isEditing = Boolean(id);
   const navigate = useNavigate();
 
-  const { createListing, updateListing, fetchMyListings, myListings } = useListingsStore();
+  const { createListing, updateListing, uploadListingImage, fetchMyListings, myListings } = useListingsStore();
   const { user } = useAuthStore();
 
-  const [featured, setFeatured] = useState(false);
   const [itinerary, setItinerary] = useState<ItineraryDay[]>([]);
   const [newInclude, setNewInclude] = useState("");
   const [newExclude, setNewExclude] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingEdit, setIsFetchingEdit] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  // Track the status the listing had when we loaded it for editing.
-  // Used to decide whether an update should go back to pending_review.
+  // Status the listing had when loaded for editing — determines whether
+  // saving should route the listing back through moderation (see
+  // primaryAction below) and which secondary actions make sense.
   const [originalStatus, setOriginalStatus] = useState<ListingStatus | null>(null);
 
   const {
@@ -73,7 +81,8 @@ export default function AgencyListingForm() {
       title: "",
       description: "",
       location: "",
-      duration: "",
+      duration_label: "",
+      duration_days: 1,
       max_participants: 10,
       images: [],
       includes: [],
@@ -98,25 +107,19 @@ export default function AgencyListingForm() {
         reset({
           title: listing.title,
           description: listing.description,
-          category: listing.category as ListingFormData["category"],
+          category: listing.category,
           location: listing.location,
-          price: Number(listing.price),
-          duration: listing.duration,
+          base_price: Number(listing.base_price),
+          duration_label: listing.duration_label,
+          duration_days: Number(listing.duration_days),
           max_participants: listing.max_participants,
-          difficulty: listing.difficulty as ListingFormData["difficulty"],
+          difficulty: listing.difficulty ?? undefined,
           images: listing.images ?? [],
           includes: listing.includes ?? [],
           excludes: listing.excludes ?? [],
         });
-        setFeatured(listing.featured);
         setOriginalStatus(listing.status);
-        setItinerary(
-          (listing.itinerary ?? []).map((item, i) => ({
-            day: (item as Record<string, unknown>).day as number ?? i + 1,
-            title: (item as Record<string, unknown>).title as string ?? "",
-            description: (item as Record<string, unknown>).description as string ?? "",
-          }))
-        );
+        setItinerary(listing.itinerary ?? []);
       } else {
         toast.error("Listing not found.");
         navigate("/agency/listings");
@@ -147,67 +150,91 @@ export default function AgencyListingForm() {
   const removeDay = (i: number) =>
     setItinerary((prev) => prev.filter((_, j) => j !== i).map((d, j) => ({ ...d, day: j + 1 })));
 
-  const uploadImages = async (imageList: string[]): Promise<string[]> => {
+  // Uploads any staged data: URI images to the listing-images bucket (path
+  // <agency_id>/<listing_id>/<uuid>.<ext>, per supabase/migrations/
+  // 20260916000016_storage_buckets.sql) and inserts the matching
+  // listing_images metadata row for each. Already-uploaded http(s) URLs
+  // (from a prior save) pass through unchanged.
+  const uploadStagedImages = async (listingId: string, agencyId: string, imageList: string[]): Promise<string[]> => {
     const result: string[] = [];
     for (const img of imageList) {
       if (!img.startsWith("data:")) { result.push(img); continue; }
-      try {
-        const res = await fetch(img);
-        const blob = await res.blob();
-        const ext = blob.type.split("/")[1] || "png";
-        const filePath = `listings/${crypto.randomUUID()}.${ext}`;
-        const { error } = await supabase.storage.from("listing-images").upload(filePath, blob, { contentType: blob.type });
-        if (error) { result.push(img); continue; }
-        const { data } = supabase.storage.from("listing-images").getPublicUrl(filePath);
-        result.push(data.publicUrl);
-      } catch {
-        result.push(img);
-      }
+      const blob = await dataUriToBlob(img);
+      const ext = extFromMime(blob.type);
+      const { url, error } = await uploadListingImage(listingId, agencyId, blob, ext);
+      if (error || !url) { toast.error(`Failed to upload an image: ${error ?? "unknown error"}`); continue; }
+      result.push(url);
     }
     return result;
   };
 
-  const doSave = async (data: ListingFormData, status: "published" | "draft") => {
+  // What the primary action button does depends on the listing's CURRENT
+  // status — the database (guard_listing_status_transition) is the actual
+  // source of truth for which transitions are legal; this just picks a
+  // sensible default target and label per PHASE_5's design (see migration
+  // 20260917000002_listing_moderation.sql's comment on why published/
+  // paused/approved route back through pending_review on edit).
+  const primaryAction = ((): { label: string; targetStatus: ListingStatus | null } => {
+    if (!isEditing) return { label: "Submit for Review", targetStatus: "pending_review" };
+    switch (originalStatus) {
+      case "draft":
+      case "rejected":
+        return { label: "Submit for Review", targetStatus: "pending_review" };
+      case "published":
+      case "paused":
+        return { label: "Submit Changes for Review", targetStatus: "pending_review" };
+      case "pending_review":
+      case "approved":
+      default:
+        return { label: "Save Changes", targetStatus: null };
+    }
+  })();
+
+  const doSave = async (data: ListingFormData, targetStatus: ListingStatus | null) => {
     setIsLoading(true);
     try {
-      const uploadedImages = await uploadImages(data.images);
-
-      // When updating a listing that was already published, send it back to
-      // pending_review so an admin must approve the changes before it goes live.
-      const effectiveStatus: ListingStatus =
-        isEditing && status === "published" && originalStatus === "published"
-          ? "pending_review"
-          : (status as ListingStatus);
-
-      const payload = {
+      const basePayload = {
         title: data.title.trim(),
         description: data.description.trim(),
-        category: data.category as ListingCategory,
+        category: data.category,
         location: data.location,
-        price: data.price,
-        duration: data.duration.trim(),
+        duration_label: data.duration_label.trim(),
+        duration_days: data.duration_days,
+        base_price: data.base_price,
         max_participants: data.max_participants,
-        difficulty: data.difficulty as ListingDifficulty,
-        images: uploadedImages,
+        difficulty: data.difficulty,
         includes: data.includes,
         excludes: data.excludes,
-        itinerary: itinerary as Record<string, unknown>[],
-        featured,
-        status: effectiveStatus,
+        itinerary,
       };
 
-      if (isEditing && id) {
-        const { error } = await updateListing(id, payload);
+      let listingId = id ?? null;
+      let agencyId = useListingsStore.getState().myAgencyId;
+
+      if (!isEditing) {
+        const { data: created, error } = await createListing(basePayload);
+        if (error || !created) { toast.error(error ?? "Failed to create listing."); return; }
+        listingId = created.id;
+        agencyId = created.agency_id;
+      } else if (listingId) {
+        const { error } = await updateListing(listingId, basePayload);
         if (error) { toast.error(error); return; }
+      }
+
+      if (!listingId || !agencyId) { toast.error("Something went wrong. Please try again."); return; }
+
+      const finalImages = await uploadStagedImages(listingId, agencyId, data.images);
+      const { error: imgError } = await updateListing(listingId, { images: finalImages });
+      if (imgError) { toast.error(imgError); return; }
+
+      if (targetStatus) {
+        const { error: statusError } = await useListingsStore.getState().setOwnStatus(listingId, targetStatus);
+        if (statusError) { toast.error(statusError); return; }
         toast.success(
-          effectiveStatus === "pending_review"
-            ? "Changes submitted for admin review."
-            : "Listing updated successfully."
+          targetStatus === "draft" ? "Listing saved as draft." : "Submitted for admin review."
         );
       } else {
-        const { error } = await createListing(payload);
-        if (error) { toast.error(error); return; }
-        toast.success(status === "draft" ? "Listing saved as draft." : "Listing submitted for review.");
+        toast.success("Listing updated successfully.");
       }
       navigate("/agency/listings");
     } catch {
@@ -217,13 +244,13 @@ export default function AgencyListingForm() {
     }
   };
 
-  // Draft: skip validation, use raw values
+  // Draft: skip validation, use raw values — only meaningful for a listing
+  // that hasn't been submitted yet.
   const handleSaveDraft = async () => {
     await doSave(getValues() as ListingFormData, "draft");
   };
 
-  // Publish: run full zod validation first
-  const handlePublish = handleSubmit((data) => doSave(data, "published"));
+  const handlePrimaryAction = handleSubmit((data) => doSave(data, primaryAction.targetStatus));
 
   if (isFetchingEdit) {
     return (
@@ -235,6 +262,8 @@ export default function AgencyListingForm() {
       </AgencyLayout>
     );
   }
+
+  const canSaveAsDraft = !isEditing || originalStatus === "draft" || originalStatus === "rejected";
 
   return (
     <AgencyLayout title={isEditing ? "Edit Listing" : "Create Listing"}>
@@ -303,16 +332,11 @@ export default function AgencyListingForm() {
         <Card>
           <CardHeader><CardTitle className="text-base">Pricing & Details</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Price per Person ($) <span className="text-destructive">*</span></Label>
-                <Input type="number" placeholder="0" min={0} disabled={isLoading} {...register("price")} />
-                {errors.price && <p className="text-xs text-destructive">{errors.price.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>Duration <span className="text-destructive">*</span></Label>
-                <Input placeholder="e.g. 14 days" disabled={isLoading} {...register("duration")} />
-                {errors.duration && <p className="text-xs text-destructive">{errors.duration.message}</p>}
+                <Label>Price per Person (NPR) <span className="text-destructive">*</span></Label>
+                <Input type="number" placeholder="0" min={0} disabled={isLoading} {...register("base_price")} />
+                {errors.base_price && <p className="text-xs text-destructive">{errors.base_price.message}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Max Participants</Label>
@@ -322,23 +346,30 @@ export default function AgencyListingForm() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Difficulty <span className="text-destructive">*</span></Label>
-                <Controller
-                  name="difficulty"
-                  control={control}
-                  render={({ field }) => (
-                    <Select value={field.value ?? ""} onValueChange={field.onChange} disabled={isLoading}>
-                      <SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger>
-                      <SelectContent>{difficulties.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
-                    </Select>
-                  )}
-                />
-                {errors.difficulty && <p className="text-xs text-destructive">{errors.difficulty.message}</p>}
+                <Label>Duration (display) <span className="text-destructive">*</span></Label>
+                <Input placeholder="e.g. 14 days" disabled={isLoading} {...register("duration_label")} />
+                {errors.duration_label && <p className="text-xs text-destructive">{errors.duration_label.message}</p>}
               </div>
-              <div className="flex items-center gap-3 pt-6">
-                <Switch id="featured" checked={featured} onCheckedChange={setFeatured} disabled={isLoading} />
-                <Label htmlFor="featured">Request Featured Placement</Label>
+              <div className="space-y-2">
+                <Label>Duration (days) <span className="text-destructive">*</span></Label>
+                <Input type="number" placeholder="14" min={1} step="0.5" disabled={isLoading} {...register("duration_days")} />
+                {errors.duration_days && <p className="text-xs text-destructive">{errors.duration_days.message}</p>}
+                <p className="text-xs text-muted-foreground">Used for duration search filters — enter a number even if the display text above says "2 weeks".</p>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Difficulty <span className="text-destructive">*</span></Label>
+              <Controller
+                name="difficulty"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value ?? ""} onValueChange={field.onChange} disabled={isLoading}>
+                    <SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger>
+                    <SelectContent>{difficulties.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.difficulty && <p className="text-xs text-destructive">{errors.difficulty.message}</p>}
             </div>
           </CardContent>
         </Card>
@@ -504,17 +535,17 @@ export default function AgencyListingForm() {
           <Button variant="outline" className="gap-2" onClick={() => setPreviewOpen(true)} disabled={isLoading}>
             <Eye className="h-4 w-4" /> Preview
           </Button>
-          <Button variant="outline" onClick={handleSaveDraft} disabled={isLoading}>
-            {isLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : "Save as Draft"}
-          </Button>
-          <Button onClick={handlePublish} disabled={isLoading} className="gap-2">
+          {canSaveAsDraft && (
+            <Button variant="outline" onClick={handleSaveDraft} disabled={isLoading}>
+              {isLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : "Save as Draft"}
+            </Button>
+          )}
+          <Button onClick={handlePrimaryAction} disabled={isLoading} className="gap-2">
             {isLoading
               ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</>
-              : isEditing && originalStatus === "published"
-                ? <><Save className="h-4 w-4" />Submit Changes for Review</>
-                : isEditing
-                  ? <><Save className="h-4 w-4" />Update Listing</>
-                  : <><Save className="h-4 w-4" />Publish Listing</>
+              : primaryAction.targetStatus
+                ? <><Send className="h-4 w-4" />{primaryAction.label}</>
+                : <><Save className="h-4 w-4" />{primaryAction.label}</>
             }
           </Button>
         </div>
@@ -525,7 +556,7 @@ export default function AgencyListingForm() {
         onOpenChange={setPreviewOpen}
         data={getValues()}
         itinerary={itinerary}
-        agencyName={user?.agencyName ?? user?.name ?? ""}
+        agencyName={user?.name ?? ""}
       />
     </AgencyLayout>
   );

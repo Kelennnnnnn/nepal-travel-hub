@@ -22,17 +22,16 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
-import { usePublishedListings, usePublicAgencies } from "@/lib/queries";
+import { usePublishedListings, usePublicAgencies, type PublishedListingRow } from "@/lib/queries";
 import { SEO } from "@/components/SEO";
 import { categories, locations, DURATION_RANGES } from "@/data/activities";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import { FilterPanel } from "@/components/activities/FilterPanel";
-import type { Listing } from "@/stores/listingsStore";
 import type { Activity } from "@/components/activities/ActivityCard";
 
 const PAGE_SIZE = 20;
 
-function listingToActivity(listing: Listing, agencyName?: string): Activity {
+function listingToActivity(listing: PublishedListingRow, agencyName?: string): Activity {
   return {
     id: listing.id,
     title: listing.title,
@@ -131,7 +130,7 @@ export default function Activities() {
     availableOnDate,
   });
 
-  const listings = (data?.listings ?? []) as Listing[];
+  const listings: PublishedListingRow[] = data?.listings ?? [];
   const { data: agencyMap = {} } = usePublicAgencies(listings.map((l) => l.agency_id));
   const activities = listings.map((l) => listingToActivity(l, agencyMap[l.agency_id]?.name));
   const total = data?.total ?? 0;

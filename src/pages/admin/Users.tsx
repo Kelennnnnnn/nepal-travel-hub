@@ -19,24 +19,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { logAdminAction } from "@/lib/audit";
 import {
   UserDetailDialog, AvatarInitials, RoleBadge,
   displayName, userRole, isSuspended, formatDate,
-  type AdminUser, type UserDetail,
+  type AdminUser, type UserDetail, type PlatformRole,
 } from "./users/UserDetailDialog";
 import { UserChangeRoleDialog } from "./users/UserChangeRoleDialog";
 import { UserDeleteDialog } from "./users/UserDeleteDialog";
 
 // ── Types ────────────────────────────────────────────────────────────
 
-type UserRole = "user" | "agency" | "admin";
-
 interface PlatformStats {
   total: number;
   travelers: number;
   agencies: number;
   admins: number;
+  support: number;
+  finance: number;
   suspended: number;
 }
 
@@ -63,6 +62,7 @@ function StatCard({ label, value, color, loading }: {
 
 export default function AdminUsers() {
   const selfId = useAuthStore((s) => s.user?.id);
+  const callerIsSuperAdmin = useAuthStore((s) => s.user?.role === "super_admin");
 
   const [allUsers, setAllUsers]       = useState<AdminUser[]>([]);
   const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
@@ -85,7 +85,7 @@ export default function AdminUsers() {
   const [showRoleDialog, setShowRoleDialog]     = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [userToDelete, setUserToDelete]         = useState<AdminUser | null>(null);
-  const [newRole, setNewRole]               = useState<UserRole>("user");
+  const [newRole, setNewRole]               = useState<PlatformRole>("traveler");
   const [actionLoading, setActionLoading]   = useState<string | null>(null);
 
   // Detail enrichment
@@ -124,10 +124,11 @@ export default function AdminUsers() {
 
   // ── Filtered + paginated set ───────────────────────────────────────
 
-  const filtered = useMemo(
-    () => roleFilter === "all" ? allUsers : allUsers.filter((u) => userRole(u) === roleFilter),
-    [allUsers, roleFilter],
-  );
+  const filtered = useMemo(() => {
+    if (roleFilter === "all") return allUsers;
+    if (roleFilter === "admin") return allUsers.filter((u) => userRole(u) === "admin" || userRole(u) === "super_admin");
+    return allUsers.filter((u) => userRole(u) === roleFilter);
+  }, [allUsers, roleFilter]);
 
   const totalPages    = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage      = Math.min(page, totalPages);
@@ -147,13 +148,20 @@ export default function AdminUsers() {
 
   // ── Actions ────────────────────────────────────────────────────────
 
+  // Suspend/unsuspend/change_role/delete are all logged to audit_logs
+  // SERVER-SIDE by the admin-users edge function itself now (see
+  // supabase/functions/admin-users/index.ts — each calls record_audit_log()
+  // with service_role after the mutation succeeds). Phase 2 deliberately
+  // revoked client INSERT on audit_logs entirely, so a separate frontend
+  // logAdminAction() call here would fail anyway, not just be redundant —
+  // this is the correct single source of truth, not a decision to log less.
+
   const handleSuspend = async (user: AdminUser) => {
     setActionLoading(user.id);
     const { error } = await invoke({ action: "suspend", user_id: user.id });
     setActionLoading(null);
     if (error) { toast.error(`Failed to suspend: ${error}`); return; }
     toast.success(`${displayName(user)} has been suspended.`);
-    void logAdminAction("suspend_user", "user", user.id, { email: user.email, name: displayName(user) });
     void fetchUsers();
   };
 
@@ -163,23 +171,16 @@ export default function AdminUsers() {
     setActionLoading(null);
     if (error) { toast.error(`Failed to unsuspend: ${error}`); return; }
     toast.success(`${displayName(user)} has been unsuspended.`);
-    void logAdminAction("unsuspend_user", "user", user.id, { email: user.email, name: displayName(user) });
     void fetchUsers();
   };
 
   const handleChangeRole = async () => {
     if (!selectedUser) return;
     setActionLoading(selectedUser.id);
-    const oldRole = userRole(selectedUser);
     const { error } = await invoke({ action: "change_role", user_id: selectedUser.id, role: newRole });
     setActionLoading(null);
     if (error) { toast.error(`Failed to change role: ${error}`); return; }
     toast.success(`${displayName(selectedUser)}'s role changed to ${newRole}.`);
-    void logAdminAction("change_role", "user", selectedUser.id, {
-      email: selectedUser.email,
-      old_role: oldRole,
-      new_role: newRole,
-    });
     setShowRoleDialog(false);
     setSelectedUser(null);
     void fetchUsers();
@@ -192,10 +193,6 @@ export default function AdminUsers() {
     setActionLoading(null);
     if (error) { toast.error(`Failed to delete user: ${error}`); return; }
     toast.success(`${displayName(userToDelete)} has been permanently deleted.`);
-    void logAdminAction("delete_user", "user", userToDelete.id, {
-      email: userToDelete.email,
-      name: displayName(userToDelete),
-    });
     setShowDeleteDialog(false);
     setUserToDelete(null);
     void fetchUsers();
@@ -209,17 +206,32 @@ export default function AdminUsers() {
     setDetailLoading(true);
     setShowDetailDialog(true);
 
-    const [bookingsRes, reviewsRes, agencyRes] = await Promise.all([
+    // Table/column names updated for the Phase 2 schema: reviews.traveler_id
+    // (was user_id), and agency identity/status now live on separate
+    // agencies + agency_verification tables reached via agency_users (was
+    // one flat agency_applications row) — see PHASE_1_ARCHITECTURE.md §3.1.
+    const [bookingsRes, reviewsRes, membershipRes] = await Promise.all([
       supabase.from("bookings").select("*", { count: "exact", head: true }).eq("traveler_id", user.id),
-      supabase.from("reviews").select("*", { count: "exact", head: true }).eq("user_id", user.id),
-      supabase.from("agency_applications").select("status, company_name").eq("user_id", user.id).maybeSingle(),
+      supabase.from("reviews").select("*", { count: "exact", head: true }).eq("traveler_id", user.id),
+      supabase.from("agency_users").select("agency_id").eq("user_id", user.id).is("removed_at", null).maybeSingle(),
     ]);
+
+    let agencyStatus: string | null = null;
+    let agencyName: string | null = null;
+    if (membershipRes.data?.agency_id) {
+      const [agencyRes, verificationRes] = await Promise.all([
+        supabase.from("agencies").select("display_name").eq("id", membershipRes.data.agency_id).maybeSingle(),
+        supabase.from("agency_verification").select("status").eq("agency_id", membershipRes.data.agency_id).maybeSingle(),
+      ]);
+      agencyName = agencyRes.data?.display_name ?? null;
+      agencyStatus = verificationRes.data?.status ?? null;
+    }
 
     setDetailData({
       bookingsCount: bookingsRes.count ?? 0,
       reviewsCount:  reviewsRes.count ?? 0,
-      agencyStatus:  agencyRes.data?.status ?? null,
-      agencyName:    agencyRes.data?.company_name ?? null,
+      agencyStatus,
+      agencyName,
     });
     setDetailLoading(false);
   };
@@ -227,10 +239,12 @@ export default function AdminUsers() {
   // ── Render ─────────────────────────────────────────────────────────
 
   const filterButtons = [
-    { value: "all",    label: "All" },
-    { value: "user",   label: "Travelers" },
-    { value: "agency", label: "Agencies" },
-    { value: "admin",  label: "Admins" },
+    { value: "all",      label: "All" },
+    { value: "traveler", label: "Travelers" },
+    { value: "agency",   label: "Agencies" },
+    { value: "admin",    label: "Admins" },     // matches admin + super_admin, see `filtered` below
+    { value: "support",  label: "Support" },
+    { value: "finance",  label: "Finance" },
   ];
 
   const showSkeleton = isLoading && allUsers.length === 0;
@@ -255,11 +269,13 @@ export default function AdminUsers() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
           <StatCard label="Total Users"  value={platformStats?.total ?? 0}     loading={showSkeleton} />
           <StatCard label="Travelers"    value={platformStats?.travelers ?? 0}  color="text-blue-600"  loading={showSkeleton} />
           <StatCard label="Agencies"     value={platformStats?.agencies ?? 0}   color="text-primary"   loading={showSkeleton} />
           <StatCard label="Admins"       value={platformStats?.admins ?? 0}     color="text-amber-600" loading={showSkeleton} />
+          <StatCard label="Support"      value={platformStats?.support ?? 0}    color="text-violet-600" loading={showSkeleton} />
+          <StatCard label="Finance"      value={platformStats?.finance ?? 0}    color="text-emerald-600" loading={showSkeleton} />
           <StatCard label="Suspended"    value={platformStats?.suspended ?? 0}  color="text-destructive" loading={showSkeleton} />
         </div>
 
@@ -453,6 +469,7 @@ export default function AdminUsers() {
         onNewRoleChange={setNewRole}
         onConfirm={() => void handleChangeRole()}
         actionLoading={actionLoading}
+        callerIsSuperAdmin={callerIsSuperAdmin}
       />
 
       <UserDeleteDialog

@@ -15,7 +15,7 @@ import {
 import { Layout } from "@/components/layout/Layout";
 import { usePublishedListings } from "@/lib/queries";
 import { categories } from "@/data/activities";
-import type { Listing } from "@/stores/listingsStore";
+import type { PublishedListingRow } from "@/lib/queries";
 import heroImage from "@/assets/hero-nepal.jpg";
 
 const HERO_SLIDES = [
@@ -41,7 +41,7 @@ export default function Index() {
   const [difficulty, setDifficulty] = useState("all");
 
   const { data: listingsData } = usePublishedListings({ pageSize: 100 });
-  const allListings = (listingsData?.listings ?? []) as Listing[];
+  const allListings: PublishedListingRow[] = listingsData?.listings ?? [];
 
   const handleHeroSearch = () => {
     const params = new URLSearchParams();

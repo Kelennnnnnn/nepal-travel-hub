@@ -39,7 +39,7 @@ export default function AgencyLogin() {
     if (role === "agency") {
       toast.success("Welcome back to your Agency Dashboard!");
       navigate("/agency/dashboard");
-    } else if (role === "user") {
+    } else if (role === "traveler") {
       // New agency — not yet approved, send to onboarding/status
       toast.success("Signed in! Complete your agency application below.");
       navigate("/agency/onboarding");
@@ -57,8 +57,13 @@ export default function AgencyLogin() {
       name: businessName,
       email: signupEmail,
       password: signupPassword,
-      agencyName: businessName,
     });
+    // Every new account starts as "traveler" — becoming an agency happens
+    // through the dedicated application flow (Phase 4: agencies/
+    // agency_verification), not by passing a business name at signup time.
+    // businessName is still collected here for the account's display name
+    // and will be reused as the agency's legal_name when Phase 4's
+    // onboarding form is built.
 
     setIsLoading(false);
 

@@ -1,5 +1,5 @@
 import {
-  MapPin, Calendar, Mail, Phone, ImageIcon,
+  MapPin, Calendar, Mail, Phone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,7 +8,7 @@ import {
   DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import type { Listing, ListingStatus } from "@/stores/listingsStore";
-import type { AgencyApplication } from "@/stores/agencyStore";
+import type { AgencyListItem } from "@/stores/agencyStore";
 
 const money = new Intl.NumberFormat(undefined, {
   style: "currency", currency: "USD",
@@ -25,19 +25,19 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   listing: Listing | null;
-  allApplications: AgencyApplication[];
+  allAgencies: AgencyListItem[];
   isLoadingAll: boolean;
   statusBadge: (status: ListingStatus) => React.ReactNode;
   onApprove: (listing: Listing) => void;
   onReject: () => void;
 }
 
-function agencyApplication(agencyId: string, apps: AgencyApplication[]) {
-  return apps.find((a) => a.user_id === agencyId);
+function agencyFor(agencyId: string, agencies: AgencyListItem[]) {
+  return agencies.find((a) => a.agency.id === agencyId);
 }
 
 export function ListingDetailDialog({
-  open, onOpenChange, listing, allApplications, isLoadingAll, statusBadge, onApprove, onReject,
+  open, onOpenChange, listing, allAgencies, isLoadingAll, statusBadge, onApprove, onReject,
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -59,7 +59,7 @@ export function ListingDetailDialog({
                 </div>
               </div>
               <p className="text-lg font-bold text-primary">
-                {money.format(Number(listing.price))}
+                {money.format(Number(listing.base_price))}
               </p>
             </div>
 
@@ -72,7 +72,7 @@ export function ListingDetailDialog({
                 <Calendar className="h-4 w-4 text-muted-foreground" />
                 Submitted {formatDate(listing.created_at)}
               </div>
-              <div><span className="text-muted-foreground">Duration:</span> {listing.duration}</div>
+              <div><span className="text-muted-foreground">Duration:</span> {listing.duration_label}</div>
               <div><span className="text-muted-foreground">Max guests:</span> {listing.max_participants}</div>
               <div><span className="text-muted-foreground">Featured:</span> {listing.featured ? "Yes" : "No"}</div>
               <div>
@@ -82,23 +82,23 @@ export function ListingDetailDialog({
             </div>
 
             {(() => {
-              const agency = agencyApplication(listing.agency_id, allApplications);
-              return agency ? (
+              const item = agencyFor(listing.agency_id, allAgencies);
+              return item ? (
                 <div className="p-4 bg-muted/50 rounded-xl space-y-2">
                   <h4 className="font-semibold text-sm">Agency</h4>
-                  <p className="font-medium">{agency.company_name}</p>
+                  <p className="font-medium">{item.agency.display_name}</p>
                   <div className="grid sm:grid-cols-2 gap-2 text-sm">
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-muted-foreground" />
-                      {agency.email}
+                      {item.agency.email || "—"}
                     </div>
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-muted-foreground" />
-                      {agency.phone}
+                      {item.agency.phone || "—"}
                     </div>
                     <div className="flex items-center gap-2 sm:col-span-2">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
-                      {agency.city}, {agency.district}
+                      {[item.agency.city, item.agency.district].filter(Boolean).join(", ") || "—"}
                     </div>
                   </div>
                 </div>
@@ -106,7 +106,7 @@ export function ListingDetailDialog({
                 <Skeleton className="h-20 w-full" />
               ) : (
                 <div className="p-4 bg-muted/50 rounded-xl text-sm text-muted-foreground">
-                  No agency application on file for this owner.
+                  No agency record on file for this listing.
                 </div>
               );
             })()}
@@ -155,11 +155,11 @@ export function ListingDetailDialog({
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
-          {listing && (listing.status === "pending_review" || listing.status === "draft") && (
+          {listing && listing.status === "pending_review" && (
             <>
               <Button variant="destructive" onClick={() => { onOpenChange(false); onReject(); }}>Reject</Button>
               <Button onClick={() => { onApprove(listing); onOpenChange(false); }}>
-                Approve & publish
+                Approve
               </Button>
             </>
           )}

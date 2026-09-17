@@ -25,7 +25,7 @@ export function ListingPreviewDialog({
   itinerary,
   agencyName,
 }: ListingPreviewDialogProps) {
-  const price = Number(data.price) || 0;
+  const price = Number(data.base_price) || 0;
   const images = data.images ?? [];
   const includes = data.includes ?? [];
   const excludes = data.excludes ?? [];
@@ -83,10 +83,10 @@ export function ListingPreviewDialog({
                             <span>{data.location}</span>
                           </div>
                         )}
-                        {data.duration && (
+                        {data.duration_label && (
                           <div className="flex items-center gap-1.5">
                             <Clock className="h-4 w-4" />
-                            <span>{data.duration}</span>
+                            <span>{data.duration_label}</span>
                           </div>
                         )}
                         {data.max_participants && (

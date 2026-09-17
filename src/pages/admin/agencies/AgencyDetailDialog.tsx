@@ -1,7 +1,7 @@
 import {
   Building2, Mail, MapPin, Phone, Calendar, FileText,
   CheckCircle, AlertTriangle, ExternalLink, ShieldOff, ShieldCheck,
-  DollarSign, Star, BookOpen,
+  DollarSign, Star, BookOpen, Clock, HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import type { AgencyApplication } from "@/stores/agencyStore";
+import type { AgencyListItem, AgencyDocument, AgencyDocumentType } from "@/stores/agencyStore";
 
 export interface AgencyMetrics {
   totalBookings: number;
@@ -27,27 +27,40 @@ const money = new Intl.NumberFormat(undefined, {
   minimumFractionDigits: 0, maximumFractionDigits: 0,
 });
 
+const DOCUMENT_LABELS: Record<AgencyDocumentType, string> = {
+  business_registration: "Business Registration",
+  tourism_license: "Tourism License",
+  pan_certificate: "PAN Certificate",
+  insurance: "Insurance Certificate",
+  other: "Other Document",
+};
+const REQUIRED_TYPES: AgencyDocumentType[] = ["tourism_license", "pan_certificate"];
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  agency: AgencyApplication | null;
+  item: AgencyListItem | null;
+  documents: AgencyDocument[];
+  documentsLoading: boolean;
   metrics: AgencyMetrics | null;
   metricsLoading: boolean;
   statusBadge: (status: string) => React.ReactNode;
   formatDate: (d: string) => string;
-  onApprove: (agency: AgencyApplication) => void;
+  onStartReview: (item: AgencyListItem) => void;
+  onRequestInfo: () => void;
+  onApprove: (item: AgencyListItem) => void;
   onReject: () => void;
   onSuspend: () => void;
-  onReactivate: (agency: AgencyApplication) => void;
+  onReinstate: (item: AgencyListItem) => void;
 }
 
 export function AgencyDetailDialog({
-  open, onOpenChange, agency, metrics, metricsLoading,
-  statusBadge, formatDate, onApprove, onReject, onSuspend, onReactivate,
+  open, onOpenChange, item, documents, documentsLoading, metrics, metricsLoading,
+  statusBadge, formatDate, onStartReview, onRequestInfo, onApprove, onReject, onSuspend, onReinstate,
 }: Props) {
   const handleViewDocument = async (storagePath: string) => {
     const { data, error } = await supabase.storage
-      .from("agency-docs")
+      .from("agency-documents")
       .createSignedUrl(storagePath, 300);
     if (error || !data?.signedUrl) {
       toast.error("Could not load document. Please try again.");
@@ -55,6 +68,11 @@ export function AgencyDetailDialog({
     }
     window.open(data.signedUrl, "_blank");
   };
+
+  const agency = item?.agency;
+  const verification = item?.verification;
+  const status = verification?.status;
+  const canReview = status === "submitted" || status === "in_review" || status === "more_info_required";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -65,19 +83,17 @@ export function AgencyDetailDialog({
             Review agency information and manage their verification status
           </DialogDescription>
         </DialogHeader>
-        {agency && (
+        {agency && verification && (
           <div className="space-y-6">
             <div className="flex items-start gap-4">
               <div className="w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Building2 className="h-8 w-8 text-primary" />
               </div>
               <div className="flex-1">
-                <h3 className="text-xl font-semibold">{agency.company_name}</h3>
+                <h3 className="text-xl font-semibold">{agency.display_name}</h3>
                 <div className="flex items-center gap-2 mt-1">
-                  {statusBadge(agency.status)}
-                  <span className="text-sm text-muted-foreground">
-                    Reg: {agency.registration_number}
-                  </span>
+                  {statusBadge(verification.status)}
+                  <span className="text-sm text-muted-foreground">{agency.slug}</span>
                 </div>
               </div>
             </div>
@@ -134,14 +150,14 @@ export function AgencyDetailDialog({
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="flex items-center gap-2 text-sm">
-                <Mail className="h-4 w-4 text-muted-foreground" /> {agency.email}
+                <Mail className="h-4 w-4 text-muted-foreground" /> {agency.email || "—"}
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <Phone className="h-4 w-4 text-muted-foreground" /> {agency.phone}
+                <Phone className="h-4 w-4 text-muted-foreground" /> {agency.phone || "—"}
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                {agency.address}, {agency.city}, {agency.district}
+                {[agency.address, agency.city, agency.district].filter(Boolean).join(", ") || "—"}
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -149,24 +165,12 @@ export function AgencyDetailDialog({
               </div>
             </div>
 
-            <div className="p-4 bg-muted/50 rounded-xl space-y-2">
-              <h4 className="font-semibold text-sm">Business Details</h4>
-              <div className="grid sm:grid-cols-2 gap-2 text-sm">
-                <div><span className="text-muted-foreground">PAN Number:</span> {agency.pan_number}</div>
-                <div><span className="text-muted-foreground">Registration:</span> {agency.registration_number}</div>
-                {agency.website && (
-                  <div><span className="text-muted-foreground">Website:</span> {agency.website}</div>
-                )}
+            {agency.website && (
+              <div className="p-4 bg-muted/50 rounded-xl space-y-2">
+                <h4 className="font-semibold text-sm">Website</h4>
+                <p className="text-sm text-muted-foreground">{agency.website}</p>
               </div>
-            </div>
-
-            <div className="p-4 bg-muted/50 rounded-xl space-y-2">
-              <h4 className="font-semibold text-sm">Contact Person</h4>
-              <div className="grid sm:grid-cols-2 gap-2 text-sm">
-                <div><span className="text-muted-foreground">Name:</span> {agency.owner_name}</div>
-                <div><span className="text-muted-foreground">Phone:</span> {agency.owner_phone}</div>
-              </div>
-            </div>
+            )}
 
             {agency.description && (
               <div className="p-4 bg-muted/50 rounded-xl space-y-2">
@@ -179,61 +183,89 @@ export function AgencyDetailDialog({
               <h4 className="font-semibold text-sm flex items-center gap-2">
                 <FileText className="h-4 w-4 text-primary" /> Documents
               </h4>
-              <div className="space-y-2">
-                {[
-                  { label: "Tourism License",       url: agency.license_url,   required: true },
-                  { label: "PAN Certificate",        url: agency.pan_url,        required: true },
-                  { label: "Insurance Certificate",  url: agency.insurance_url, required: false },
-                ].map((doc) => (
-                  <div key={doc.label} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      {doc.url ? (
+              {documentsLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {REQUIRED_TYPES.map((type) => {
+                    const doc = documents.find((d) => d.document_type === type);
+                    return (
+                      <div key={type} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          {doc ? <CheckCircle className="h-4 w-4 text-primary" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />}
+                          <span>{DOCUMENT_LABELS[type]}</span>
+                        </div>
+                        {doc ? (
+                          <Button variant="outline" size="sm" onClick={() => handleViewDocument(doc.storage_path)}>
+                            <ExternalLink className="h-3.5 w-3.5 mr-1" /> View Document
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">Not uploaded</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {documents.filter((d) => !REQUIRED_TYPES.includes(d.document_type)).map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-primary" />
-                      ) : doc.required ? (
-                        <AlertTriangle className="h-4 w-4 text-amber-500" />
-                      ) : (
-                        <span className="h-4 w-4 rounded-full border border-muted-foreground inline-block" />
-                      )}
-                      <span>{doc.label}</span>
-                    </div>
-                    {doc.url ? (
-                      <Button variant="outline" size="sm" onClick={() => handleViewDocument(doc.url!)}>
+                        <span>{DOCUMENT_LABELS[doc.document_type]}</span>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => handleViewDocument(doc.storage_path)}>
                         <ExternalLink className="h-3.5 w-3.5 mr-1" /> View Document
                       </Button>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">
-                        {doc.required ? "Not uploaded" : "Not uploaded (optional)"}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {agency.status === "rejected" && agency.rejection_reason && (
+            {(verification.status === "rejected" || verification.status === "suspended") && verification.rejection_reason && (
               <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-xl space-y-2">
-                <h4 className="font-semibold text-sm text-destructive">Rejection Reason</h4>
-                <p className="text-sm text-muted-foreground">{agency.rejection_reason}</p>
+                <h4 className="font-semibold text-sm text-destructive">
+                  {verification.status === "rejected" ? "Rejection Reason" : "Suspension Reason"}
+                </h4>
+                <p className="text-sm text-muted-foreground">{verification.rejection_reason}</p>
+              </div>
+            )}
+
+            {verification.status === "more_info_required" && verification.info_requested_note && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                <h4 className="font-semibold text-sm text-amber-800">Info Requested</h4>
+                <p className="text-sm text-muted-foreground">{verification.info_requested_note}</p>
               </div>
             )}
           </div>
         )}
-        <DialogFooter>
+        <DialogFooter className="flex-wrap gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
-          {agency && (agency.status === "pending" || agency.status === "in_review") && (
+          {item && status === "submitted" && (
+            <Button variant="outline" onClick={() => onStartReview(item)}>
+              <Clock className="h-4 w-4 mr-1" /> Mark In Review
+            </Button>
+          )}
+          {canReview && (
+            <Button variant="outline" onClick={() => { onOpenChange(false); onRequestInfo(); }}>
+              <HelpCircle className="h-4 w-4 mr-1" /> Request Info
+            </Button>
+          )}
+          {canReview && (
             <>
               <Button variant="destructive" onClick={() => { onOpenChange(false); onReject(); }}>Reject</Button>
-              <Button onClick={() => { onApprove(agency); onOpenChange(false); }}>Approve Agency</Button>
+              {item && <Button onClick={() => { onApprove(item); onOpenChange(false); }}>Approve Agency</Button>}
             </>
           )}
-          {agency?.status === "verified" && (
+          {status === "approved" && (
             <Button variant="destructive" onClick={() => { onOpenChange(false); onSuspend(); }}>
               <ShieldOff className="h-4 w-4 mr-1" /> Suspend
             </Button>
           )}
-          {agency?.status === "suspended" && (
-            <Button onClick={() => { onReactivate(agency); onOpenChange(false); }}>
-              <ShieldCheck className="h-4 w-4 mr-1" /> Reactivate
+          {status === "suspended" && item && (
+            <Button onClick={() => { onReinstate(item); onOpenChange(false); }}>
+              <ShieldCheck className="h-4 w-4 mr-1" /> Reinstate
             </Button>
           )}
         </DialogFooter>

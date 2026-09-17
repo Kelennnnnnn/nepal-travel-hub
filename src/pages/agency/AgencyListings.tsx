@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, MoreVertical, Edit, Pause, Play, Trash2, Star, MapPin, Loader2 } from "lucide-react";
+import { Plus, Search, MoreVertical, Edit, Pause, Play, Trash2, Archive, Send, Star, MapPin, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useListingsStore } from "@/stores/listingsStore";
@@ -16,21 +16,27 @@ import type { Listing, ListingStatus } from "@/stores/listingsStore";
 
 const statusStyle: Record<string, string> = {
   published: "bg-primary/10 text-primary",
+  approved: "bg-blue-100 text-blue-700",
   draft: "bg-muted text-muted-foreground",
   paused: "bg-amber-100 text-amber-700",
   pending_review: "bg-blue-100 text-blue-700",
   rejected: "bg-destructive/10 text-destructive",
+  archived: "bg-muted text-muted-foreground",
 };
 
 // Map DB status to display-friendly tab filters
 const statusToTab = (status: ListingStatus) => {
   if (status === "published") return "active";
   if (status === "paused") return "paused";
-  return "draft"; // draft, pending_review, rejected all show in draft tab
+  if (status === "archived") return "archived";
+  return "draft"; // draft, pending_review, approved, rejected all show in draft tab
 };
 
 export default function AgencyListings() {
-  const { myListings, isLoading, fetchMyListings, toggleListingStatus, deleteListing } = useListingsStore();
+  const {
+    myListings, isLoading, fetchMyListings,
+    submitForReview, publishListing, pauseListing, unpauseListing, archiveListing, deleteListing,
+  } = useListingsStore();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -47,16 +53,31 @@ export default function AgencyListings() {
     return matchSearch && matchTab;
   });
 
-  const togglePause = async (id: string) => {
-    const listing = myListings.find((l) => l.id === id);
-    if (!listing) return;
-    const nextStatus: ListingStatus = listing.status === "paused" ? "published" : "paused";
-    const { error } = await toggleListingStatus(id, nextStatus);
+  const togglePause = async (listing: Listing) => {
+    const { error } = listing.status === "paused" ? await unpauseListing(listing.id) : await pauseListing(listing.id);
     if (error) {
       toast.error(error);
     } else {
-      toast.success(`Listing ${nextStatus === "paused" ? "paused" : "reactivated"} successfully.`);
+      toast.success(listing.status === "paused" ? "Listing reactivated." : "Listing paused.");
     }
+  };
+
+  const handleSubmit = async (id: string) => {
+    const { error } = await submitForReview(id);
+    if (error) toast.error(error);
+    else toast.success("Submitted for admin review.");
+  };
+
+  const handlePublish = async (id: string) => {
+    const { error } = await publishListing(id);
+    if (error) toast.error(error);
+    else toast.success("Listing published.");
+  };
+
+  const handleArchive = async (id: string) => {
+    const { error } = await archiveListing(id);
+    if (error) toast.error(error);
+    else toast.success("Listing archived.");
   };
 
   const handleDelete = async (id: string) => {
@@ -74,6 +95,7 @@ export default function AgencyListings() {
   const activeCount = myListings.filter((l) => l.status === "published").length;
   const draftCount = myListings.filter((l) => statusToTab(l.status) === "draft").length;
   const pausedCount = myListings.filter((l) => l.status === "paused").length;
+  const archivedCount = myListings.filter((l) => l.status === "archived").length;
 
   return (
     <AgencyLayout title="My Listings">
@@ -94,6 +116,7 @@ export default function AgencyListings() {
             <TabsTrigger value="active">Active ({activeCount})</TabsTrigger>
             <TabsTrigger value="draft">Draft ({draftCount})</TabsTrigger>
             <TabsTrigger value="paused">Paused ({pausedCount})</TabsTrigger>
+            <TabsTrigger value="archived">Archived ({archivedCount})</TabsTrigger>
           </TabsList>
 
           <TabsContent value={tab} className="mt-4">
@@ -142,23 +165,44 @@ export default function AgencyListings() {
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            <p className="text-lg font-bold text-foreground">${listing.price}<span className="text-sm font-normal text-muted-foreground">/person</span></p>
+                            <p className="text-lg font-bold text-foreground">${listing.base_price}<span className="text-sm font-normal text-muted-foreground">/person</span></p>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => navigate(`/agency/listings/${listing.id}/edit`)}>
-                                  <Edit className="mr-2 h-4 w-4" /> Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => togglePause(listing.id)}>
-                                  {listing.status === "paused"
-                                    ? <><Play className="mr-2 h-4 w-4" /> Reactivate</>
-                                    : <><Pause className="mr-2 h-4 w-4" /> Pause</>}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(listing.id)}>
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                </DropdownMenuItem>
+                                {listing.status !== "archived" && (
+                                  <DropdownMenuItem onClick={() => navigate(`/agency/listings/${listing.id}/edit`)}>
+                                    <Edit className="mr-2 h-4 w-4" /> Edit
+                                  </DropdownMenuItem>
+                                )}
+                                {(listing.status === "draft" || listing.status === "rejected") && (
+                                  <DropdownMenuItem onClick={() => handleSubmit(listing.id)}>
+                                    <Send className="mr-2 h-4 w-4" /> Submit for Review
+                                  </DropdownMenuItem>
+                                )}
+                                {listing.status === "approved" && (
+                                  <DropdownMenuItem onClick={() => handlePublish(listing.id)}>
+                                    <Play className="mr-2 h-4 w-4" /> Publish
+                                  </DropdownMenuItem>
+                                )}
+                                {(listing.status === "published" || listing.status === "paused") && (
+                                  <DropdownMenuItem onClick={() => togglePause(listing)}>
+                                    {listing.status === "paused"
+                                      ? <><Play className="mr-2 h-4 w-4" /> Reactivate</>
+                                      : <><Pause className="mr-2 h-4 w-4" /> Pause</>}
+                                  </DropdownMenuItem>
+                                )}
+                                {listing.status !== "archived" && (
+                                  <DropdownMenuItem onClick={() => handleArchive(listing.id)}>
+                                    <Archive className="mr-2 h-4 w-4" /> Archive
+                                  </DropdownMenuItem>
+                                )}
+                                {listing.status === "draft" && (
+                                  <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(listing.id)}>
+                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                  </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>

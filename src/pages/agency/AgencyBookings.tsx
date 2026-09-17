@@ -271,7 +271,9 @@ export default function AgencyBookings() {
     toast.success(`Exported ${toExport.length} booking${toExport.length !== 1 ? "s" : ""}`);
   };
 
-  const agencyName = user?.agencyName ?? user?.name ?? "Agency";
+  // agencyName no longer exists on User (Phase 3) — the real agency name
+  // will come from the agencies table once this page is rebuilt (Phase 20).
+  const agencyName = user?.name ?? "Agency";
 
   return (
     <AgencyLayout title="Bookings">

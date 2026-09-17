@@ -12,6 +12,7 @@ import {
   Clock,
   ShieldOff,
   ShieldCheck,
+  HelpCircle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,85 +37,91 @@ import {
 import { toast } from "sonner";
 import {
   useAgencyStore,
-  type AgencyApplication,
+  type AgencyListItem,
+  type AgencyDocument,
 } from "@/stores/agencyStore";
 import { supabase } from "@/lib/supabase";
-import { logAdminAction } from "@/lib/audit";
 import { AgencyDetailDialog, type AgencyMetrics } from "./agencies/AgencyDetailDialog";
 import { AgencyRejectDialog } from "./agencies/AgencyRejectDialog";
 import { AgencySuspendDialog } from "./agencies/AgencySuspendDialog";
+import { AgencyRequestInfoDialog } from "./agencies/AgencyRequestInfoDialog";
 
 // ── Main component ───────────────────────────────────────────────────
 
 export default function AdminAgencies() {
   const {
-    allApplications,
+    allAgencies,
     isLoadingAll,
-    fetchAllApplications,
-    subscribeToAllApplications,
-    updateApplicationStatus,
+    fetchAllAgencies,
+    subscribeToAllAgencies,
+    fetchAgencyDocuments,
+    reviewAction,
   } = useAgencyStore();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedAgency, setSelectedAgency] = useState<AgencyApplication | null>(null);
+  const [selectedAgency, setSelectedAgency] = useState<AgencyListItem | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showSuspendDialog, setShowSuspendDialog] = useState(false);
-  const [agencyToSuspend, setAgencyToSuspend] = useState<AgencyApplication | null>(null);
+  const [showRequestInfoDialog, setShowRequestInfoDialog] = useState(false);
+  const [agencyToSuspend, setAgencyToSuspend] = useState<AgencyListItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [suspendReason, setSuspendReason] = useState("");
+  const [requestInfoNote, setRequestInfoNote] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Per-agency metrics for detail dialog
+  // Per-agency metrics + documents for detail dialog
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [agencyMetrics, setAgencyMetrics] = useState<AgencyMetrics | null>(null);
+  const [documents, setDocuments] = useState<AgencyDocument[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
 
   useEffect(() => {
-    fetchAllApplications();
-    const unsubscribe = subscribeToAllApplications();
+    fetchAllAgencies();
+    const unsubscribe = subscribeToAllAgencies();
     return unsubscribe;
-  }, [fetchAllApplications, subscribeToAllApplications]);
+  }, [fetchAllAgencies, subscribeToAllAgencies]);
 
-  const filteredAgencies = allApplications.filter((agency) => {
+  const filteredAgencies = allAgencies.filter((item) => {
     const matchesSearch =
-      agency.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agency.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus =
-      statusFilter === "all" || agency.status === statusFilter;
+      item.agency.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.agency.email ?? "").toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || item.verification.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  // ── Fetch per-agency metrics ───────────────────────────────────────
+  // ── Fetch per-agency metrics + documents ───────────────────────────
 
-  const loadAgencyMetrics = async (agency: AgencyApplication) => {
+  const loadAgencyDetail = async (item: AgencyListItem) => {
     setMetricsLoading(true);
     setAgencyMetrics(null);
+    setDocumentsLoading(true);
+    setDocuments([]);
 
-    const [bookingsRes, listingsRes, reviewsRes] = await Promise.all([
-      supabase
-        .from("bookings")
-        .select("total_amount, created_at")
-        .eq("agency_id", agency.user_id)
-        .eq("payment_status", "paid"),
-      supabase
-        .from("listings")
-        .select("*", { count: "exact", head: true })
-        .eq("agency_id", agency.user_id)
-        .eq("status", "published"),
-      supabase
-        .from("reviews")
-        .select("rating")
-        .eq("agency_id", agency.user_id),
+    const [bookingsRes, listingsRes, reviewsRes, docs] = await Promise.all([
+      supabase.from("bookings").select("*").eq("agency_id", item.agency.id).eq("payment_status", "paid"),
+      supabase.from("listings").select("*", { count: "exact", head: true }).eq("agency_id", item.agency.id).eq("status", "published"),
+      supabase.from("reviews").select("rating").eq("agency_id", item.agency.id),
+      fetchAgencyDocuments(item.agency.id),
     ]);
 
+    // total_amount lives on booking_quotes, not bookings, in the Phase 2
+    // schema — bookings only stores quote_id. Join client-side rather than
+    // a server-side join here since this is a small, on-demand admin-panel
+    // enrichment query, not a hot path.
     const bookings = bookingsRes.data ?? [];
-    const totalRevenue = bookings.reduce((s, b) => s + Number(b.total_amount ?? 0), 0);
-    const dates = bookings.map((b) => b.created_at).sort();
+    let totalRevenue = 0;
+    if (bookings.length > 0) {
+      const quoteIds = bookings.map((b) => b.quote_id as string);
+      const { data: quotes } = await supabase.from("booking_quotes").select("id, product_value").in("id", quoteIds);
+      const valueByQuote = new Map((quotes ?? []).map((q) => [q.id as string, Number(q.product_value)]));
+      totalRevenue = bookings.reduce((s, b) => s + (valueByQuote.get(b.quote_id as string) ?? 0), 0);
+    }
+    const dates = bookings.map((b) => b.created_at as string).sort();
     const lastActiveDate = dates.length > 0 ? dates[dates.length - 1] : null;
     const ratings = (reviewsRes.data ?? []).map((r) => Number(r.rating)).filter(Boolean);
-    const avgRating = ratings.length > 0
-      ? ratings.reduce((s, r) => s + r, 0) / ratings.length
-      : null;
+    const avgRating = ratings.length > 0 ? ratings.reduce((s, r) => s + r, 0) / ratings.length : null;
 
     setAgencyMetrics({
       totalBookings: bookings.length,
@@ -124,128 +131,73 @@ export default function AdminAgencies() {
       lastActiveDate,
     });
     setMetricsLoading(false);
+    setDocuments(docs);
+    setDocumentsLoading(false);
   };
 
-  const openDetail = (agency: AgencyApplication) => {
-    setSelectedAgency(agency);
+  const openDetail = (item: AgencyListItem) => {
+    setSelectedAgency(item);
     setShowDetailDialog(true);
-    void loadAgencyMetrics(agency);
+    void loadAgencyDetail(item);
   };
 
   // ── Actions ────────────────────────────────────────────────────────
 
-  const handleApprove = async (agency: AgencyApplication) => {
-    setActionLoading(agency.id);
-    const { error } = await updateApplicationStatus(agency.id, "verified");
+  const runAction = async (
+    item: AgencyListItem,
+    action: "start_review" | "request_info" | "approve" | "reject" | "suspend" | "reinstate",
+    extra: { reason?: string; note?: string } | undefined,
+    successMessage: string,
+  ) => {
+    setActionLoading(item.agency.id);
+    const { error } = await reviewAction(item.agency.id, action, extra);
     setActionLoading(null);
-    if (error) {
-      toast.error(`Failed to approve: ${error}`);
-      return;
-    }
-    toast.success(`${agency.company_name} has been approved!`);
-    void logAdminAction("approve_agency", "agency", agency.id, { agency_name: agency.company_name });
+    if (error) { toast.error(error); return false; }
+    toast.success(successMessage);
+    return true;
   };
 
-  const handleSetInReview = async (agency: AgencyApplication) => {
-    setActionLoading(agency.id);
-    const { error } = await updateApplicationStatus(agency.id, "in_review");
-    setActionLoading(null);
-    if (error) {
-      toast.error(`Failed to update: ${error}`);
-      return;
-    }
-    toast.success(`${agency.company_name} is now under review.`);
-  };
+  const handleStartReview = (item: AgencyListItem) =>
+    void runAction(item, "start_review", undefined, `${item.agency.display_name} is now under review.`);
+
+  const handleApprove = (item: AgencyListItem) =>
+    void runAction(item, "approve", undefined, `${item.agency.display_name} has been approved!`);
 
   const handleReject = async () => {
     if (!selectedAgency) return;
-    setActionLoading(selectedAgency.id);
-    const { error } = await updateApplicationStatus(
-      selectedAgency.id,
-      "rejected",
-      rejectionReason
-    );
-    setActionLoading(null);
-    if (error) {
-      toast.error(`Failed to reject: ${error}`);
-      return;
-    }
-    toast.success(`${selectedAgency.company_name} has been rejected.`);
-    void logAdminAction("reject_agency", "agency", selectedAgency.id, {
-      agency_name: selectedAgency.company_name,
-      reason: rejectionReason,
-    });
-    setShowRejectDialog(false);
-    setRejectionReason("");
-    setSelectedAgency(null);
+    const ok = await runAction(selectedAgency, "reject", { reason: rejectionReason }, `${selectedAgency.agency.display_name} has been rejected.`);
+    if (ok) { setShowRejectDialog(false); setRejectionReason(""); setSelectedAgency(null); }
+  };
+
+  const handleRequestInfo = async () => {
+    if (!selectedAgency) return;
+    const ok = await runAction(selectedAgency, "request_info", { note: requestInfoNote }, `Requested more information from ${selectedAgency.agency.display_name}.`);
+    if (ok) { setShowRequestInfoDialog(false); setRequestInfoNote(""); setSelectedAgency(null); }
   };
 
   const handleSuspend = async () => {
     if (!agencyToSuspend) return;
-    setActionLoading(agencyToSuspend.id);
-
-    // 1. Update status to suspended
-    const { error: statusError } = await updateApplicationStatus(agencyToSuspend.id, "suspended");
-    if (statusError) {
-      toast.error(`Failed to suspend: ${statusError}`);
-      setActionLoading(null);
-      return;
-    }
-
-    // 2. Ban the user account via edge function
-    await supabase.functions.invoke("admin-users", {
-      body: { action: "suspend", user_id: agencyToSuspend.user_id },
-    });
-
-    // 3. Pause all published listings
-    await supabase
-      .from("listings")
-      .update({ status: "paused" })
-      .eq("agency_id", agencyToSuspend.user_id)
-      .eq("status", "published");
-
-    setActionLoading(null);
-    toast.success(`${agencyToSuspend.company_name} has been suspended.`);
-    void logAdminAction("suspend_agency", "agency", agencyToSuspend.id, {
-      agency_name: agencyToSuspend.company_name,
-    });
-    setShowSuspendDialog(false);
-    setAgencyToSuspend(null);
+    const ok = await runAction(agencyToSuspend, "suspend", { reason: suspendReason }, `${agencyToSuspend.agency.display_name} has been suspended.`);
+    if (ok) { setShowSuspendDialog(false); setSuspendReason(""); setAgencyToSuspend(null); }
   };
 
-  const handleReactivate = async (agency: AgencyApplication) => {
-    setActionLoading(agency.id);
-
-    // 1. Restore status to verified
-    const { error } = await updateApplicationStatus(agency.id, "verified");
-    if (error) {
-      toast.error(`Failed to reactivate: ${error}`);
-      setActionLoading(null);
-      return;
-    }
-
-    // 2. Unban the user account
-    await supabase.functions.invoke("admin-users", {
-      body: { action: "unsuspend", user_id: agency.user_id },
-    });
-
-    setActionLoading(null);
-    toast.success(`${agency.company_name} has been reactivated.`);
-    void logAdminAction("reactivate_agency", "agency", agency.id, {
-      agency_name: agency.company_name,
-    });
-  };
+  const handleReinstate = (item: AgencyListItem) =>
+    void runAction(item, "reinstate", undefined, `${item.agency.display_name} has been reinstated.`);
 
   // ── Status badge ───────────────────────────────────────────────────
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "verified":
+      case "approved":
         return <Badge className="bg-primary text-primary-foreground">Verified</Badge>;
-      case "pending":
+      case "draft":
+        return <Badge variant="secondary">Draft</Badge>;
+      case "submitted":
         return <Badge variant="secondary">Pending</Badge>;
       case "in_review":
         return <Badge className="bg-blue-100 text-blue-700 border-blue-200">In Review</Badge>;
+      case "more_info_required":
+        return <Badge className="bg-amber-100 text-amber-800 border-amber-200">Info Requested</Badge>;
       case "rejected":
         return <Badge variant="destructive">Rejected</Badge>;
       case "suspended":
@@ -256,17 +208,13 @@ export default function AdminAgencies() {
   };
 
   const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 
-  const pendingCount   = allApplications.filter((a) => a.status === "pending").length;
-  const inReviewCount  = allApplications.filter((a) => a.status === "in_review").length;
-  const verifiedCount  = allApplications.filter((a) => a.status === "verified").length;
-  const rejectedCount  = allApplications.filter((a) => a.status === "rejected").length;
-  const suspendedCount = allApplications.filter((a) => a.status === "suspended").length;
+  const pendingCount   = allAgencies.filter((a) => a.verification.status === "submitted" || a.verification.status === "more_info_required").length;
+  const inReviewCount  = allAgencies.filter((a) => a.verification.status === "in_review").length;
+  const verifiedCount  = allAgencies.filter((a) => a.verification.status === "approved").length;
+  const rejectedCount  = allAgencies.filter((a) => a.verification.status === "rejected").length;
+  const suspendedCount = allAgencies.filter((a) => a.verification.status === "suspended").length;
 
   return (
     <AdminLayout>
@@ -293,7 +241,7 @@ export default function AdminAgencies() {
         {/* Stats */}
         <div className="grid sm:grid-cols-5 gap-4">
           {[
-            { label: "Total",        value: allApplications.length, color: "" },
+            { label: "Total",        value: allAgencies.length, color: "" },
             { label: "Verified",     value: verifiedCount,  color: "text-primary" },
             { label: "Pending / Review", value: pendingCount + inReviewCount, color: "text-amber-600" },
             { label: "Rejected",     value: rejectedCount,  color: "text-destructive" },
@@ -320,7 +268,7 @@ export default function AdminAgencies() {
             />
           </div>
           <div className="flex gap-2 flex-wrap">
-            {["all", "pending", "in_review", "verified", "rejected", "suspended"].map((status) => (
+            {["all", "submitted", "in_review", "more_info_required", "approved", "rejected", "suspended"].map((status) => (
               <Button
                 key={status}
                 variant={statusFilter === status ? "default" : "outline"}
@@ -328,7 +276,7 @@ export default function AdminAgencies() {
                 onClick={() => setStatusFilter(status)}
                 className="capitalize"
               >
-                {status.replace("_", " ")}
+                {status.replace(/_/g, " ")}
               </Button>
             ))}
           </div>
@@ -352,89 +300,89 @@ export default function AdminAgencies() {
                   <TableRow>
                     <TableHead>Agency</TableHead>
                     <TableHead>Location</TableHead>
-                    <TableHead>PAN</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Submitted</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAgencies.map((agency) => (
-                    <TableRow key={agency.id}>
+                  {filteredAgencies.map((item) => (
+                    <TableRow key={item.agency.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                             <Building2 className="h-5 w-5 text-primary" />
                           </div>
                           <div>
-                            <p className="font-medium">{agency.company_name}</p>
-                            <p className="text-sm text-muted-foreground">{agency.email}</p>
+                            <p className="font-medium">{item.agency.display_name}</p>
+                            <p className="text-sm text-muted-foreground">{item.agency.email}</p>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm">
                           <MapPin className="h-4 w-4 text-muted-foreground" />
-                          {agency.city}, {agency.district}
+                          {[item.agency.city, item.agency.district].filter(Boolean).join(", ") || "—"}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <code className="text-xs bg-muted px-2 py-1 rounded">{agency.pan_number}</code>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(agency.status)}</TableCell>
+                      <TableCell>{getStatusBadge(item.verification.status)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {formatDate(agency.created_at)}
+                        {item.verification.submitted_at ? formatDate(item.verification.submitted_at) : "—"}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" disabled={actionLoading === agency.id}>
-                              {actionLoading === agency.id
+                            <Button variant="ghost" size="icon" aria-label="Actions" disabled={actionLoading === item.agency.id}>
+                              {actionLoading === item.agency.id
                                 ? <Loader2 className="h-4 w-4 animate-spin" />
                                 : <MoreHorizontal className="h-4 w-4" />}
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openDetail(agency)}>
+                            <DropdownMenuItem onClick={() => openDetail(item)}>
                               <Eye className="h-4 w-4 mr-2" />
                               View Details
                             </DropdownMenuItem>
-                            {agency.status === "pending" && (
-                              <DropdownMenuItem onClick={() => handleSetInReview(agency)}>
+                            {item.verification.status === "submitted" && (
+                              <DropdownMenuItem onClick={() => handleStartReview(item)}>
                                 <Clock className="h-4 w-4 mr-2" />
                                 Mark In Review
                               </DropdownMenuItem>
                             )}
-                            {(agency.status === "pending" || agency.status === "in_review") && (
+                            {(item.verification.status === "submitted" || item.verification.status === "in_review" || item.verification.status === "more_info_required") && (
                               <>
-                                <DropdownMenuItem onClick={() => handleApprove(agency)}>
+                                <DropdownMenuItem onClick={() => { setSelectedAgency(item); setShowRequestInfoDialog(true); }}>
+                                  <HelpCircle className="h-4 w-4 mr-2" />
+                                  Request Info
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleApprove(item)}>
                                   <CheckCircle className="h-4 w-4 mr-2" />
                                   Approve
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { setSelectedAgency(agency); setShowRejectDialog(true); }}>
+                                <DropdownMenuItem onClick={() => { setSelectedAgency(item); setShowRejectDialog(true); }}>
                                   <XCircle className="h-4 w-4 mr-2" />
                                   Reject
                                 </DropdownMenuItem>
                               </>
                             )}
-                            {agency.status === "verified" && (
+                            {item.verification.status === "approved" && (
                               <>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   className="text-destructive"
-                                  onClick={() => { setAgencyToSuspend(agency); setShowSuspendDialog(true); }}
+                                  onClick={() => { setAgencyToSuspend(item); setShowSuspendDialog(true); }}
                                 >
                                   <ShieldOff className="h-4 w-4 mr-2" />
                                   Suspend Agency
                                 </DropdownMenuItem>
                               </>
                             )}
-                            {agency.status === "suspended" && (
+                            {item.verification.status === "suspended" && (
                               <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => handleReactivate(agency)}>
+                                <DropdownMenuItem onClick={() => handleReinstate(item)}>
                                   <ShieldCheck className="h-4 w-4 mr-2" />
-                                  Reactivate Agency
+                                  Reinstate Agency
                                 </DropdownMenuItem>
                               </>
                             )}
@@ -452,15 +400,19 @@ export default function AdminAgencies() {
         <AgencyDetailDialog
           open={showDetailDialog}
           onOpenChange={setShowDetailDialog}
-          agency={selectedAgency}
+          item={selectedAgency}
+          documents={documents}
+          documentsLoading={documentsLoading}
           metrics={agencyMetrics}
           metricsLoading={metricsLoading}
           statusBadge={getStatusBadge}
           formatDate={formatDate}
+          onStartReview={handleStartReview}
+          onRequestInfo={() => setShowRequestInfoDialog(true)}
           onApprove={handleApprove}
           onReject={() => setShowRejectDialog(true)}
           onSuspend={() => { setAgencyToSuspend(selectedAgency); setShowSuspendDialog(true); }}
-          onReactivate={handleReactivate}
+          onReinstate={handleReinstate}
         />
 
         <AgencyRejectDialog
@@ -469,7 +421,17 @@ export default function AdminAgencies() {
           agency={selectedAgency}
           rejectionReason={rejectionReason}
           onReasonChange={setRejectionReason}
-          onConfirm={handleReject}
+          onConfirm={() => void handleReject()}
+          actionLoading={actionLoading}
+        />
+
+        <AgencyRequestInfoDialog
+          open={showRequestInfoDialog}
+          onOpenChange={setShowRequestInfoDialog}
+          agency={selectedAgency}
+          note={requestInfoNote}
+          onNoteChange={setRequestInfoNote}
+          onConfirm={() => void handleRequestInfo()}
           actionLoading={actionLoading}
         />
 
@@ -477,7 +439,9 @@ export default function AdminAgencies() {
           open={showSuspendDialog}
           onOpenChange={setShowSuspendDialog}
           agency={agencyToSuspend}
-          onConfirm={handleSuspend}
+          reason={suspendReason}
+          onReasonChange={setSuspendReason}
+          onConfirm={() => void handleSuspend()}
           actionLoading={actionLoading}
         />
       </div>

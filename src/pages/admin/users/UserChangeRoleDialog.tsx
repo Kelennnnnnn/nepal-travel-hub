@@ -8,22 +8,25 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { type AdminUser, displayName } from "./UserDetailDialog";
-
-type UserRole = "user" | "agency" | "admin";
+import { type AdminUser, type PlatformRole, displayName } from "./UserDetailDialog";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: AdminUser | null;
-  newRole: UserRole;
-  onNewRoleChange: (role: UserRole) => void;
+  newRole: PlatformRole;
+  onNewRoleChange: (role: PlatformRole) => void;
   onConfirm: () => void;
   actionLoading: string | null;
+  /** Only a super_admin may grant admin/super_admin — see admin-users edge
+   *  function's ADMIN_GRANTABLE/SUPER_ADMIN_ONLY_GRANTABLE split. Hiding
+   *  those two options for a plain admin caller avoids a confusing 403 on
+   *  submit for an action the UI shouldn't have offered in the first place. */
+  callerIsSuperAdmin: boolean;
 }
 
 export function UserChangeRoleDialog({
-  open, onOpenChange, user, newRole, onNewRoleChange, onConfirm, actionLoading,
+  open, onOpenChange, user, newRole, onNewRoleChange, onConfirm, actionLoading, callerIsSuperAdmin,
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -37,16 +40,24 @@ export function UserChangeRoleDialog({
         </DialogHeader>
         <div className="space-y-3 py-2">
           <Label>New Role</Label>
-          <Select value={newRole} onValueChange={(v) => onNewRoleChange(v as UserRole)}>
+          <Select value={newRole} onValueChange={(v) => onNewRoleChange(v as PlatformRole)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="user">Traveler</SelectItem>
+              <SelectItem value="traveler">Traveler</SelectItem>
               <SelectItem value="agency">Agency</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="support">Support</SelectItem>
+              <SelectItem value="finance">Finance</SelectItem>
+              {callerIsSuperAdmin && <SelectItem value="admin">Admin</SelectItem>}
+              {callerIsSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
             </SelectContent>
           </Select>
+          {!callerIsSuperAdmin && (
+            <p className="text-xs text-muted-foreground">
+              Only a Super Admin can grant Admin or Super Admin access.
+            </p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

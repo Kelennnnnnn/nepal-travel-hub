@@ -1,7 +1,7 @@
 const RESEND_API_KEY  = Deno.env.get("RESEND_API_KEY")  ?? "";
 const FROM_EMAIL      = Deno.env.get("FROM_EMAIL")      ?? "onboarding@resend.dev";
-const REPLY_TO_EMAIL  = Deno.env.get("REPLY_TO_EMAIL")  ?? "hello@yatranepal.com";
-const PLATFORM_NAME   = "Yatra Nepal";
+const REPLY_TO_EMAIL  = Deno.env.get("REPLY_TO_EMAIL")  ?? "hello@intonepal.com";
+const PLATFORM_NAME   = "Into Nepal";
 
 // Mailtrap Email Testing — set MAILTRAP_USER + MAILTRAP_PASS (the SMTP credentials
 // shown in mailtrap.io → Email Testing → Inboxes → Show Credentials).

@@ -3,381 +3,294 @@ import { supabase } from "@/lib/supabase";
 import { logger } from "@/lib/logger";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
+// PHASE_4_AGENCY_ONBOARDING.md. Rebuilt against the Phase 2 schema, which
+// splits what used to be one `agency_applications` row into three tables:
+// `agencies` (business entity), `agency_verification` (current status),
+// `agency_documents` (one row per document). This store is still Zustand
+// (not migrated to TanStack Query — that's a separate, broader refactor
+// flagged in PHASE_0_FORENSIC_AUDIT.md FE-03/AUDIT_REPORT.md FE-04 and
+// deliberately out of scope here) but its internals are entirely new.
+
 export type VerificationStatus =
   | "unregistered"
-  | "pending"
+  | "draft"
+  | "submitted"
   | "in_review"
-  | "verified"
-  | "rejected"
-  | "suspended";
+  | "more_info_required"
+  | "approved"
+  | "suspended"
+  | "rejected";
 
-export interface AgencyApplication {
+export interface Agency {
   id: string;
-  user_id: string;
-  company_name: string;
-  registration_number: string;
-  pan_number: string;
-  address: string;
-  city: string;
-  district: string;
-  phone: string;
-  email: string;
-  website: string;
-  owner_name: string;
-  owner_phone: string;
+  legal_name: string;
+  display_name: string;
+  slug: string;
   description: string;
-  license_url: string;
-  pan_url: string;
-  insurance_url: string;
-  logo_url?: string;
-  stripe_account_id?: string;
-  status: VerificationStatus;
-  rejection_reason: string;
+  city: string | null;
+  district: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
   created_at: string;
   updated_at: string;
 }
 
+export interface AgencyVerification {
+  id: string;
+  agency_id: string;
+  status: VerificationStatus;
+  submitted_at: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  info_requested_note: string | null;
+  updated_at: string;
+}
+
+export type AgencyDocumentType = "business_registration" | "tourism_license" | "pan_certificate" | "insurance" | "other";
+
+export interface AgencyDocument {
+  id: string;
+  agency_id: string;
+  document_type: AgencyDocumentType;
+  storage_path: string;
+  mime_type: string;
+  size_bytes: number;
+  status: "pending" | "approved" | "rejected" | "expired";
+  created_at: string;
+}
+
+export interface AgencyListItem {
+  agency: Agency;
+  verification: AgencyVerification;
+}
+
+export interface ApplicationFields {
+  companyName: string;
+  registrationNumber?: string;
+  panNumber?: string;
+  address?: string;
+  city?: string;
+  district?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  ownerName?: string;
+  ownerPhone?: string;
+  description?: string;
+}
+
+async function invokeFn(name: string, body: Record<string, unknown>): Promise<{ data: unknown; error: string | null }> {
+  const { data, error } = await supabase.functions.invoke(name, { body });
+  if (error) return { data: null, error: error.message };
+  if (data?.error) return { data: null, error: data.error as string };
+  return { data, error: null };
+}
+
 interface AgencyStore {
   // Current user's application
-  application: AgencyApplication | null;
+  myAgency: Agency | null;
+  myVerification: AgencyVerification | null;
+  myDocuments: AgencyDocument[];
   verificationStatus: VerificationStatus;
   isLoading: boolean;
 
-  // All applications (admin view)
-  allApplications: AgencyApplication[];
+  // Admin view
+  allAgencies: AgencyListItem[];
   isLoadingAll: boolean;
 
-  // Actions — agency side
+  // Applicant actions
   fetchMyApplication: () => Promise<void>;
-  submitApplication: (form: {
-    companyName: string;
-    registrationNumber: string;
-    panNumber: string;
-    address: string;
-    city: string;
-    district: string;
-    phone: string;
-    email: string;
-    website: string;
-    ownerName: string;
-    ownerPhone: string;
-    description: string;
-    licenseFile: string;
-    panFile: string;
-    insuranceFile: string;
-  }) => Promise<{ error: string | null }>;
+  saveDraft: (fields: ApplicationFields) => Promise<{ error: string | null; agencyId?: string }>;
+  uploadDocument: (agencyId: string, documentType: AgencyDocumentType, file: File) => Promise<{ error: string | null }>;
+  submitApplication: (fields: ApplicationFields) => Promise<{ error: string | null }>;
   subscribeToMyApplication: () => () => void;
 
-  // Actions — admin side
-  fetchAllApplications: () => Promise<void>;
-  subscribeToAllApplications: () => () => void;
-  updateApplicationStatus: (
-    applicationId: string,
-    status: VerificationStatus,
-    rejectionReason?: string
+  // Admin actions
+  fetchAllAgencies: () => Promise<void>;
+  subscribeToAllAgencies: () => () => void;
+  fetchAgencyDocuments: (agencyId: string) => Promise<AgencyDocument[]>;
+  reviewAction: (
+    agencyId: string,
+    action: "start_review" | "request_info" | "approve" | "reject" | "suspend" | "reinstate",
+    extra?: { reason?: string; note?: string },
   ) => Promise<{ error: string | null }>;
 
-  // Reset
   reset: () => void;
 }
 
 export const useAgencyStore = create<AgencyStore>((set, get) => ({
-  application: null,
+  myAgency: null,
+  myVerification: null,
+  myDocuments: [],
   verificationStatus: "unregistered",
   isLoading: true,
-  allApplications: [],
+  allAgencies: [],
   isLoadingAll: false,
 
-  // ── Agency: fetch own application ────────────────────────
+  // ── Applicant: fetch own application ─────────────────────────────────
   fetchMyApplication: async () => {
     set({ isLoading: true });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      set({ isLoading: false });
-      return;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { set({ isLoading: false }); return; }
 
-    const { data, error } = await supabase
-      .from("agency_applications")
-      .select("*")
+    const { data: membership } = await supabase
+      .from("agency_users")
+      .select("agency_id")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
+      .eq("agency_role", "owner")
+      .is("removed_at", null)
       .maybeSingle();
 
-    if (error) {
-      logger.error("Error fetching application:", error.message);
+    if (!membership) {
+      set({ myAgency: null, myVerification: null, myDocuments: [], verificationStatus: "unregistered", isLoading: false });
+      return;
+    }
+
+    const [agencyRes, verificationRes, documentsRes] = await Promise.all([
+      supabase.from("agencies").select("*").eq("id", membership.agency_id).single(),
+      supabase.from("agency_verification").select("*").eq("agency_id", membership.agency_id).single(),
+      supabase.from("agency_documents").select("*").eq("agency_id", membership.agency_id),
+    ]);
+
+    if (agencyRes.error || verificationRes.error) {
+      logger.error("Error fetching agency application:", agencyRes.error?.message ?? verificationRes.error?.message);
       set({ isLoading: false });
       return;
     }
 
-    if (data) {
-      set({
-        application: data as AgencyApplication,
-        verificationStatus: data.status as VerificationStatus,
-        isLoading: false,
-      });
-    } else {
-      set({
-        application: null,
-        verificationStatus: "unregistered",
-        isLoading: false,
-      });
-    }
+    set({
+      myAgency: agencyRes.data as Agency,
+      myVerification: verificationRes.data as AgencyVerification,
+      myDocuments: (documentsRes.data ?? []) as AgencyDocument[],
+      verificationStatus: (verificationRes.data as AgencyVerification).status,
+      isLoading: false,
+    });
   },
 
-  // ── Agency: submit application ───────────────────────────
-  submitApplication: async (form) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return { error: "Not authenticated" };
+  // ── Applicant: save draft (idempotent — create or update) ───────────
+  saveDraft: async (fields) => {
+    const { data, error } = await invokeFn("agency-application", { action: "save_draft", fields });
+    if (error) return { error };
+    const agencyId = (data as { agency_id: string }).agency_id;
+    await get().fetchMyApplication();
+    return { error: null, agencyId };
+  },
 
-    // Check for existing application
-    const { data: existing } = await supabase
-      .from("agency_applications")
-      .select("id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+  // ── Applicant: upload a document (direct client upload — RLS-protected
+  //    via has_agency_access, which works once saveDraft has run once) ──
+  uploadDocument: async (agencyId, documentType, file) => {
+    if (file.size > 5 * 1024 * 1024) return { error: "File must be under 5MB" };
+    const allowedMime = ["application/pdf", "image/jpeg", "image/png"];
+    if (!allowedMime.includes(file.type)) return { error: "File must be a PDF, JPG, or PNG" };
 
-    if (existing) {
-      // Update existing application (resubmission)
-      const { data, error } = await supabase
-        .from("agency_applications")
-        .update({
-          company_name: form.companyName,
-          registration_number: form.registrationNumber,
-          pan_number: form.panNumber,
-          address: form.address,
-          city: form.city,
-          district: form.district,
-          phone: form.phone,
-          email: form.email,
-          website: form.website,
-          owner_name: form.ownerName,
-          owner_phone: form.ownerPhone,
-          description: form.description,
-          license_url: form.licenseFile,
-          pan_url: form.panFile,
-          insurance_url: form.insuranceFile,
-          status: "pending",
-          rejection_reason: "",
-        })
-        .eq("id", existing.id)
-        .select()
-        .single();
+    const ext = file.type === "application/pdf" ? "pdf" : file.type === "image/png" ? "png" : "jpg";
+    const storagePath = `${agencyId}/${documentType}-${Date.now()}.${ext}`;
 
-      if (error) return { error: error.message };
-      set({
-        application: data as AgencyApplication,
-        verificationStatus: "pending",
-      });
+    const { error: uploadErr } = await supabase.storage.from("agency-documents").upload(storagePath, file, { upsert: true });
+    if (uploadErr) return { error: uploadErr.message };
 
-      // Send application received email (fire-and-forget — don't block UI)
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        supabase.functions.invoke("send-agency-application-email", {
-          body: {
-            agency_name: form.companyName,
-            owner_name: form.ownerName,
-            email: form.email,
-          },
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        }).catch(() => {});
-      }
-
-      return { error: null };
-    }
-
-    // Insert new application
-    const { data, error } = await supabase
-      .from("agency_applications")
-      .insert({
-        user_id: user.id,
-        company_name: form.companyName,
-        registration_number: form.registrationNumber,
-        pan_number: form.panNumber,
-        address: form.address,
-        city: form.city,
-        district: form.district,
-        phone: form.phone,
-        email: form.email,
-        website: form.website,
-        owner_name: form.ownerName,
-        owner_phone: form.ownerPhone,
-        description: form.description,
-        license_url: form.licenseFile,
-        pan_url: form.panFile,
-        insurance_url: form.insuranceFile,
-        status: "pending",
-      })
-      .select()
-      .single();
-
-    if (error) return { error: error.message };
-    set({
-      application: data as AgencyApplication,
-      verificationStatus: "pending",
+    // Replace any prior row of the same document_type for this agency —
+    // an agency should have at most one current file per document type.
+    await supabase.from("agency_documents").delete().eq("agency_id", agencyId).eq("document_type", documentType);
+    const { error: insertErr } = await supabase.from("agency_documents").insert({
+      agency_id: agencyId, document_type: documentType, storage_path: storagePath, mime_type: file.type, size_bytes: file.size,
     });
+    if (insertErr) return { error: insertErr.message };
 
-    // Send application received email (fire-and-forget — don't block UI)
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      supabase.functions.invoke("send-agency-application-email", {
-        body: {
-          agency_name: form.companyName,
-          owner_name: form.ownerName,
-          email: form.email,
-        },
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      }).catch(() => {});
-    }
-
+    await get().fetchMyApplication();
     return { error: null };
   },
 
-  // ── Agency: real-time subscription for own application ───
+  // ── Applicant: final submit ──────────────────────────────────────────
+  submitApplication: async (fields) => {
+    const { error } = await invokeFn("agency-application", { action: "submit", fields });
+    if (error) return { error };
+    await get().fetchMyApplication();
+    return { error: null };
+  },
+
+  // ── Applicant: real-time subscription for own application ───────────
   subscribeToMyApplication: () => {
     let channel: RealtimeChannel | null = null;
 
     (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      const { data: membership } = await supabase
+        .from("agency_users").select("agency_id").eq("user_id", user.id).eq("agency_role", "owner").is("removed_at", null).maybeSingle();
+      if (!membership) return;
 
       channel = supabase
-        .channel("my-agency-application")
+        .channel("my-agency-verification")
         .on(
           "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "agency_applications",
-            filter: `user_id=eq.${user.id}`,
-          },
+          { event: "*", schema: "public", table: "agency_verification", filter: `agency_id=eq.${membership.agency_id}` },
           (payload) => {
-            if (payload.eventType === "DELETE") {
-              set({ application: null, verificationStatus: "unregistered" });
-              return;
-            }
-            const row = payload.new as AgencyApplication;
-            set({
-              application: row,
-              verificationStatus: row.status as VerificationStatus,
-            });
-          }
+            if (payload.eventType === "DELETE") return;
+            const row = payload.new as AgencyVerification;
+            set({ myVerification: row, verificationStatus: row.status });
+          },
         )
         .subscribe();
     })();
 
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
+    return () => { if (channel) supabase.removeChannel(channel); };
   },
 
-  // ── Admin: fetch all applications ────────────────────────
-  fetchAllApplications: async () => {
+  // ── Admin: fetch all agencies + their verification status ───────────
+  fetchAllAgencies: async () => {
     set({ isLoadingAll: true });
-    const { data, error } = await supabase
-      .from("agency_applications")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      logger.error("Error fetching all applications:", error.message);
+    const [agenciesRes, verificationsRes] = await Promise.all([
+      supabase.from("agencies").select("*").order("created_at", { ascending: false }),
+      supabase.from("agency_verification").select("*"),
+    ]);
+    if (agenciesRes.error || verificationsRes.error) {
+      logger.error("Error fetching all agencies:", agenciesRes.error?.message ?? verificationsRes.error?.message);
       set({ isLoadingAll: false });
       return;
     }
-
-    set({ allApplications: (data ?? []) as AgencyApplication[], isLoadingAll: false });
+    const verificationByAgency = new Map((verificationsRes.data ?? []).map((v) => [v.agency_id as string, v as AgencyVerification]));
+    const list: AgencyListItem[] = (agenciesRes.data ?? [])
+      .map((a) => ({ agency: a as Agency, verification: verificationByAgency.get((a as Agency).id) }))
+      .filter((x): x is AgencyListItem => !!x.verification);
+    set({ allAgencies: list, isLoadingAll: false });
   },
 
-  // ── Admin: real-time subscription for all applications ───
-  subscribeToAllApplications: () => {
+  // ── Admin: real-time subscription for all agency_verification rows ──
+  subscribeToAllAgencies: () => {
     const channel = supabase
-      .channel("all-agency-applications")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "agency_applications",
-        },
-        (payload) => {
-          const current = get().allApplications;
-
-          if (payload.eventType === "INSERT") {
-            set({ allApplications: [payload.new as AgencyApplication, ...current] });
-          } else if (payload.eventType === "UPDATE") {
-            set({
-              allApplications: current.map((app) =>
-                app.id === (payload.new as AgencyApplication).id
-                  ? (payload.new as AgencyApplication)
-                  : app
-              ),
-            });
-          } else if (payload.eventType === "DELETE") {
-            set({
-              allApplications: current.filter(
-                (app) => app.id !== (payload.old as { id: string }).id
-              ),
-            });
-          }
+      .channel("all-agency-verification")
+      .on("postgres_changes", { event: "*", schema: "public", table: "agency_verification" }, (payload) => {
+        const current = get().allAgencies;
+        if (payload.eventType === "UPDATE") {
+          const row = payload.new as AgencyVerification;
+          set({ allAgencies: current.map((item) => (item.agency.id === row.agency_id ? { ...item, verification: row } : item)) });
         }
-      )
+        // INSERT/DELETE on agency_verification are rare (one row per
+        // agency, created once by agency-application) — a full refetch on
+        // those is simpler and cheap enough not to special-case here.
+      })
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   },
 
-  // ── Admin: approve / reject ──────────────────────────────
-  updateApplicationStatus: async (applicationId, status, rejectionReason = "") => {
-    const { error } = await supabase
-      .from("agency_applications")
-      .update({ status, rejection_reason: rejectionReason })
-      .eq("id", applicationId);
+  // ── Admin: fetch documents for one agency (detail dialog) ───────────
+  fetchAgencyDocuments: async (agencyId) => {
+    const { data, error } = await supabase.from("agency_documents").select("*").eq("agency_id", agencyId);
+    if (error) { logger.error("Error fetching agency documents:", error.message); return []; }
+    return (data ?? []) as AgencyDocument[];
+  },
 
-    if (error) return { error: error.message };
-
-    // Optimistic update in allApplications
-    const current = get().allApplications;
-    const targetApp = current.find((app) => app.id === applicationId);
-    set({
-      allApplications: current.map((app) =>
-        app.id === applicationId
-          ? { ...app, status, rejection_reason: rejectionReason }
-          : app
-      ),
-    });
-
-    // Upgrade/downgrade the user's auth role via Edge Function
-    if (targetApp && (status === "verified" || status === "rejected")) {
-      const action = status === "verified" ? "approve" : "reject";
-      try {
-        const { error: fnError } = await supabase.functions.invoke(
-          "upgrade-agency-role",
-          { body: { user_id: targetApp.user_id, action, reason: rejectionReason } }
-        );
-        if (fnError) {
-          logger.error("Role upgrade failed:", fnError.message);
-        }
-      } catch (err) {
-        logger.error("Role upgrade call failed:", err);
-      }
-    }
-
+  // ── Admin: review actions ────────────────────────────────────────────
+  reviewAction: async (agencyId, action, extra) => {
+    const { error } = await invokeFn("review-agency-application", { action, agency_id: agencyId, ...extra });
+    if (error) return { error };
+    await get().fetchAllAgencies();
     return { error: null };
   },
 
-  reset: () =>
-    set({
-      application: null,
-      verificationStatus: "unregistered",
-      allApplications: [],
-    }),
+  reset: () => set({ myAgency: null, myVerification: null, myDocuments: [], verificationStatus: "unregistered", allAgencies: [] }),
 }));

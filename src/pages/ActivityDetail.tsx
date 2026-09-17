@@ -11,9 +11,11 @@ import { Layout } from "@/components/layout/Layout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ReviewsSection } from "@/components/reviews/ReviewsSection";
 import { useListing } from "@/lib/queries";
+import { availableCapacity, type Departure } from "@/stores/departuresStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useWishlistIds, useToggleWishlist } from "@/hooks/useWishlist";
 import { supabase } from "@/lib/supabase";
@@ -56,6 +58,7 @@ export default function ActivityDetail() {
   const [agencyName, setAgencyName] = useState("");
   const [agencyId, setAgencyId] = useState("");
   const [relatedListings, setRelatedListings] = useState<RelatedListing[]>([]);
+  const [departures, setDepartures] = useState<Departure[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
@@ -68,14 +71,17 @@ export default function ActivityDetail() {
 
   useEffect(() => {
     if (!listing?.agency_id) return;
+    // Relies on agencies_public_select_approved (RLS) to scope this to
+    // approved agencies only — see usePublicAgencies in src/lib/queries.ts
+    // for why embedding agency_verification!inner(status) here instead
+    // would silently return nothing.
     supabase
-      .from("agency_applications")
-      .select("company_name, user_id")
-      .eq("user_id", listing.agency_id)
-      .eq("status", "verified")
+      .from("agencies")
+      .select("id, display_name")
+      .eq("id", listing.agency_id)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (!error && data?.company_name) { setAgencyName(data.company_name); setAgencyId(data.user_id); }
+        if (!error && data?.display_name) { setAgencyName(data.display_name); setAgencyId(data.id); }
       })
       .catch(() => {});
   }, [listing?.agency_id]);
@@ -84,7 +90,7 @@ export default function ActivityDetail() {
     if (!listing?.id || !listing?.category) return;
     supabase
       .from("listings")
-      .select("id, title, location, price, duration, difficulty, images, category, rating, review_count")
+      .select("id, title, location, price:base_price, duration:duration_label, difficulty, images, category, rating, review_count")
       .eq("status", "published")
       .eq("category", listing.category)
       .neq("id", listing.id)
@@ -94,6 +100,31 @@ export default function ActivityDetail() {
       })
       .catch(() => {});
   }, [listing?.id, listing?.category]);
+
+  // Real, bookable departure dates — replaces a free-typed date input.
+  // Phase 6: only scheduled, future departures with visible inventory
+  // (departures_public_select/inventory_public_select both already scope
+  // this to published listings only).
+  useEffect(() => {
+    if (!listing?.id) return;
+    const today = new Date().toISOString().split("T")[0];
+    supabase
+      .from("departures")
+      .select("*, inventory(*)")
+      .eq("listing_id", listing.id)
+      .eq("status", "scheduled")
+      .gte("departure_date", today)
+      .order("departure_date", { ascending: true })
+      .then(({ data, error }) => {
+        if (error) return;
+        const rows = (data ?? []).map((d) => ({
+          ...d,
+          inventory: Array.isArray(d.inventory) ? (d.inventory[0] ?? null) : d.inventory,
+        })) as Departure[];
+        setDepartures(rows.filter((d) => availableCapacity(d.inventory) > 0));
+      })
+      .catch(() => {});
+  }, [listing?.id]);
 
   if (isLoading) {
     return (
@@ -119,7 +150,11 @@ export default function ActivityDetail() {
 
   const price = Number(listing.price);
   const rating = Number(listing.rating);
-  const maxParticipants = listing.max_participants || 12;
+  const selectedDeparture = departures.find((d) => d.departure_date === selectedDate) ?? null;
+  const maxParticipants = Math.min(
+    listing.max_participants || 12,
+    selectedDeparture ? availableCapacity(selectedDeparture.inventory) : listing.max_participants || 12,
+  );
   const imgs: string[] = listing.images?.length ? listing.images : [FALLBACK_IMG];
   const totalBase = price * participants;
   const serviceFee = Math.round(totalBase * 0.05);
@@ -510,17 +545,35 @@ export default function ActivityDetail() {
                       <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">
                         Departure Date
                       </Label>
-                      <div className="flex items-center justify-between">
-                        <Input
-                          type="date"
-                          value={selectedDate}
-                          onChange={(e) => setSelectedDate(e.target.value)}
-                          min={new Date().toISOString().split("T")[0]}
-                          disabled={isBooking}
-                          className="border-0 p-0 h-auto bg-transparent font-bold text-sm focus-visible:ring-0 shadow-none"
-                        />
-                        <CalendarDays className="h-4 w-4 text-primary flex-shrink-0" />
-                      </div>
+                      {departures.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No upcoming departures scheduled yet — check back soon.</p>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2">
+                          <Select
+                            value={selectedDate}
+                            onValueChange={(v) => {
+                              setSelectedDate(v);
+                              const dep = departures.find((d) => d.departure_date === v);
+                              const avail = dep ? availableCapacity(dep.inventory) : listing.max_participants;
+                              setParticipants((p) => Math.min(p, Math.max(1, avail)));
+                            }}
+                            disabled={isBooking}
+                          >
+                            <SelectTrigger className="border-0 p-0 h-auto bg-transparent font-bold text-sm focus:ring-0 shadow-none">
+                              <SelectValue placeholder="Select a date" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {departures.map((d) => (
+                                <SelectItem key={d.id} value={d.departure_date}>
+                                  {new Date(d.departure_date + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                                  {" — "}{availableCapacity(d.inventory)} spot{availableCapacity(d.inventory) === 1 ? "" : "s"} left
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <CalendarDays className="h-4 w-4 text-primary flex-shrink-0" />
+                        </div>
+                      )}
                     </div>
 
                     <div className="p-4 rounded-xl bg-muted/50 border border-border/20">
@@ -615,7 +668,7 @@ export default function ActivityDetail() {
                     size="lg"
                     className="w-full h-14 text-base font-bold rounded-xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
                     onClick={handleBooking}
-                    disabled={isBooking}
+                    disabled={isBooking || departures.length === 0}
                   >
                     {isBooking ? (
                       <><Loader2 className="h-5 w-5 animate-spin mr-2" /> Processing…</>

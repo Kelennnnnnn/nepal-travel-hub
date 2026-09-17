@@ -1,0 +1,79 @@
+# Into Nepal — Phase 4: Agency Onboarding and Verification
+
+**Status: complete and validated end-to-end against the local Supabase stack**, including real document uploads to Storage, a real admin MFA (TOTP) session, and every state transition in the `agency_verification` lifecycle exercised through the actual HTTP API — not just read from code. This phase closes `AUDIT_REPORT.md` OPS-03 (untracked, unreviewable agency-documents bucket policy) and OPS-06 (agency role-escalation not audit-logged), and replaces the old single-shot `upgrade-agency-role`/`send-agency-application-email` functions with a full `draft → submitted → in_review → more_info_required → approved/rejected → suspended → reinstated` workflow with a database-enforced state machine.
+
+---
+
+## What changed
+
+**Database** (one new migration, one surgical edit to an existing Phase 2 migration, one surgical edit to a different existing Phase 2 migration — all safe since none has ever been applied anywhere live):
+
+- `supabase/migrations/20260917000001_agency_verification_transitions.sql` (**new**) — `guard_agency_verification_transition()` trigger (reusing `assert_valid_transition()` from migration 1) enforces the legal transition graph for `agency_verification.status`: `draft→[submitted]`, `submitted→[in_review, more_info_required, approved, rejected]`, `in_review→[more_info_required, approved, rejected]`, `more_info_required→[submitted, in_review]`, `approved→[suspended]`, `suspended→[approved]`, `rejected→[submitted]`. This is a real database constraint, not just application-layer discipline — proved in testing by attempting `more_info_required → approved` directly in SQL and getting a hard `INVALID_TRANSITION` error.
+- `supabase/migrations/20260916000003_agency_management.sql` — `has_agency_access()` is now `security definer` with `set search_path = public`. **This is a bug fix for a real, reproducible infinite-recursion bug found during this phase's own live testing** (full account below), not a design change. The function's own `agency_users` lookup was, before this fix, itself subject to `agency_users`' RLS policy (`agency_users_select_own_agency`), which calls `has_agency_access()` again — recursing until Postgres hit its rewrite-time recursion limit (`42P17 invalid_object_definition`, surfaced through Storage as a generic `DatabaseInvalidObjectDefinition` 400).
+- `supabase/migrations/20260916000013_messaging.sql` — added `is_conversation_participant(target_conversation_id uuid)`, a `security definer` helper, and rewrote `conversation_participants_select_own` to call it instead of a raw self-join (`select 1 from conversation_participants cp2 where cp2.conversation_id = ... `, querying the same table its own policy protects). **This is the same bug class as the `has_agency_access()` fix above, found in a completely different, pre-existing migration** (messaging, not agency onboarding) — it surfaced only because a Storage upload's applicable-policy set for `agency-documents` transitively includes the `message-attachments` bucket policies (all `storage.objects` policies are evaluated together at RLS-rewrite time, not short-circuited by `bucket_id`), which reference `conversation_participants`. Left in place, this bug would have caused every single document upload — including a first, fully legitimate one — to fail with a misleading "database schema invalid" error in production, with no connection visible to messaging at all.
+
+**Rebuilt edge function** (replaces `upgrade-agency-role` and `send-agency-application-email`, both deleted — `git rm -rq`):
+
+- `supabase/functions/agency-application/index.ts` (**new**) — self-service endpoint for applicants. `save_draft` creates or updates an `agencies` row + the applicant's `agency_users` owner membership + a `draft` `agency_verification` row (first call) or just updates `agencies` (subsequent calls). `submit` validates both required document types are present (`tourism_license`, `pan_certificate` — matching exactly what `AgencyOnboarding.tsx`'s wizard collects, not the old, wrong `business_registration` requirement caught before testing), checks the current status allows submission, transitions to `submitted`, clears any prior `rejection_reason`/`info_requested_note`, and emails the applicant (failure to send is logged, never blocks the submission — see gotcha below). Creation is routed through this service-role function rather than a client-side INSERT because no INSERT policy exists on `agencies`/`agency_users` for regular users, by design — avoids loosening RLS with a self-referential bootstrap policy.
+- `supabase/functions/review-agency-application/index.ts` (**new**) — admin-tier endpoint, `requirePlatformRole(["admin","super_admin"])` (AAL2-enforced). Actions: `start_review`, `request_info` (requires `note`), `approve` (grants `app_metadata.role: "agency"` to the owner via `auth.admin.updateUserById`), `reject` (requires `reason`), `suspend` (requires `reason`; pauses the agency's `published` listings — does **not** ban the account, a deliberate change from the old behavior), `reinstate` (returns status to `approved` — does **not** auto-republish paused listings, also deliberate). Every action writes `agency_status_history` (via the transition itself, populated by the guard trigger's context) and `audit_logs` (via `record_audit_log`, server-attributed).
+
+**Frontend:**
+
+- `src/stores/agencyStore.ts` — fully rewritten around the new schema and the two edge functions above (`fetchMyApplication`, `saveDraft`, `uploadDocument`, `submitApplication`, `subscribeToMyApplication`, `fetchAllAgencies`, `subscribeToAllAgencies`, `fetchAgencyDocuments`, `reviewAction`).
+- `src/pages/agency/AgencyOnboarding.tsx` — same 4-step wizard UI, rewired to call `saveDraft` on entering the Documents step (needed because `agency_documents` RLS requires an existing `agency_users` row, which doesn't exist until the first `save_draft`), then `uploadDocument`/`submitApplication`.
+- `src/pages/agency/AgencyVerificationStatus.tsx` — rewritten for the new 7-status set (adds `more_info_required`, shows `info_requested_note`).
+- `src/pages/admin/Agencies.tsx` + `src/pages/admin/agencies/{AgencyDetailDialog,AgencyRejectDialog,AgencySuspendDialog}.tsx` — rewritten for the new status set and `reviewAction` actions; `AgencySuspendDialog.tsx` now collects a required reason.
+- `src/pages/admin/agencies/AgencyRequestInfoDialog.tsx` (**new**) — collects the `note` for `request_info`.
+
+---
+
+## How this was verified
+
+Typecheck (`npx tsc --noEmit`) and lint (`eslint` on every touched file) both clean. Then full runtime testing against the local Supabase stack (Postgres + GoTrue + Storage + Edge Functions, via `supabase db reset` + real HTTP calls) — this phase specifically depended on that discipline, since two of its three real bugs would have passed any code review:
+
+1. **Applicant flow**, as two real users created via the Admin API, driven entirely through the actual edge functions and PostgREST (never a direct privileged insert standing in for the app):
+   - `save_draft` → `agencies`/`agency_users`/`agency_verification` rows created correctly, `agency_id` returned.
+   - `submit` with no documents uploaded → correctly rejected: `{"error":"Missing required documents: tourism_license, pan_certificate"}`.
+   - Document upload to Storage — **this is where the recursion bug was found**: both a legitimate (own-agency) and an illegitimate (different-agency) upload attempt failed *identically* with `{"error":"DatabaseInvalidObjectDefinition"}`, which was itself the tell — a correct RLS rejection should look different from a correct RLS success, not fail the same way for both. Diagnosed via `docker logs supabase_storage_...` (real error underneath: Postgres `42P17`), then confirmed directly in `psql` by calling `has_agency_access()` as the `authenticated` role with simulated JWT claims inside an explicit transaction, which produced `ERROR: stack depth limit exceeded` with a visible recursive call stack. Fixed (`security definer`), reset, re-tested — the **exact same two requests** then returned correctly-different results: legitimate upload `200`, illegitimate upload `403 "new row violates row-level security policy"`. Re-testing surfaced the second, independent bug (`conversation_participants_select_own`) the same way — same `42P17` symptom, traced via a fresh `psql` reproduction (`insert into storage.objects ... returning id` as `authenticated`) to `ERROR: infinite recursion detected in policy for relation "conversation_participants"`, fixed the same way, reset, re-tested clean.
+   - Both required documents uploaded, `agency_documents` rows inserted directly by the applicant via PostgREST (confirms the *table-level* `has_agency_access()`-gated policy, not just the Storage one, now works) → `submit` succeeded.
+   - Confirmed the email-send failure path explicitly: local stack has no `RESEND_API_KEY`, so `sendEmail()` returned `{error: "Email service not configured"}` — logged via `logError`, and `submit` still returned `{"success":true}`, proving the earlier-caught `.catch()` mistake (which would never have fired for this exact failure mode) is genuinely fixed.
+
+2. **Admin review flow**, as a real admin account with a real TOTP factor: enrolled via `POST /auth/v1/factors`, computed a real RFC 6238 code from the returned secret, completed a real `challenge`/`verify` round-trip, confirmed the returned JWT's `aal` claim was actually `aal2` before using it (same rigor as Phase 3's testing, reused rather than re-invented):
+   - `start_review` → status `submitted → in_review`, `reviewed_by`/`reviewed_at` stamped correctly.
+   - `request_info` without `note` → `400 "note is required"`; with `note` → status `→ more_info_required`, `info_requested_note` stored.
+   - Direct SQL attempt to jump `more_info_required → approved` → correctly rejected by the new guard trigger (`INVALID_TRANSITION`), proving the state machine is a real constraint and not just something the edge function happens to respect.
+   - Applicant resubmit (`more_info_required → submitted`) → succeeded, `info_requested_note` correctly cleared.
+   - `approve` → status `→ approved`, and — checked directly against `auth.users` — the owner's `app_metadata.role` actually flipped from `traveler` to `agency`.
+   - Created a real `published` listing for the agency (direct insert — listing creation itself is Phase 5), then `suspend` with a reason → status `→ suspended`, the listing's status flipped `published → paused`, and the owner's `auth.users.banned_until` was confirmed **unchanged** (the deliberate "don't ban the account" behavior, not just assumed from the code comment).
+   - `reinstate` → status `→ approved`, and the listing was confirmed to **stay** `paused` (the deliberate "don't auto-republish" behavior).
+   - A second agency, taken to `submitted` by its own owner: `reject` without `reason` → `400 "reason is required"`; with `reason` → status `→ rejected`, reason stored, and the owner's role confirmed **still** `traveler` (rejection must never grant access).
+   - Non-admin caller (`traveler` role) attempting any `review-agency-application` action → `403 "Requires one of: admin, super_admin"`, confirming the endpoint's own authorization check, independent of RLS.
+
+This phase found and fixed two genuine, would-have-shipped-broken RLS recursion bugs that no amount of reading the migration files would have caught — both only manifested when a real INSERT against `storage.objects` forced Postgres to evaluate the full applicable-policy set at rewrite time. Worth flagging explicitly: the second bug (`conversation_participants`) was not agency-onboarding code at all, and would very likely have been discovered instead as a confusing, hard-to-diagnose failure in whichever later phase first exercised real document or listing-image uploads (Phase 5 or beyond) if this phase's testing hadn't incidentally exercised the full Storage policy set first.
+
+---
+
+## Direct fixes to prior audit findings
+
+| Finding | Resolution |
+|---|---|
+| `AUDIT_REPORT.md` OPS-03 (agency-documents bucket policy never captured in any migration, unreviewable/unreproducible) | Now fully tracked in `supabase/migrations/20260916000016_storage_buckets.sql` (Phase 2), and this phase is what actually exercised it end-to-end for the first time, uncovering and fixing the recursion bug that made the policy non-functional regardless of its logic being otherwise correct. |
+| `AUDIT_REPORT.md` OPS-06 (agency role-escalation not audit-logged) | `review-agency-application` writes `audit_logs` server-side for every action, via the same `record_audit_log` pattern Phase 3 established for `admin-users`. |
+
+---
+
+## What Phase 4 deliberately did not do
+
+- **Did not implement document approval/rejection at the individual-document level** — `agency_documents.status`/`reviewed_by`/`reviewed_at`/`rejection_reason` columns exist (Phase 2 schema) but nothing in this phase's edge functions writes to them; the current review flow is agency-level only (`approve`/`reject`/`request_info` on the whole application). Per-document review UI/logic is a reasonable Phase 4.1 addition but wasn't requested and wasn't built.
+- **Did not build agency staff management** (`agency_users` beyond the owner row created at `save_draft`) — inviting additional staff to an agency, role changes within an agency (`staff`/`manager`/`owner`), removal — all deferred; `has_agency_access()`'s multi-role design supports it, but no UI or edge-function path exists yet.
+- **Did not touch listing creation/management** — the `published` listing used to test `suspend`'s pause behavior was inserted directly via `psql` as a test fixture, not through any application code path (none exists yet — that's Phase 5).
+- **Did not add document expiry handling** — `agency_documents.expires_at` exists in the schema but nothing checks or acts on it.
+- **Did not rate-limit or otherwise throttle repeated `save_draft`/`submit` calls** — same category of gap Phase 3 flagged for login/MFA, deferred to Phase 29.
+
+## Risks / things to verify before Phase 5
+
+- **The two RLS-recursion fixes in this phase (`has_agency_access`, `is_conversation_participant`) are both `security definer` functions that now bypass RLS internally.** Each is narrowly scoped and was re-verified after the fix to still enforce the correct authorization boundary (own-agency access allowed, cross-agency denied) — but this is a pattern worth actively watching for in every future phase: **any function called from inside an RLS policy that also queries the table that policy protects (or a table whose own policy calls back into it) is a candidate for this exact bug**, and it will not surface in code review or in `supabase db reset` — only in a real write against the affected table (or, as happened here, against an unrelated table whose applicable-policy set happens to transitively reference it). Phase 5+ should specifically test real INSERT/UPDATE paths against every RLS-protected table it touches, not just SELECT.
+- **`agency_documents`'s per-document `status`/`rejection_reason` fields are currently inert** (see above) — `AgencyDetailDialog.tsx` renders documents as simply present/absent, never as approved/rejected. If a future phase's UI implies per-document review is happening, it isn't yet.
+- **No automated test suite captures either recursion fix or the transition-guard trigger.** Both were verified manually via direct HTTP/SQL calls in this session; without a regression test, a future migration edit could reintroduce either bug (e.g., someone "simplifying" `has_agency_access()` back to a plain, non-`security definer` function) with nothing catching it until a real upload fails again in the same confusing way.
+
+Waiting for your go-ahead before Phase 5 (Listing management and moderation).

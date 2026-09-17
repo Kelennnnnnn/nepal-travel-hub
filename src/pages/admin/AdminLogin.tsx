@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { useAuthStore } from "@/stores/authStore";
-import { resolveAdminDestination } from "@/lib/roleRedirect";
+import { useAuthStore, ELEVATED_ROLES } from "@/stores/authStore";
+import { resolveElevatedDestination } from "@/lib/roleRedirect";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -28,14 +28,14 @@ export default function AdminLogin() {
       return;
     }
 
-    if (role !== "admin") {
-      toast.error("Access denied. This portal is for administrators only.");
+    if (!role || !ELEVATED_ROLES.includes(role)) {
+      toast.error("Access denied. This portal is for platform staff only.");
       await useAuthStore.getState().logout();
       setIsLoading(false);
       return;
     }
 
-    const dest = await resolveAdminDestination();
+    const dest = await resolveElevatedDestination();
     setIsLoading(false);
     navigate(dest, { replace: true });
   };
