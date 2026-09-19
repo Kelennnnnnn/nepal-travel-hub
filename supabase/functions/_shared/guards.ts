@@ -1,53 +1,10 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const admin = () => createClient(
-  Deno.env.get("SUPABASE_URL") ?? "",
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
-
-/** Throws a 503-style object if payments/payouts are disabled or maintenance is on. */
-export async function assertPaymentsEnabled(): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
-  const sb = admin();
-  const { data } = await sb
-    .from("platform_settings")
-    .select("key, value")
-    .in("key", ["payments_enabled", "maintenance_mode"]);
-
-  const map = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
-  if (map.maintenance_mode === true) {
-    return { ok: false, status: 503, error: "The platform is under maintenance. Please try again shortly." };
-  }
-  if (map.payments_enabled === false) {
-    return { ok: false, status: 503, error: "Payments are temporarily paused. Please try again shortly." };
-  }
-  return { ok: true };
-}
-
-export async function assertPayoutsEnabled(): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
-  const sb = admin();
-  const { data } = await sb
-    .from("platform_settings")
-    .select("value")
-    .eq("key", "payouts_enabled")
-    .maybeSingle();
-  if (data?.value === false) {
-    return { ok: false, status: 503, error: "Payouts are temporarily paused." };
-  }
-  return { ok: true };
-}
-
-/** Reads the commission rate from settings; defaults to 15 if unset. */
-export async function getCommissionRate(): Promise<number> {
-  const sb = admin();
-  const { data } = await sb
-    .from("platform_settings")
-    .select("value")
-    .eq("key", "commission_rate")
-    .maybeSingle();
-  const rate = Number(data?.value);
-  return Number.isFinite(rate) && rate > 0 ? rate : 15;
-}
+// (assertPaymentsEnabled/assertPayoutsEnabled/getCommissionRate used to live
+// here, backing the old Stripe-based payment/payout/commission model —
+// removed along with that model. Their platform_settings keys
+// (payments_enabled, payouts_enabled, commission_rate) are gone too; see
+// supabase/migrations/20260916000015_admin_and_audit.sql for what
+// platform_settings now holds. A new gate here, if needed, returns once the
+// new NPR reservation-fee model is designed.)
 
 /** Strips sensitive keys before logging. Use instead of raw console.error on objects. */
 const SENSITIVE = ["account_number", "account_number_encrypted", "routing_swift", "cvv", "card", "password", "token", "client_secret", "secret"];

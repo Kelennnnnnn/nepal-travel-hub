@@ -58,7 +58,10 @@ export default function PrivacyPolicy() {
                   Payment data:
                 </span>{" "}
                 We do not store your full card number. Payment is handled by
-                Stripe, which has its own privacy policy.
+                our payment provider, which has its own privacy policy.
+                {/* TODO: name the payment provider and link its privacy
+                    policy once the new NPR reservation-fee provider is
+                    chosen. */}
               </li>
             </ul>
           </section>
@@ -112,12 +115,15 @@ export default function PrivacyPolicy() {
                 </p>
               </div>
               <div className="p-4 bg-muted/50 rounded-xl">
-                <p className="font-medium mb-1">Stripe</p>
+                <p className="font-medium mb-1">Our payment provider</p>
+                {/* TODO: name the actual provider, its certifications, and
+                    its privacy policy URL once the new NPR reservation-fee
+                    payment provider is chosen — do not claim a specific
+                    certification on its behalf until confirmed. */}
                 <p className="text-sm text-muted-foreground">
-                  Our payment processor. When you make a payment, your card
-                  details are sent directly to Stripe and never touch our
-                  servers. Stripe is PCI DSS Level 1 certified. See Stripe's
-                  privacy policy at stripe.com/privacy.
+                  When you make a payment, your card details are sent
+                  directly to our payment provider and never touch our
+                  servers.
                 </p>
               </div>
               <div className="p-4 bg-muted/50 rounded-xl">
@@ -169,8 +175,8 @@ export default function PrivacyPolicy() {
                 <span className="font-medium text-foreground">
                   With service providers:
                 </span>{" "}
-                As described in Section 3, we use Supabase and Stripe to operate
-                the Platform.
+                As described in Section 3, we use Supabase and our payment
+                provider to operate the Platform.
               </li>
               <li>
                 <span className="font-medium text-foreground">

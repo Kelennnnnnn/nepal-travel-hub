@@ -63,7 +63,7 @@ interface DeparturesStore {
   isLoading: boolean;
 
   fetchDepartures: (listingId: string) => Promise<void>;
-  createDeparture: (listingId: string, agencyId: string, departureDate: string, cutoffAt?: string | null) => Promise<{ error: string | null }>;
+  createDeparture: (listingId: string, agencyId: string, departureDate: string, cutoffAt?: string | null) => Promise<{ data: Departure | null; error: string | null }>;
   setCapacity: (departureId: string, capacityTotal: number) => Promise<{ error: string | null }>;
   setDepartureStatus: (departureId: string, status: DepartureStatus) => Promise<{ error: string | null }>;
   deleteDeparture: (departureId: string) => Promise<{ error: string | null }>;
@@ -111,9 +111,10 @@ export const useDeparturesStore = create<DeparturesStore>((set, get) => ({
       .insert({ listing_id: listingId, agency_id: agencyId, departure_date: departureDate, cutoff_at: cutoffAt })
       .select()
       .single();
-    if (error) return { error: error.message };
-    set({ departures: [...get().departures, { ...data, inventory: null } as Departure].sort((a, b) => a.departure_date.localeCompare(b.departure_date)) });
-    return { error: null };
+    if (error) return { data: null, error: error.message };
+    const created = { ...data, inventory: null } as Departure;
+    set({ departures: [...get().departures, created].sort((a, b) => a.departure_date.localeCompare(b.departure_date)) });
+    return { data: created, error: null };
   },
 
   setCapacity: async (departureId, capacityTotal) => {

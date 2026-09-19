@@ -142,7 +142,13 @@ export default function AgencyOnboarding() {
       return;
     }
     setIsSubmitting(true);
-    const { error } = await submitApplication({ ...data, website });
+    // react-hook-form's zodResolver generic doesn't perfectly propagate
+    // onboardingSchema's required fields through to this callback's
+    // inferred `data` type (a known resolver/generic-inference gap) — the
+    // zod validation that already ran via handleSubmit guarantees every
+    // field is actually present at runtime; the assertion below reflects
+    // that, not a behavior change.
+    const { error } = await submitApplication({ ...data, website } as typeof data & { website: string; companyName: string });
     setIsSubmitting(false);
     if (error) { toast.error(error); return; }
     toast.success("Application submitted! We'll review your details within 2-3 business days.");

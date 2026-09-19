@@ -3,12 +3,11 @@ import { renderEmail, btnStyle, HR, row, detailsTable, alertBanner } from "./ema
 
 // Centralized site URL (target §34/§35: "centralize brand name, domain,
 // support email..."). Introduced in Phase 4 for the templates it touches
-// (agency application/approval/rejection); every other template in this
-// file still hardcodes "yatranepal.com" directly and should be switched to
-// this constant as its owning phase (11-13 booking emails, 19 payout
-// emails) comes up — not fixed wholesale here, since rewriting emails this
-// phase doesn't send is out of scope, but the constant is here now so that
-// work is a find-and-replace, not a redesign.
+// (agency application/approval/rejection); the old booking-confirmation/
+// cancellation/payout templates that also hardcoded "yatranepal.com" were
+// removed along with the Stripe-based payment model, not migrated to this
+// constant — new booking/payment emails, when that model exists, should
+// use it from the start.
 const SITE_URL = Deno.env.get("SITE_URL") ?? "https://intonepal.com";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -162,311 +161,7 @@ function _stepRow(num: string, title: string, desc: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. Booking confirmation  (traveller)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function bookingConfirmationEmail(data: {
-  travelerName: string;
-  bookingRef: string;
-  activityTitle: string;
-  tripDate: string;
-  guests: number;
-  totalAmount: number;
-  agencyName: string;
-}): EmailTemplate {
-  const travelerName = escapeHtml(data.travelerName);
-  const activityTitle = escapeHtml(data.activityTitle);
-  const agencyName = escapeHtml(data.agencyName);
-  const subject = `Booking Confirmed — ${data.bookingRef}`;
-
-  const html = renderEmail(`
-    ${alertBanner("Your booking is confirmed!", "success")}
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">You're all set, ${travelerName}!</h1>
-    <p style="margin:0 0 24px;color:#374151;">Your adventure with <strong>${agencyName}</strong> is booked. Keep this email for your records.</p>
-
-    ${detailsTable(
-      row("Booking Ref", `<span style="font-family:monospace;font-size:13px;font-weight:600;">${escapeHtml(data.bookingRef)}</span>`) +
-      row("Activity", activityTitle) +
-      row("Date", escapeHtml(data.tripDate)) +
-      row("Guests", String(data.guests)) +
-      row("Total Paid", `<strong>$${data.totalAmount.toFixed(2)}</strong>`) +
-      row("Operated by", agencyName)
-    )}
-
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
-      <tr>
-        <td>
-          <a href="https://yatranepal.com/bookings" style="${btnStyle()}">View My Bookings</a>
-        </td>
-      </tr>
-    </table>
-
-    ${HR}
-    <p style="margin:0;font-size:13px;color:#6b7280;">Questions about your trip? Reply to this email or contact ${agencyName} directly through your booking page.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">— The Yatra Nepal Team</p>
-  `);
-
-  const text = `Booking Confirmed — ${data.bookingRef}
-
-Hi ${data.travelerName}, you're all set!
-
-Your adventure with ${data.agencyName} is confirmed.
-
-Booking details:
-  Booking Ref : ${data.bookingRef}
-  Activity    : ${data.activityTitle}
-  Date        : ${data.tripDate}
-  Guests      : ${data.guests}
-  Total Paid  : $${data.totalAmount.toFixed(2)}
-  Operated by : ${data.agencyName}
-
-View your bookings: https://yatranepal.com/bookings
-
-— The Yatra Nepal Team`;
-
-  return { subject, html, text };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. Booking cancellation  (traveller)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function bookingCancellationEmail(data: {
-  travelerName: string;
-  bookingRef: string;
-  activityTitle: string;
-  reason: string;
-}): EmailTemplate {
-  const travelerName = escapeHtml(data.travelerName);
-  const activityTitle = escapeHtml(data.activityTitle);
-  const reason = data.reason ? escapeHtml(data.reason) : "";
-  const subject = `Booking Cancelled — ${data.bookingRef}`;
-
-  const html = renderEmail(`
-    ${alertBanner("Your booking has been cancelled.", "danger")}
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">Booking Cancelled</h1>
-    <p style="margin:0 0 24px;color:#374151;">Hi ${travelerName}, your booking for <strong>${activityTitle}</strong> (ref: <code style="background:#f3f4f6;padding:1px 5px;border-radius:4px;">${escapeHtml(data.bookingRef)}</code>) has been cancelled.</p>
-
-    ${reason ? `<div style="background-color:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:14px 16px;margin-bottom:20px;"><p style="margin:0;font-size:14px;color:#c2410c;"><strong>Reason:</strong> ${reason}</p></div>` : ""}
-
-    <p style="margin:0 0 20px;color:#374151;">If a refund is applicable, it will be processed to your original payment method within <strong>5–10 business days</strong>.</p>
-
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
-      <tr>
-        <td>
-          <a href="https://yatranepal.com/explore" style="${btnStyle()}">Find Another Activity</a>
-        </td>
-      </tr>
-    </table>
-
-    ${HR}
-    <p style="margin:0;font-size:13px;color:#6b7280;">If you have questions about your refund, reply to this email and we'll help.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">— The Yatra Nepal Team</p>
-  `);
-
-  const text = `Booking Cancelled — ${data.bookingRef}
-
-Hi ${data.travelerName},
-
-Your booking for "${data.activityTitle}" (ref: ${data.bookingRef}) has been cancelled.
-${reason ? `\nReason: ${data.reason}\n` : ""}
-If a refund is applicable, it will be processed within 5–10 business days.
-
-Browse other activities: https://yatranepal.com/explore
-
-— The Yatra Nepal Team`;
-
-  return { subject, html, text };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. New booking notification  (agency)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function newBookingAgencyEmail(data: {
-  agencyName: string;
-  bookingRef: string;
-  activityTitle: string;
-  travelerName: string;
-  tripDate: string;
-  guests: number;
-  totalAmount: number;
-  netPayout: number;
-}): EmailTemplate {
-  const agencyName = escapeHtml(data.agencyName);
-  const activityTitle = escapeHtml(data.activityTitle);
-  const travelerName = escapeHtml(data.travelerName);
-  const subject = `New Booking — ${data.bookingRef}`;
-
-  const html = renderEmail(`
-    ${alertBanner("You have a new booking!", "success")}
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">New Booking Received</h1>
-    <p style="margin:0 0 24px;color:#374151;">Hi ${agencyName}, a traveller just booked <strong>${activityTitle}</strong>.</p>
-
-    ${detailsTable(
-      row("Booking Ref", `<span style="font-family:monospace;font-size:13px;font-weight:600;">${escapeHtml(data.bookingRef)}</span>`) +
-      row("Traveller", travelerName) +
-      row("Activity", activityTitle) +
-      row("Trip Date", escapeHtml(data.tripDate)) +
-      row("Guests", String(data.guests)) +
-      row("Total Charged", `$${data.totalAmount.toFixed(2)}`) +
-      row("Your Net Payout", `<strong style="color:#16a34a;">$${data.netPayout.toFixed(2)}</strong>`)
-    )}
-
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
-      <tr>
-        <td>
-          <a href="https://partner.yatranepal.com/agency/bookings" style="${btnStyle()}">Manage Bookings</a>
-        </td>
-      </tr>
-    </table>
-
-    ${HR}
-    <p style="margin:0;font-size:13px;color:#6b7280;">Respond promptly to keep your response rate high and maintain your partner status.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">— The Yatra Nepal Team</p>
-  `);
-
-  const text = `New Booking — ${data.bookingRef}
-
-Hi ${data.agencyName},
-
-You have a new booking for "${data.activityTitle}".
-
-Booking details:
-  Booking Ref  : ${data.bookingRef}
-  Traveller    : ${data.travelerName}
-  Activity     : ${data.activityTitle}
-  Trip Date    : ${data.tripDate}
-  Guests       : ${data.guests}
-  Total Charged: $${data.totalAmount.toFixed(2)}
-  Your Payout  : $${data.netPayout.toFixed(2)}
-
-Manage bookings: https://partner.yatranepal.com/agency/bookings
-
-— The Yatra Nepal Team`;
-
-  return { subject, html, text };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. Booking cancelled notification  (agency)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function bookingCancelledAgencyEmail(data: {
-  agencyName: string;
-  bookingRef: string;
-  activityTitle: string;
-  travelerName: string;
-  refundAmount: number;
-  refundPercentage: number;
-}): EmailTemplate {
-  const agencyName = escapeHtml(data.agencyName);
-  const activityTitle = escapeHtml(data.activityTitle);
-  const travelerName = escapeHtml(data.travelerName);
-  const subject = `Booking Cancelled — ${data.bookingRef}`;
-
-  const html = renderEmail(`
-    ${alertBanner("A booking has been cancelled by the traveller.", "warning")}
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">Booking Cancelled</h1>
-    <p style="margin:0 0 24px;color:#374151;">Hi ${agencyName}, <strong>${travelerName}</strong> cancelled their booking for <strong>${activityTitle}</strong>.</p>
-
-    ${detailsTable(
-      row("Booking Ref", `<span style="font-family:monospace;font-size:13px;font-weight:600;">${escapeHtml(data.bookingRef)}</span>`) +
-      row("Traveller", travelerName) +
-      row("Activity", activityTitle) +
-      row("Refund Issued", `${data.refundPercentage}% ($${data.refundAmount.toFixed(2)})`)
-    )}
-
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
-      <tr>
-        <td>
-          <a href="https://partner.yatranepal.com/agency/bookings" style="${btnStyle("#2563eb")}">View Dashboard</a>
-        </td>
-      </tr>
-    </table>
-
-    ${HR}
-    <p style="margin:0;font-size:13px;color:#6b7280;">Your payout will be adjusted to reflect the cancellation policy. Log in for full details.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">— The Yatra Nepal Team</p>
-  `);
-
-  const text = `Booking Cancelled — ${data.bookingRef}
-
-Hi ${data.agencyName},
-
-${data.travelerName} cancelled their booking for "${data.activityTitle}".
-
-  Booking Ref   : ${data.bookingRef}
-  Traveller     : ${data.travelerName}
-  Refund Issued : ${data.refundPercentage}% ($${data.refundAmount.toFixed(2)})
-
-View dashboard: https://partner.yatranepal.com/agency/bookings
-
-— The Yatra Nepal Team`;
-
-  return { subject, html, text };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 7. Payout processed  (agency)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function payoutProcessedAgencyEmail(data: {
-  agencyName: string;
-  amount: number;
-  bookingCount: number;
-  transferId: string;
-}): EmailTemplate {
-  const agencyName = escapeHtml(data.agencyName);
-  const subject = `Payout of $${data.amount.toFixed(2)} Processed`;
-
-  const html = renderEmail(`
-    ${alertBanner(`$${data.amount.toFixed(2)} has been transferred to your bank account.`, "success")}
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">Payout Processed</h1>
-    <p style="margin:0 0 24px;color:#374151;">Hi ${agencyName}, your payout has been sent to your connected Stripe account.</p>
-
-    ${detailsTable(
-      row("Amount", `<strong style="color:#16a34a;font-size:16px;">$${data.amount.toFixed(2)}</strong>`) +
-      row("Bookings Covered", String(data.bookingCount)) +
-      row("Transfer ID", `<span style="font-family:monospace;font-size:12px;">${escapeHtml(data.transferId)}</span>`)
-    )}
-
-    <p style="margin:0 0 24px;color:#374151;font-size:14px;">Funds typically arrive within <strong>2–3 business days</strong> depending on your bank.</p>
-
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
-      <tr>
-        <td>
-          <a href="https://partner.yatranepal.com/agency/payouts" style="${btnStyle()}">View Payout History</a>
-        </td>
-      </tr>
-    </table>
-
-    ${HR}
-    <p style="margin:0;font-size:13px;color:#6b7280;">Questions about your payout? Reply to this email.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">— The Yatra Nepal Team</p>
-  `);
-
-  const text = `Payout of $${data.amount.toFixed(2)} Processed
-
-Hi ${data.agencyName},
-
-Your payout has been transferred to your connected Stripe account.
-
-  Amount           : $${data.amount.toFixed(2)}
-  Bookings Covered : ${data.bookingCount}
-  Transfer ID      : ${data.transferId}
-
-Funds arrive within 2–3 business days.
-
-View payout history: https://partner.yatranepal.com/agency/payouts
-
-— The Yatra Nepal Team`;
-
-  return { subject, html, text };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 8. Agency approved  (agency)
+// 3. Agency approved  (agency)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function agencyApprovedEmail(data: {
@@ -521,7 +216,7 @@ Go to Partner Dashboard: ${SITE_URL}/agency/dashboard
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 9. Agency rejected  (agency)
+// 4. Agency rejected  (agency)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function agencyRejectedEmail(data: {
@@ -582,7 +277,7 @@ If you believe this was an error, reply to this email.
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 10. Agency more info requested  (agency) — target §22 MORE_INFO_REQUIRED status
+// 5. Agency more info requested  (agency) — target §22 MORE_INFO_REQUIRED status
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function agencyMoreInfoRequiredEmail(data: {
@@ -632,7 +327,7 @@ Update your application: ${SITE_URL}/agency/onboarding
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 11. Agency suspended  (agency) — target §26 AGENCY_SUSPENDED
+// 6. Agency suspended  (agency) — target §26 AGENCY_SUSPENDED
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function agencySuspendedEmail(data: {

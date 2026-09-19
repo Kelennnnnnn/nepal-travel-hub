@@ -42,14 +42,18 @@ Deno.serve(async (req: Request) => {
   const userId = user.id;
 
   try {
-    // Block deletion if upcoming confirmed bookings exist
+    // Block deletion if upcoming confirmed bookings exist. The trip date
+    // lives on the related departure (bookings.departure_id ->
+    // departures.departure_date), not on bookings itself — bookings also
+    // uses booking_status, not status (both fixed here; this function
+    // pre-dates the current schema and was never updated for it).
     const today = new Date().toISOString().split("T")[0];
     const { data: upcomingBookings } = await supabaseAdmin
       .from("bookings")
-      .select("id")
+      .select("id, departures!inner(departure_date)")
       .eq("traveler_id", userId)
-      .eq("status", "confirmed")
-      .gte("trip_date", today)
+      .eq("booking_status", "confirmed")
+      .gte("departures.departure_date", today)
       .limit(1);
 
     if (upcomingBookings && upcomingBookings.length > 0) {
@@ -68,18 +72,18 @@ Deno.serve(async (req: Request) => {
     // Cancel (archive) past bookings instead of hard-deleting
     await supabaseAdmin
       .from("bookings")
-      .update({ status: "cancelled", cancellation_reason: "Account deleted by user" })
+      .update({ booking_status: "cancelled", cancellation_reason: "Account deleted by user" })
       .eq("traveler_id", userId)
-      .neq("status", "cancelled");
+      .neq("booking_status", "cancelled");
 
     // Delete avatar from storage
     const { data: avatarFiles } = await supabaseAdmin.storage
-      .from("user-avatars")
+      .from("avatars")
       .list(userId);
 
     if (avatarFiles && avatarFiles.length > 0) {
       const paths = avatarFiles.map((f) => `${userId}/${f.name}`);
-      await supabaseAdmin.storage.from("user-avatars").remove(paths);
+      await supabaseAdmin.storage.from("avatars").remove(paths);
     }
 
     // Delete the auth user (cascades auth session)

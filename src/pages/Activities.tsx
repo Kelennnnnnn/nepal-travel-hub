@@ -28,6 +28,7 @@ import { categories, locations, DURATION_RANGES } from "@/data/activities";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import { FilterPanel } from "@/components/activities/FilterPanel";
 import type { Activity } from "@/components/activities/ActivityCard";
+import { formatPrice } from "@/lib/currency";
 
 const PAGE_SIZE = 20;
 
@@ -312,7 +313,7 @@ export default function Activities() {
               )}
               {(priceMin != null || priceMax != null) && (
                 <Badge variant="secondary" className="gap-1 text-xs">
-                  ${priceMin ?? 0}–{priceMax != null ? `$${priceMax}` : "any"}
+                  {formatPrice(priceMin ?? 0)}–{priceMax != null ? formatPrice(priceMax) : "any"}
                   <button onClick={() => { setPriceMinInput(""); setPriceMaxInput(""); updateParam("priceMin", null); updateParam("priceMax", null); }}><X className="h-3 w-3" /></button>
                 </Badge>
               )}

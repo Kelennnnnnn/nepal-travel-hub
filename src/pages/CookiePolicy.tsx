@@ -54,18 +54,11 @@ export default function CookiePolicy() {
 
               <div className="p-5 border border-border rounded-xl">
                 <p className="font-semibold mb-1">Payment Cookies</p>
+                {/* TODO: name the actual payment provider and link its
+                    privacy/cookie policy once the new NPR reservation-fee
+                    provider is chosen. */}
                 <p className="text-muted-foreground text-sm">
-                  Set by Stripe, our payment processor, to securely handle transactions. Stripe's
-                  cookies are governed by{" "}
-                  <a
-                    href="https://stripe.com/privacy"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    Stripe's Privacy Policy
-                  </a>
-                  .
+                  Set by our payment provider to securely handle transactions.
                 </p>
               </div>
             </div>
@@ -74,8 +67,8 @@ export default function CookiePolicy() {
           <section>
             <h2 className="text-xl font-semibold mb-3">Third-Party Cookies</h2>
             <p className="text-muted-foreground">
-              Some features on Yatra Nepal are powered by third-party services that may set their
-              own cookies. These include Stripe (payment processing) and Supabase (authentication
+              Some features on Into Nepal are powered by third-party services that may set their
+              own cookies. These include our payment provider and Supabase (authentication
               and database). We do not use third-party advertising cookies or social media tracking
               pixels.
             </p>

@@ -37,6 +37,7 @@ import { toast } from "sonner";
 import { logAdminAction } from "@/lib/audit";
 import { useAgencyStore, type AgencyListItem } from "@/stores/agencyStore";
 import { useListingsStore, type Listing, type ListingStatus } from "@/stores/listingsStore";
+import { formatPrice } from "@/lib/currency";
 import { ListingDetailDialog } from "./listings/ListingDetailDialog";
 import { ListingRejectDialog } from "./listings/ListingRejectDialog";
 
@@ -198,12 +199,6 @@ export default function AdminListings() {
       day: "numeric",
     });
 
-  const money = (n: number) =>
-    new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-    }).format(n);
 
   const totalListed = allListings.length;
   const pendingReviewCount = allListings.filter((l) => l.status === "pending_review").length;
@@ -356,7 +351,7 @@ export default function AdminListings() {
                             <span className="truncate">{listing.location}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium whitespace-nowrap">{money(Number(listing.base_price))}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">{formatPrice(Number(listing.base_price))}</TableCell>
                         <TableCell className="text-sm max-w-[140px] truncate">
                           {isLoadingAll ? <Skeleton className="h-4 w-24" /> : companyForAgency(listing.agency_id, allAgencies)}
                         </TableCell>

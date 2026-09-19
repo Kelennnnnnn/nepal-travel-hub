@@ -90,15 +90,12 @@ Deno.serve(async (req: Request) => {
   const email = user.email;
   if (!email) return json({ error: "User has no email address" }, 400);
 
-  // Idempotency: check if we already sent this welcome email
-  const { data: alreadySent } = await supabaseAdmin
-    .from("webhook_events")
-    .select("id")
-    .eq("event_type", "welcome_email_sent")
-    .eq("payload->user_id", requestedUserId!)
-    .maybeSingle();
-
-  if (alreadySent) {
+  // Idempotency: check if we already sent this welcome email. Used to check
+  // a `webhook_events` row (a table that belonged to the now-removed
+  // Stripe-based payment model); a flag on the user's own app_metadata is a
+  // simpler, equally sufficient dedup key for this one-per-user email and
+  // needs no dedicated table.
+  if (user.app_metadata?.welcome_email_sent_at) {
     // Already sent — return 200 so the trigger doesn't retry
     return json({ success: true, skipped: true });
   }
@@ -120,10 +117,8 @@ Deno.serve(async (req: Request) => {
   }
 
   // Record delivery so we never send twice
-  await supabaseAdmin.from("webhook_events").insert({
-    event_type: "welcome_email_sent",
-    payload: { user_id: requestedUserId, email },
-    status: "processed",
+  await supabaseAdmin.auth.admin.updateUserById(requestedUserId!, {
+    app_metadata: { welcome_email_sent_at: new Date().toISOString() },
   });
 
   return json({ success: true });

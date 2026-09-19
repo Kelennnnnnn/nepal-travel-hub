@@ -34,8 +34,10 @@ export default function CancellationPolicy() {
                       More than 14 days before departure
                     </p>
                     <p className="text-muted-foreground mt-1">
-                      Full refund of the booking amount, minus Stripe payment processing fees
-                      (typically 2.9% + $0.30). Refunds are issued to the original payment method
+                      Full refund of the booking amount, minus payment processing fees.
+                      {/* TODO: state the actual processing fee once the new
+                          NPR reservation-fee payment provider is chosen. */}
+                      {" "}Refunds are issued to the original payment method
                       within 5–10 business days.
                     </p>
                   </div>

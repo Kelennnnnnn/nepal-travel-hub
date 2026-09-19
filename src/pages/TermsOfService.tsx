@@ -57,12 +57,15 @@ export default function TermsOfService() {
             </p>
             <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
               <li>
-                All prices displayed are in USD unless otherwise stated and
-                include applicable taxes where required.
+                All prices are displayed in NPR (Nepalese Rupees) unless
+                otherwise stated and include applicable taxes where required.
               </li>
               <li>
-                Payment is processed securely through Stripe. Into Nepal does
-                not store your full card details.
+                Payment is processed securely through our payment provider.
+                Into Nepal does not store your full card details.
+                {/* TODO: update once the new NPR reservation-fee payment
+                    model and provider are finalized — this platform no
+                    longer uses Stripe. */}
               </li>
               <li>
                 A booking is confirmed only once payment is successfully

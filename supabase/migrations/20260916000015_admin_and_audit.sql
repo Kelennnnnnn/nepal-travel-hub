@@ -80,7 +80,7 @@ begin
                     -- transitions, which instead get their actor recorded
                     -- explicitly by the calling edge function via
                     -- record_audit_log() — e.g. "which admin triggered this
-                    -- payout" is logged by process-payout itself, not
+                    -- action" is logged by that edge function itself, not
                     -- inferred here. This trigger's job is just to make
                     -- sure a financial status change is NEVER left
                     -- completely unlogged, as a safety net under the
@@ -100,33 +100,66 @@ create trigger audit_financial_change
   after update on public.bookings
   for each row execute function public.audit_financial_change();
 
--- payouts has a different, simpler shape (one `status` column, not four) —
--- it needs its own trigger function, not a reuse of audit_financial_change()
--- above. Caught this exact mismatch (payouts.status vs bookings'
--- booking_status/payment_status/settlement_status/refund_status) by
--- actually testing this migration against the local instance while writing
--- it — plpgsql doesn't validate OLD/NEW field references until a row is
--- actually updated, so a naive reuse here would have shipped silently and
--- only failed the first time a real payout status changed.
-create or replace function public.audit_payout_status_change()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if tg_op = 'UPDATE' and old.status is distinct from new.status then
-    insert into public.audit_logs (actor_id, action, resource_type, resource_id, before_state, after_state)
-    values (auth.uid(), 'payout_status_change', 'payout', new.id::text,
-            jsonb_build_object('status', old.status), jsonb_build_object('status', new.status));
-  end if;
-  return new;
-end;
-$$;
+-- (Payout-status audit trigger removed — the old Stripe-based payout system
+-- it audited was removed in full when the platform switched to the new
+-- NPR-only reservation-fee model. The `payouts` table it triggered on no
+-- longer exists. A settlement/payout audit trail will return when that
+-- model is designed.)
 
-create trigger audit_payout_status_change
-  after update on public.payouts
-  for each row execute function public.audit_payout_status_change();
+-- ── Platform settings ──────────────────────────────────────────────────────
+-- Originally defined in the old settlement/payouts migration (deleted along
+-- with the rest of the Stripe-based payment model — see PHASE_0/AUDIT_REPORT
+-- history for that design; this table itself was always generic config, not
+-- payment-specific). Moved here since this is genuinely its home (Admin &
+-- Audit), and re-seeded WITHOUT the payment-domain keys the old version had
+-- (booking_fee_percentage, settlement_delay_days, payments_enabled,
+-- payouts_enabled) — those governed a fee/settlement model that no longer
+-- exists and will return once the new NPR reservation-fee model is designed,
+-- not before. supported_currencies is trimmed to NPR only, matching the new
+-- model; no fee-percentage key is seeded at all — inventing one here would
+-- be new business logic, which this cleanup is not the place for.
+create table public.platform_settings (
+  key         text primary key,
+  value       jsonb not null,
+  description text,
+  updated_by  uuid references auth.users(id),
+  updated_at  timestamptz not null default now()
+);
+
+comment on table public.platform_settings is
+  'Configurable, non-financial platform settings. Every write is versioned via platform_settings_history below — normal users cannot modify this table at all (see RLS below).';
+
+create trigger set_updated_at
+  before update on public.platform_settings
+  for each row execute function public.set_updated_at();
+
+insert into public.platform_settings (key, value, description) values
+  ('inventory_hold_ttl_minutes', '15'::jsonb, 'How long an inventory hold (HELD reservation) survives before expiring if payment is not completed.'),
+  ('supported_currencies', '["NPR"]'::jsonb, 'Currencies the platform can price/charge in.'),
+  ('maintenance_mode', 'false'::jsonb, 'Kill switch: when true, the frontend shows a maintenance banner platform-wide.'),
+  ('platform_name', '"Into Nepal"'::jsonb, 'Centralized brand name — read by frontend/emails instead of a hardcoded string.'),
+  ('support_email', '"support@intonepal.com"'::jsonb, 'Centralized support contact — placeholder pending the real domain being confirmed.')
+on conflict (key) do nothing;
+
+alter table public.platform_settings enable row level security;
+
+drop policy if exists "platform_settings_public_select" on public.platform_settings;
+create policy "platform_settings_public_select"
+  on public.platform_settings for select
+  using (true);
+  -- Intentional USING (true) — the client needs to know if maintenance mode
+  -- is on before it can even show a login form. This table only ever holds
+  -- non-sensitive platform configuration, never secrets or PII — verified
+  -- by inspecting every key inserted above.
+
+drop policy if exists "platform_settings_admin_write" on public.platform_settings;
+create policy "platform_settings_admin_write"
+  on public.platform_settings for update
+  using (public.is_admin())
+  with check (public.is_admin());
+  -- No insert/delete policy — settings rows are seeded by migrations only;
+  -- application code only ever updates existing keys, never adds/removes
+  -- them, which is enforced simply by not granting that capability.
 
 -- ── Settings versioning ──────────────────────────────────────────────────
 
@@ -169,8 +202,7 @@ create policy "audit_logs_admin_select"
   using (public.is_admin());
   -- No insert/update/delete policy for any client role — writes happen only
   -- via record_audit_log() and the triggers above, both SECURITY DEFINER.
-  -- No update/delete privilege at all, matching the financial_ledger
-  -- pattern (immutability by privilege revocation, not just RLS):
+  -- Immutability enforced by privilege revocation, not just RLS:
 revoke update, delete on public.audit_logs from anon, authenticated, service_role;
 grant insert, select on public.audit_logs to service_role;
 

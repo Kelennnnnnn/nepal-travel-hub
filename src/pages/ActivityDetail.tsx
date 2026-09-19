@@ -2,15 +2,13 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   MapPin, Clock, Users, Star, ChevronRight, Share2, Heart,
-  Minus, Plus, Loader2, X, Check, ShieldCheck, Lock,
+  Minus, Plus, Loader2, X, Check, ShieldCheck,
   CalendarDays, TrendingUp, CheckCircle2, Zap, LayoutGrid,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Layout } from "@/components/layout/Layout";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ReviewsSection } from "@/components/reviews/ReviewsSection";
@@ -21,6 +19,7 @@ import { useWishlistIds, useToggleWishlist } from "@/hooks/useWishlist";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
+import { formatPrice } from "@/lib/currency";
 
 type Tab = "overview" | "itinerary" | "inclusions" | "reviews";
 
@@ -51,23 +50,12 @@ export default function ActivityDetail() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [selectedDate, setSelectedDate] = useState("");
   const [participants, setParticipants] = useState(2);
-  const [travelerName, setTravelerName] = useState("");
-  const [travelerEmail, setTravelerEmail] = useState("");
-  const [specialRequests, setSpecialRequests] = useState("");
-  const [isBooking, setIsBooking] = useState(false);
   const [agencyName, setAgencyName] = useState("");
   const [agencyId, setAgencyId] = useState("");
   const [relatedListings, setRelatedListings] = useState<RelatedListing[]>([]);
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-
-  useEffect(() => {
-    if (user) {
-      setTravelerName(user.name || "");
-      setTravelerEmail(user.email || "");
-    }
-  }, [user]);
 
   useEffect(() => {
     if (!listing?.agency_id) return;
@@ -82,8 +70,7 @@ export default function ActivityDetail() {
       .maybeSingle()
       .then(({ data, error }) => {
         if (!error && data?.display_name) { setAgencyName(data.display_name); setAgencyId(data.id); }
-      })
-      .catch(() => {});
+      });
   }, [listing?.agency_id]);
 
   useEffect(() => {
@@ -97,8 +84,7 @@ export default function ActivityDetail() {
       .limit(3)
       .then(({ data, error }) => {
         if (!error) setRelatedListings((data ?? []) as RelatedListing[]);
-      })
-      .catch(() => {});
+      });
   }, [listing?.id, listing?.category]);
 
   // Real, bookable departure dates — replaces a free-typed date input.
@@ -122,8 +108,7 @@ export default function ActivityDetail() {
           inventory: Array.isArray(d.inventory) ? (d.inventory[0] ?? null) : d.inventory,
         })) as Departure[];
         setDepartures(rows.filter((d) => availableCapacity(d.inventory) > 0));
-      })
-      .catch(() => {});
+      });
   }, [listing?.id]);
 
   if (isLoading) {
@@ -155,10 +140,8 @@ export default function ActivityDetail() {
     listing.max_participants || 12,
     selectedDeparture ? availableCapacity(selectedDeparture.inventory) : listing.max_participants || 12,
   );
-  const imgs: string[] = listing.images?.length ? listing.images : [FALLBACK_IMG];
-  const totalBase = price * participants;
-  const serviceFee = Math.round(totalBase * 0.05);
-  const total = totalBase + serviceFee;
+  const listingImages = (listing.images ?? []) as string[];
+  const imgs: string[] = listingImages.length ? listingImages : [FALLBACK_IMG];
   const itinerary = (listing.itinerary ?? []) as { day: number; title: string; description: string }[];
 
   const handleShare = async () => {
@@ -183,38 +166,6 @@ export default function ActivityDetail() {
       return;
     }
     toggleWishlist.mutate({ listingId: listing.id, isSaved: wishlistIds.has(listing.id) });
-  };
-
-  const handleBooking = async () => {
-    if (!selectedDate) { toast.error("Please select a departure date"); return; }
-    if (!travelerName.trim()) { toast.error("Please enter your full name"); return; }
-    if (!travelerEmail.trim() || !travelerEmail.includes("@")) { toast.error("Please enter a valid email"); return; }
-    if (!isAuthenticated || !user) {
-      toast.error("Please log in to book");
-      navigate(`/login?redirect=/activities/${id}`);
-      return;
-    }
-    setIsBooking(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("create-payment-intent", {
-        body: {
-          listing_id: listing.id,
-          agency_id: listing.agency_id,
-          traveler_id: user.id,
-          trip_date: selectedDate,
-          guests: participants,
-          price_per_person: price,
-          total_amount: total,
-          traveler_name: travelerName.trim(),
-          traveler_email: travelerEmail.trim(),
-          special_requests: specialRequests.trim() || null,
-        },
-      });
-      if (error) { toast.error(error.message || "Failed to create booking"); setIsBooking(false); return; }
-      const { clientSecret, bookingId } = data as { clientSecret: string; bookingId: string };
-      if (!clientSecret || !bookingId) { toast.error("Invalid server response"); setIsBooking(false); return; }
-      navigate(`/booking/payment?clientSecret=${encodeURIComponent(clientSecret)}&bookingId=${encodeURIComponent(bookingId)}`);
-    } catch { toast.error("Something went wrong. Please try again."); setIsBooking(false); }
   };
 
   const initials = agencyName
@@ -529,7 +480,7 @@ export default function ActivityDetail() {
                     <div>
                       <p className="text-xs text-muted-foreground mb-0.5">Starts from</p>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-4xl font-extrabold text-primary">${price.toLocaleString()}</span>
+                        <span className="text-4xl font-extrabold text-primary">{formatPrice(price)}</span>
                         <span className="text-muted-foreground text-sm font-medium">/ person</span>
                       </div>
                     </div>
@@ -557,7 +508,6 @@ export default function ActivityDetail() {
                               const avail = dep ? availableCapacity(dep.inventory) : listing.max_participants;
                               setParticipants((p) => Math.min(p, Math.max(1, avail)));
                             }}
-                            disabled={isBooking}
                           >
                             <SelectTrigger className="border-0 p-0 h-auto bg-transparent font-bold text-sm focus:ring-0 shadow-none">
                               <SelectValue placeholder="Select a date" />
@@ -578,33 +528,6 @@ export default function ActivityDetail() {
 
                     <div className="p-4 rounded-xl bg-muted/50 border border-border/20">
                       <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">
-                        Full Name
-                      </Label>
-                      <Input
-                        value={travelerName}
-                        onChange={(e) => setTravelerName(e.target.value)}
-                        placeholder="Your full name"
-                        disabled={isBooking}
-                        className="border-0 p-0 h-auto bg-transparent font-medium text-sm focus-visible:ring-0 shadow-none"
-                      />
-                    </div>
-
-                    <div className="p-4 rounded-xl bg-muted/50 border border-border/20">
-                      <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">
-                        Email
-                      </Label>
-                      <Input
-                        type="email"
-                        value={travelerEmail}
-                        onChange={(e) => setTravelerEmail(e.target.value)}
-                        placeholder="your@email.com"
-                        disabled={isBooking}
-                        className="border-0 p-0 h-auto bg-transparent font-medium text-sm focus-visible:ring-0 shadow-none"
-                      />
-                    </div>
-
-                    <div className="p-4 rounded-xl bg-muted/50 border border-border/20">
-                      <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">
                         Travelers
                       </Label>
                       <div className="flex items-center justify-between">
@@ -615,7 +538,7 @@ export default function ActivityDetail() {
                           <button
                             type="button"
                             onClick={() => setParticipants((p) => Math.max(1, p - 1))}
-                            disabled={participants <= 1 || isBooking}
+                            disabled={participants <= 1}
                             className="h-7 w-7 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-40"
                           >
                             <Minus className="h-3.5 w-3.5" />
@@ -623,7 +546,7 @@ export default function ActivityDetail() {
                           <button
                             type="button"
                             onClick={() => setParticipants((p) => Math.min(maxParticipants, p + 1))}
-                            disabled={participants >= maxParticipants || isBooking}
+                            disabled={participants >= maxParticipants}
                             className="h-7 w-7 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-40"
                           >
                             <Plus className="h-3.5 w-3.5" />
@@ -631,54 +554,21 @@ export default function ActivityDetail() {
                         </div>
                       </div>
                     </div>
-
-                    <div className="p-4 rounded-xl bg-muted/50 border border-border/20">
-                      <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">
-                        Special Requests <span className="normal-case font-normal">(optional)</span>
-                      </Label>
-                      <Textarea
-                        value={specialRequests}
-                        onChange={(e) => setSpecialRequests(e.target.value)}
-                        placeholder="Dietary needs, accessibility requirements, etc."
-                        disabled={isBooking}
-                        rows={2}
-                        className="border-0 p-0 bg-transparent font-medium text-sm focus-visible:ring-0 shadow-none resize-none"
-                      />
-                    </div>
                   </div>
 
-                  {/* Price breakdown */}
-                  <div className="space-y-2.5 text-sm mb-6">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">${price.toLocaleString()} × {participants} traveler{participants > 1 ? "s" : ""}</span>
-                      <span className="font-medium">${totalBase.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground underline decoration-dotted cursor-help">Service Fee (5%)</span>
-                      <span className="font-medium">${serviceFee.toLocaleString()}</span>
-                    </div>
-                    <div className="pt-3 border-t border-border/30 flex justify-between items-center">
-                      <span className="font-bold text-base">Total</span>
-                      <span className="text-2xl font-extrabold">${total.toLocaleString()}</span>
-                    </div>
-                  </div>
-
-                  {/* CTA */}
+                  {/* CTA — reservations aren't open yet; we're rolling out a
+                      new reservation-fee payment flow (replaces the old
+                      Stripe-based checkout this button used to call). */}
                   <Button
                     size="lg"
-                    className="w-full h-14 text-base font-bold rounded-xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
-                    onClick={handleBooking}
-                    disabled={isBooking || departures.length === 0}
+                    className="w-full h-14 text-base font-bold rounded-xl"
+                    disabled
                   >
-                    {isBooking ? (
-                      <><Loader2 className="h-5 w-5 animate-spin mr-2" /> Processing…</>
-                    ) : (
-                      "Reserve Now"
-                    )}
+                    Reservations Coming Soon
                   </Button>
 
-                  <p className="text-center text-xs text-muted-foreground mt-3 flex items-center justify-center gap-1.5">
-                    <Lock className="h-3.5 w-3.5" /> Secure payment via Yatra Nepal
+                  <p className="text-center text-xs text-muted-foreground mt-3">
+                    We're rolling out a new payment flow — check back shortly to book.
                   </p>
                 </div>
 
@@ -740,7 +630,7 @@ export default function ActivityDetail() {
                         <div className="text-xs text-muted-foreground">{rel.duration} · {rel.difficulty}</div>
                         <div className="text-right">
                           <div className="text-[10px] text-muted-foreground">From</div>
-                          <div className="font-extrabold text-primary">${Number(rel.price).toLocaleString()}</div>
+                          <div className="font-extrabold text-primary">{formatPrice(Number(rel.price))}</div>
                         </div>
                       </div>
                     </div>

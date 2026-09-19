@@ -11,10 +11,7 @@ import { logAdminAction } from "@/lib/audit";
 import { toast } from "sonner";
 
 export default function AdminSettings() {
-  const [paymentsEnabled, setPaymentsEnabled] = useState(true);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [payoutsEnabled, setPayoutsEnabled] = useState(true);
-  const [commissionRate, setCommissionRate] = useState("10");
   const [loading, setLoading] = useState(true);
 
   // Password change state
@@ -40,15 +37,12 @@ export default function AdminSettings() {
   useEffect(() => {
     supabase.from("platform_settings").select("key, value").then(({ data }) => {
       const m = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
-      setPaymentsEnabled(m.payments_enabled !== false);
       setMaintenanceMode(m.maintenance_mode === true);
-      setPayoutsEnabled(m.payouts_enabled !== false);
-      setCommissionRate(String(m.commission_rate ?? 10));
       setLoading(false);
     });
   }, []);
 
-  const save = async (key: string, value: unknown) => {
+  const save = async (key: string, value: boolean) => {
     const { error } = await supabase
       .from("platform_settings")
       .update({ value, updated_at: new Date().toISOString() })
@@ -73,49 +67,28 @@ export default function AdminSettings() {
             <CardTitle className="text-destructive">Emergency Controls</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-            <Row label="Maintenance Mode" desc="Freezes the entire platform. Blocks all new bookings and payments.">
+            <Row label="Maintenance Mode" desc="Freezes the entire platform and shows a maintenance banner to visitors.">
               <Switch
                 checked={maintenanceMode}
                 onCheckedChange={(v) => { setMaintenanceMode(v); save("maintenance_mode", v); }}
               />
             </Row>
-            <Row label="Payments Enabled" desc="Master switch for new charges. Turn off to stop all new bookings instantly.">
-              <Switch
-                checked={paymentsEnabled}
-                onCheckedChange={(v) => { setPaymentsEnabled(v); save("payments_enabled", v); }}
-              />
-            </Row>
-            <Row label="Payouts Enabled" desc="Master switch for agency payouts.">
-              <Switch
-                checked={payoutsEnabled}
-                onCheckedChange={(v) => { setPayoutsEnabled(v); save("payouts_enabled", v); }}
-              />
-            </Row>
           </CardContent>
         </Card>
 
+        {/* Reservation-fee settings (commission rate, payments/payouts kill
+            switches) belonged to the removed Stripe-based payment model and
+            will return once the new NPR reservation-fee model is designed —
+            not invented here. */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-primary" />
-              Platform Settings
+              Reservation Fee Settings
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="space-y-2">
-              <Label>Commission Rate (%)</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={commissionRate}
-                  onChange={(e) => setCommissionRate(e.target.value)}
-                  className="max-w-32"
-                />
-                <Button onClick={() => save("commission_rate", Number(commissionRate))}>Save</Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Single source of truth. Applied to all new bookings server-side.
-              </p>
-            </div>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Coming soon, once the new payment model is designed.</p>
           </CardContent>
         </Card>
 

@@ -9,11 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import type { Listing, ListingStatus } from "@/stores/listingsStore";
 import type { AgencyListItem } from "@/stores/agencyStore";
-
-const money = new Intl.NumberFormat(undefined, {
-  style: "currency", currency: "USD",
-  minimumFractionDigits: 0,
-});
+import { formatPrice } from "@/lib/currency";
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("en-US", {
@@ -59,7 +55,7 @@ export function ListingDetailDialog({
                 </div>
               </div>
               <p className="text-lg font-bold text-primary">
-                {money.format(Number(listing.base_price))}
+                {formatPrice(Number(listing.base_price))}
               </p>
             </div>
 

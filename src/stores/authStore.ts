@@ -146,19 +146,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
       // component that called mfa.verify() doesn't itself call
       // refreshMfaState().
       void applySession(session as Parameters<typeof applySession>[0]);
-
-      // Fire welcome email the moment the browser sees EMAIL_CONFIRMED.
-      // The DB trigger (pg_net) is the primary delivery path; this is the
-      // browser-side fallback — the edge function deduplicates so it's safe
-      // to call from both paths.
-      if (event === "EMAIL_CONFIRMED" && session?.access_token) {
-        supabase.functions
-          .invoke("send-welcome-email", {
-            body: { user_id: session.user.id },
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          })
-          .catch(() => {});
-      }
+      // (A browser-side "fire the welcome email on confirmation" fallback
+      // used to live here, gated on an event name — "EMAIL_CONFIRMED" —
+      // that supabase-js never actually emits; removed as dead code. The
+      // DB trigger (pg_net) remains the real delivery path for this email.)
     });
 
     return () => subscription.unsubscribe();

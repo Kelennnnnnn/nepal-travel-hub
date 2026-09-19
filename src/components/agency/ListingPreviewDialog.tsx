@@ -7,6 +7,7 @@ import {
   ShieldCheck, Eye, AlertTriangle,
 } from "lucide-react";
 import type { ListingFormData } from "@/lib/validations";
+import { formatPrice } from "@/lib/currency";
 
 interface ItineraryDay { day: number; title: string; description: string; }
 
@@ -208,7 +209,7 @@ export function ListingPreviewDialog({
                       <CardContent className="p-6 space-y-4">
                         <div className="flex items-baseline gap-2">
                           <span className="text-3xl font-bold text-foreground">
-                            ${price.toLocaleString()}
+                            {formatPrice(price)}
                           </span>
                           <span className="text-muted-foreground">/ person</span>
                         </div>

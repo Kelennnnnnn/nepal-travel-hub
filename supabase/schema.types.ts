@@ -136,13 +136,6 @@ export type Database = {
             referencedRelation: "agencies"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "agency_documents_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agency_earnings"
-            referencedColumns: ["agency_id"]
-          },
         ]
       }
       agency_status_history: {
@@ -180,13 +173,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "agencies"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "agency_status_history_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agency_earnings"
-            referencedColumns: ["agency_id"]
           },
         ]
       }
@@ -228,13 +214,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "agencies"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "agency_users_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agency_earnings"
-            referencedColumns: ["agency_id"]
           },
         ]
       }
@@ -279,13 +258,6 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "agencies"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "agency_verification_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: true
-            referencedRelation: "agency_earnings"
-            referencedColumns: ["agency_id"]
           },
         ]
       }
@@ -522,13 +494,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "booking_quotes_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agency_earnings"
-            referencedColumns: ["agency_id"]
-          },
-          {
             foreignKeyName: "booking_quotes_departure_id_fkey"
             columns: ["departure_id"]
             isOneToOne: false
@@ -656,13 +621,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bookings_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agency_earnings"
-            referencedColumns: ["agency_id"]
-          },
-          {
             foreignKeyName: "bookings_departure_id_fkey"
             columns: ["departure_id"]
             isOneToOne: false
@@ -781,13 +739,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "conversations_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agency_earnings"
-            referencedColumns: ["agency_id"]
-          },
-          {
             foreignKeyName: "conversations_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
@@ -836,13 +787,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "departures_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agency_earnings"
-            referencedColumns: ["agency_id"]
-          },
-          {
             foreignKeyName: "departures_listing_id_fkey"
             columns: ["listing_id"]
             isOneToOne: false
@@ -880,94 +824,6 @@ export type Database = {
           processed_at?: string | null
         }
         Relationships: []
-      }
-      financial_ledger: {
-        Row: {
-          agency_id: string | null
-          amount: number
-          booking_id: string | null
-          created_at: string
-          created_by: string
-          currency: string
-          description: string
-          entry_type: string
-          id: string
-          related_payment_id: string | null
-          related_payout_id: string | null
-          related_refund_id: string | null
-        }
-        Insert: {
-          agency_id?: string | null
-          amount: number
-          booking_id?: string | null
-          created_at?: string
-          created_by?: string
-          currency: string
-          description?: string
-          entry_type: string
-          id?: string
-          related_payment_id?: string | null
-          related_payout_id?: string | null
-          related_refund_id?: string | null
-        }
-        Update: {
-          agency_id?: string | null
-          amount?: number
-          booking_id?: string | null
-          created_at?: string
-          created_by?: string
-          currency?: string
-          description?: string
-          entry_type?: string
-          id?: string
-          related_payment_id?: string | null
-          related_payout_id?: string | null
-          related_refund_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "financial_ledger_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agencies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "financial_ledger_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agency_earnings"
-            referencedColumns: ["agency_id"]
-          },
-          {
-            foreignKeyName: "financial_ledger_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "financial_ledger_related_payment_id_fkey"
-            columns: ["related_payment_id"]
-            isOneToOne: false
-            referencedRelation: "payments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "financial_ledger_related_payout_id_fkey"
-            columns: ["related_payout_id"]
-            isOneToOne: false
-            referencedRelation: "payouts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "financial_ledger_related_refund_id_fkey"
-            columns: ["related_refund_id"]
-            isOneToOne: false
-            referencedRelation: "refunds"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       inventory: {
         Row: {
@@ -1121,9 +977,10 @@ export type Database = {
           currency: string
           description: string
           difficulty: string | null
-          duration_days: number | null
+          duration_days: number
           duration_label: string
           excludes: string[]
+          featured: boolean
           id: string
           images: Json
           includes: string[]
@@ -1146,9 +1003,10 @@ export type Database = {
           currency?: string
           description?: string
           difficulty?: string | null
-          duration_days?: number | null
+          duration_days: number
           duration_label: string
           excludes?: string[]
+          featured?: boolean
           id?: string
           images?: Json
           includes?: string[]
@@ -1171,9 +1029,10 @@ export type Database = {
           currency?: string
           description?: string
           difficulty?: string | null
-          duration_days?: number | null
+          duration_days?: number
           duration_label?: string
           excludes?: string[]
+          featured?: boolean
           id?: string
           images?: Json
           includes?: string[]
@@ -1194,13 +1053,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "agencies"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "listings_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agency_earnings"
-            referencedColumns: ["agency_id"]
           },
         ]
       }
@@ -1354,244 +1206,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "domain_events"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      payment_attempts: {
-        Row: {
-          completed_at: string | null
-          failure_reason: string | null
-          id: string
-          initiated_at: string
-          payment_id: string
-          provider_reference: string | null
-          status: string
-        }
-        Insert: {
-          completed_at?: string | null
-          failure_reason?: string | null
-          id?: string
-          initiated_at?: string
-          payment_id: string
-          provider_reference?: string | null
-          status?: string
-        }
-        Update: {
-          completed_at?: string | null
-          failure_reason?: string | null
-          id?: string
-          initiated_at?: string
-          payment_id?: string
-          provider_reference?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payment_attempts_payment_id_fkey"
-            columns: ["payment_id"]
-            isOneToOne: false
-            referencedRelation: "payments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      payment_events: {
-        Row: {
-          error_message: string | null
-          event_type: string
-          id: string
-          payment_id: string | null
-          processed_at: string | null
-          processing_status: string
-          provider: string
-          provider_event_id: string
-          raw_payload_reference: string | null
-          received_at: string
-        }
-        Insert: {
-          error_message?: string | null
-          event_type: string
-          id?: string
-          payment_id?: string | null
-          processed_at?: string | null
-          processing_status?: string
-          provider: string
-          provider_event_id: string
-          raw_payload_reference?: string | null
-          received_at?: string
-        }
-        Update: {
-          error_message?: string | null
-          event_type?: string
-          id?: string
-          payment_id?: string | null
-          processed_at?: string | null
-          processing_status?: string
-          provider?: string
-          provider_event_id?: string
-          raw_payload_reference?: string | null
-          received_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payment_events_payment_id_fkey"
-            columns: ["payment_id"]
-            isOneToOne: false
-            referencedRelation: "payments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      payments: {
-        Row: {
-          amount: number
-          booking_id: string
-          created_at: string
-          currency: string
-          id: string
-          idempotency_key: string
-          obligation_type: string
-          provider: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          amount: number
-          booking_id: string
-          created_at?: string
-          currency: string
-          id?: string
-          idempotency_key: string
-          obligation_type: string
-          provider?: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          amount?: number
-          booking_id?: string
-          created_at?: string
-          currency?: string
-          id?: string
-          idempotency_key?: string
-          obligation_type?: string
-          provider?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payments_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      payout_items: {
-        Row: {
-          amount: number
-          booking_id: string
-          financial_ledger_entry_id: string
-          id: string
-          payout_id: string
-        }
-        Insert: {
-          amount: number
-          booking_id: string
-          financial_ledger_entry_id: string
-          id?: string
-          payout_id: string
-        }
-        Update: {
-          amount?: number
-          booking_id?: string
-          financial_ledger_entry_id?: string
-          id?: string
-          payout_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payout_items_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payout_items_financial_ledger_entry_id_fkey"
-            columns: ["financial_ledger_entry_id"]
-            isOneToOne: false
-            referencedRelation: "financial_ledger"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payout_items_payout_id_fkey"
-            columns: ["payout_id"]
-            isOneToOne: false
-            referencedRelation: "payouts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      payouts: {
-        Row: {
-          agency_id: string
-          completed_at: string | null
-          created_at: string
-          currency: string
-          id: string
-          idempotency_key: string
-          initiated_by: string | null
-          period_end: string | null
-          period_start: string | null
-          provider_payout_reference: string | null
-          status: string
-          total_amount: number
-        }
-        Insert: {
-          agency_id: string
-          completed_at?: string | null
-          created_at?: string
-          currency: string
-          id?: string
-          idempotency_key: string
-          initiated_by?: string | null
-          period_end?: string | null
-          period_start?: string | null
-          provider_payout_reference?: string | null
-          status?: string
-          total_amount: number
-        }
-        Update: {
-          agency_id?: string
-          completed_at?: string | null
-          created_at?: string
-          currency?: string
-          id?: string
-          idempotency_key?: string
-          initiated_by?: string | null
-          period_end?: string | null
-          period_start?: string | null
-          provider_payout_reference?: string | null
-          status?: string
-          total_amount?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payouts_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agencies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payouts_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agency_earnings"
-            referencedColumns: ["agency_id"]
           },
         ]
       }
@@ -1765,107 +1379,6 @@ export type Database = {
           },
         ]
       }
-      refund_events: {
-        Row: {
-          event_type: string
-          id: string
-          processed_at: string | null
-          processing_status: string
-          provider: string
-          provider_event_id: string
-          received_at: string
-          refund_id: string | null
-        }
-        Insert: {
-          event_type: string
-          id?: string
-          processed_at?: string | null
-          processing_status?: string
-          provider: string
-          provider_event_id: string
-          received_at?: string
-          refund_id?: string | null
-        }
-        Update: {
-          event_type?: string
-          id?: string
-          processed_at?: string | null
-          processing_status?: string
-          provider?: string
-          provider_event_id?: string
-          received_at?: string
-          refund_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "refund_events_refund_id_fkey"
-            columns: ["refund_id"]
-            isOneToOne: false
-            referencedRelation: "refunds"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      refunds: {
-        Row: {
-          amount: number
-          booking_id: string
-          created_at: string
-          currency: string
-          id: string
-          idempotency_key: string
-          initiated_by: string
-          payment_id: string
-          provider_refund_id: string | null
-          reason: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          amount: number
-          booking_id: string
-          created_at?: string
-          currency: string
-          id?: string
-          idempotency_key: string
-          initiated_by: string
-          payment_id: string
-          provider_refund_id?: string | null
-          reason: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          amount?: number
-          booking_id?: string
-          created_at?: string
-          currency?: string
-          id?: string
-          idempotency_key?: string
-          initiated_by?: string
-          payment_id?: string
-          provider_refund_id?: string | null
-          reason?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "refunds_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "refunds_payment_id_fkey"
-            columns: ["payment_id"]
-            isOneToOne: false
-            referencedRelation: "payments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       review_photos: {
         Row: {
           created_at: string
@@ -1988,13 +1501,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "reviews_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agency_earnings"
-            referencedColumns: ["agency_id"]
-          },
-          {
             foreignKeyName: "reviews_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: true
@@ -2082,18 +1588,7 @@ export type Database = {
       }
     }
     Views: {
-      agency_earnings: {
-        Row: {
-          adjustments: number | null
-          agency_id: string | null
-          computed_at: string | null
-          gross_collected: number | null
-          net_payable: number | null
-          refunded: number | null
-          settled_to_date: number | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       assert_valid_transition: {
@@ -2114,6 +1609,7 @@ export type Database = {
         Returns: undefined
       }
       current_platform_role: { Args: never; Returns: string }
+      current_platform_role_unverified: { Args: never; Returns: string }
       expire_stale_quotes: { Args: never; Returns: number }
       expire_stale_reservations: { Args: never; Returns: number }
       has_agency_access: {
@@ -2129,9 +1625,13 @@ export type Database = {
         Returns: string
       }
       is_admin: { Args: never; Returns: boolean }
+      is_agency_publicly_approved: {
+        Args: { target_agency_id: string }
+        Returns: boolean
+      }
       is_authenticated_aal2: { Args: never; Returns: boolean }
-      is_booking_settlement_eligible: {
-        Args: { p_booking_id: string }
+      is_conversation_participant: {
+        Args: { target_conversation_id: string }
         Returns: boolean
       }
       is_finance_or_admin: { Args: never; Returns: boolean }
@@ -2155,6 +1655,10 @@ export type Database = {
       }
       release_reservation: {
         Args: { p_reason?: string; p_reservation_id: string }
+        Returns: undefined
+      }
+      set_departure_capacity: {
+        Args: { p_capacity_total: number; p_departure_id: string }
         Returns: undefined
       }
       show_limit: { Args: never; Returns: number }

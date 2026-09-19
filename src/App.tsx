@@ -93,8 +93,7 @@ function MaintenanceBanner() {
       .maybeSingle()
       .then(({ data, error }) => {
         if (!error) setShow(data?.value === true);
-      })
-      .catch(() => {});
+      });
   }, []);
 
   if (!show) return null;
@@ -142,7 +141,7 @@ const App = () => (
               <Route path="/verify-email" element={<VerifyEmail />} />
 
               {/* Traveler Routes (Protected) */}
-              <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
+              <Route element={<ProtectedRoute allowedRoles={["traveler"]} />}>
                 <Route path="/account" element={<Account />} />
                 <Route path="/my-bookings" element={<MyBookings />} />
                 <Route path="/wishlist" element={<Wishlist />} />
@@ -151,8 +150,8 @@ const App = () => (
                 <Route path="/booking/confirmation" element={<BookingConfirmation />} />
               </Route>
 
-              {/* Agency Onboarding (user or agency role — pre-approval flow) */}
-              <Route element={<ProtectedRoute allowedRoles={["user", "agency"]} />}>
+              {/* Agency Onboarding (traveler or agency role — pre-approval flow) */}
+              <Route element={<ProtectedRoute allowedRoles={["traveler", "agency"]} />}>
                 <Route path="/agency/onboarding" element={<AgencyOnboarding />} />
                 <Route path="/agency/onboarding/status" element={<AgencyVerificationStatus />} />
               </Route>

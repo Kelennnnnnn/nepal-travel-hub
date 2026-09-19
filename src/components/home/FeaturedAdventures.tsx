@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePublicAgencies, type PublishedListingRow } from "@/lib/queries";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
+import { formatPrice } from "@/lib/currency";
 
 type TabKey = "all" | "best-sellers" | "remote" | "cultural";
 
@@ -112,7 +113,7 @@ export function FeaturedAdventures({ listings }: FeaturedAdventuresProps) {
                     <div className="mt-auto flex items-center justify-between">
                       <div>
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wide block">From</span>
-                        <span className="text-lg font-bold">${Number(listing.price).toLocaleString()}</span>
+                        <span className="text-lg font-bold">{formatPrice(Number(listing.price))}</span>
                         <span className="text-xs text-muted-foreground"> / person</span>
                       </div>
                       <Button size="sm" className="rounded-full">View Trek</Button>

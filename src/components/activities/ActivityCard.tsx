@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useWishlistIds, useToggleWishlist } from "@/hooks/useWishlist";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "sonner";
+import { formatPrice } from "@/lib/currency";
 
 export interface Activity {
   id: string;
@@ -85,7 +86,7 @@ export function ActivityCard({ activity, className }: ActivityCardProps) {
 
           {/* Price — bottom left */}
           <div className="absolute bottom-2.5 left-2.5 bg-black/55 backdrop-blur-sm rounded-md px-2 py-1 leading-none">
-            <span className="text-sm font-bold text-white">${activity.price}</span>
+            <span className="text-sm font-bold text-white">{formatPrice(activity.price)}</span>
             <span className="text-[10px] text-white/70"> /person</span>
           </div>
 

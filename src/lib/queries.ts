@@ -10,6 +10,7 @@ import type { ListingCategory, ListingDifficulty } from "@/stores/listingsStore"
 export interface PublishedListingRow {
   id: string;
   title: string;
+  description: string;
   images: string[];
   location: string;
   duration: string;
@@ -111,7 +112,7 @@ export function usePublishedListings(filters?: {
       let query = supabase
         .from("listings")
         .select(
-          "id, title, images, location, duration:duration_label, duration_days, price:base_price, rating, review_count, category, agency_id, max_participants, featured, status, difficulty, created_at",
+          "id, title, description, images, location, duration:duration_label, duration_days, price:base_price, rating, review_count, category, agency_id, max_participants, featured, status, difficulty, created_at",
           { count: "estimated" }
         )
         .eq("status", "published");

@@ -1,6 +1,6 @@
 # NepalTrails — Travel Marketplace
 
-A full-stack travel marketplace connecting travelers with verified local agencies in Nepal. Built with React, TypeScript, Supabase, and Stripe.
+A full-stack travel marketplace connecting travelers with verified local agencies in Nepal. Built with React, TypeScript, and Supabase.
 
 ---
 
@@ -11,7 +11,7 @@ A full-stack travel marketplace connecting travelers with verified local agencie
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui |
 | State | Zustand |
 | Backend | Supabase (Postgres + Auth + Realtime + Edge Functions) |
-| Payments | Stripe |
+| Payments | TODO — moving to an NPR-only reservation-fee model (Stripe removed) |
 | Package manager | Bun |
 
 ---
@@ -22,7 +22,6 @@ A full-stack travel marketplace connecting travelers with verified local agencie
 - **Bun** — `curl -fsSL https://bun.sh/install | bash`
 - **Supabase CLI** — `brew install supabase/tap/supabase` or see [CLI docs](https://supabase.com/docs/guides/cli)
 - A **Supabase** account — [supabase.com](https://supabase.com)
-- A **Stripe** account — [stripe.com](https://stripe.com)
 
 ---
 
@@ -47,11 +46,9 @@ Open `.env.local` and fill in your values:
 ```env
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
 ```
 
 Both Supabase keys are in **Supabase Dashboard → Project Settings → API**.
-The Stripe publishable key is in **Stripe Dashboard → Developers → API Keys**.
 
 > **Security:** Never put `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` or any client-side file. It is injected into Edge Functions as a Supabase secret only (see step 5).
 
@@ -95,28 +92,13 @@ realtime channels"), not carried over by default.
 
 ---
 
-## 4. Stripe Setup
+## 4. Payments
 
-1. In **Stripe Dashboard → Developers → API Keys**, copy your **Publishable key** (`pk_test_...`).
-2. Add it to `.env.local` as `VITE_STRIPE_PUBLISHABLE_KEY`.
-3. Your **Secret key** (`sk_test_...`) is used only in the `create-payment-intent` Edge Function — add it as a Supabase secret in step 5.
-
-### Stripe Webhook (production)
-
-In **Stripe Dashboard → Developers → Webhooks**, add an endpoint:
-
-```
-https://your-project-ref.supabase.co/functions/v1/create-payment-intent
-```
-
-For local testing:
-
-```bash
-# Install Stripe CLI
-brew install stripe/stripe-cli/stripe
-stripe login
-stripe listen --forward-to http://localhost:54321/functions/v1/create-payment-intent
-```
+TODO — the platform is moving to a new NPR-only model (a reservation fee
+paid online to the platform, with the balance paid in cash to the agency or
+online later). The previous Stripe-based checkout, webhook, and payout
+integration has been removed; this section returns once the new payment
+provider is chosen and integrated.
 
 ---
 
@@ -133,17 +115,16 @@ supabase link --project-ref your-project-ref
 
 ```bash
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-supabase secrets set STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
 ```
 
-Both keys are in their respective dashboards. The service role key is in **Supabase → Project Settings → API**.
+The service role key is in **Supabase → Project Settings → API**.
 
 ### 5c. Deploy functions
 
 ```bash
-supabase functions deploy upgrade-agency-role
-supabase functions deploy create-payment-intent
 supabase functions deploy admin-users
+supabase functions deploy agency-application
+supabase functions deploy review-agency-application
 ```
 
 ---

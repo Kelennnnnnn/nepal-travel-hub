@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useListingsStore } from "@/stores/listingsStore";
 import type { Listing, ListingStatus } from "@/stores/listingsStore";
+import { formatPrice } from "@/lib/currency";
 
 const statusStyle: Record<string, string> = {
   published: "bg-primary/10 text-primary",
@@ -165,7 +166,7 @@ export default function AgencyListings() {
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            <p className="text-lg font-bold text-foreground">${listing.base_price}<span className="text-sm font-normal text-muted-foreground">/person</span></p>
+                            <p className="text-lg font-bold text-foreground">{formatPrice(listing.base_price)}<span className="text-sm font-normal text-muted-foreground">/person</span></p>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>

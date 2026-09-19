@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import type { AgencyListItem, AgencyDocument, AgencyDocumentType } from "@/stores/agencyStore";
+import { formatPrice } from "@/lib/currency";
 
 export interface AgencyMetrics {
   totalBookings: number;
@@ -21,11 +22,6 @@ export interface AgencyMetrics {
   listingCount: number;
   lastActiveDate: string | null;
 }
-
-const money = new Intl.NumberFormat(undefined, {
-  style: "currency", currency: "USD",
-  minimumFractionDigits: 0, maximumFractionDigits: 0,
-});
 
 const DOCUMENT_LABELS: Record<AgencyDocumentType, string> = {
   business_registration: "Business Registration",
@@ -119,7 +115,7 @@ export function AgencyDetailDialog({
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                       <DollarSign className="h-3 w-3" /> Total Revenue
                     </div>
-                    <p className="text-lg font-bold">{money.format(metrics.totalRevenue)}</p>
+                    <p className="text-lg font-bold">{formatPrice(metrics.totalRevenue)}</p>
                   </div>
                   <div className="p-3 bg-muted/50 rounded-lg">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">

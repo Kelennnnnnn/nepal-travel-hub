@@ -18,6 +18,7 @@ import { Plus, Loader2, Pencil, Trash2, Ban, PlayCircle, PauseCircle, CalendarOf
 import { toast } from "sonner";
 import { useListingsStore } from "@/stores/listingsStore";
 import { useDeparturesStore, availableCapacity, type Departure, type DepartureStatus } from "@/stores/departuresStore";
+import { formatPrice } from "@/lib/currency";
 
 const SEASON_TEMPLATES = [
   { label: "Autumn Peak (Oct – Nov)", start: "10-01", end: "11-30", mult: 1.5 },
@@ -308,7 +309,7 @@ export default function AgencyAvailability() {
                       <div key={s.id} className="flex items-center justify-between text-sm p-2 rounded-lg bg-muted/40">
                         <span>{s.season_name} <span className="text-muted-foreground">({formatDate(s.start_date)} – {formatDate(s.end_date)})</span></span>
                         <div className="flex items-center gap-3">
-                          <span className="font-semibold">${Number(s.price).toLocaleString()}</span>
+                          <span className="font-semibold">{formatPrice(Number(s.price))}</span>
                           <button onClick={() => deleteSeasonalPricing(s.id)} className="text-muted-foreground hover:text-destructive">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -399,7 +400,7 @@ export default function AgencyAvailability() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Price per person ($)</Label>
+              <Label>Price per person (NPR)</Label>
               <Input type="number" min={0} step="0.01" value={seasonPrice} onChange={(e) => setSeasonPrice(e.target.value)} />
             </div>
           </div>

@@ -14,7 +14,8 @@ const FAQS = [
   },
   {
     q: "How do I book an activity?",
-    a: "Browse activities on our Activities page, select the one you want, choose your trip date and number of guests, then proceed to checkout. Payment is processed securely through Stripe. You'll receive a booking confirmation email once your payment is complete.",
+    // TODO: update once the new NPR reservation-fee payment flow is live.
+    a: "Browse activities on our Activities page, select the one you want, choose your trip date and number of guests, then proceed to checkout. Payment is processed securely through our payment provider. You'll receive a booking confirmation email once your payment is complete.",
   },
   {
     q: "What is the cancellation policy?",
@@ -22,7 +23,10 @@ const FAQS = [
   },
   {
     q: "Is my payment secure?",
-    a: "Yes. All payments are processed through Stripe, a PCI DSS Level 1 certified payment processor. Yatra Nepal never stores your full card details. You can pay using any major credit or debit card.",
+    // TODO: restate the specific security/compliance certification once the
+    // new payment provider is chosen — do not claim PCI DSS or any other
+    // certification on its behalf without confirming it holds one.
+    a: "Yes. All payments are processed through our payment provider. Into Nepal never stores your full card details. You can pay using any major credit or debit card.",
   },
   {
     q: "How are agencies verified?",
