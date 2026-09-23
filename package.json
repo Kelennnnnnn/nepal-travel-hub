@@ -21,6 +21,7 @@
     "build:dev": "vite build --mode development",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "lint": "eslint .",
+    "test:anon-probe": "node --env-file=.env.local --import tsx scripts/anon-rpc-probe.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -79,6 +80,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "tsx": "^4.19.2",
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",
