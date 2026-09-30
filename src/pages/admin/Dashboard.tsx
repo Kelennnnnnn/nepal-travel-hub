@@ -8,6 +8,8 @@ import {
   Clock,
   Eye,
   Loader2,
+  Activity,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +32,89 @@ import { toast } from "sonner";
 // no longer exists; fixed here to use the real Phase 4 API.
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatRelativeTime(dateStr: string | null) {
+  if (!dateStr) return "never";
+  const ms = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+// cron_health() (supabase/migrations/20260917000024_cron_health.sql) — one
+// row per pg_cron job with its most recent run and a server-computed
+// is_healthy (active, last run succeeded, and within a schedule-
+// appropriate freshness window). Called directly via supabase.rpc(), same
+// as any other admin-only SECURITY DEFINER RPC — no edge function needed,
+// it does its own is_admin()/is_support_or_admin() check internally.
+interface CronJobHealth {
+  jobid: number;
+  jobname: string;
+  schedule: string;
+  active: boolean;
+  last_status: string | null;
+  last_start_time: string | null;
+  last_end_time: string | null;
+  is_healthy: boolean;
+}
+
+function CronHealthCard() {
+  const [jobs, setJobs] = useState<CronJobHealth[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.rpc("cron_health").then(({ data, error: rpcError }) => {
+      if (rpcError) { setError(rpcError.message); return; }
+      setJobs((data ?? []) as CronJobHealth[]);
+    });
+  }, []);
+
+  const anyUnhealthy = jobs?.some((j) => !j.is_healthy) ?? false;
+
+  return (
+    <Card className={anyUnhealthy ? "border-destructive" : undefined}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Activity className="h-5 w-5" />
+          System Health
+          {jobs && (
+            <Badge className={anyUnhealthy ? "bg-destructive text-destructive-foreground" : "bg-green-100 text-green-800 border-green-200"}>
+              {anyUnhealthy ? "Attention needed" : "Healthy"}
+            </Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <p className="text-sm text-destructive">Failed to load cron health: {error}</p>
+        ) : jobs === null ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {jobs.map((job) => (
+              <div key={job.jobid} className={`flex items-center justify-between p-2.5 rounded-lg text-sm ${job.is_healthy ? "bg-muted/40" : "bg-destructive/10"}`}>
+                <div className="flex items-center gap-2 min-w-0">
+                  {job.is_healthy
+                    ? <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+                    : <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />}
+                  <span className="font-medium truncate">{job.jobname}</span>
+                </div>
+                <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                  {job.last_status ?? "never run"} · {formatRelativeTime(job.last_start_time)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function AdminDashboard() {
@@ -105,6 +190,9 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* System health (pg_cron jobs) */}
+        <CronHealthCard />
 
         {/* Bookings & revenue (coming soon) */}
         <ComingSoon

@@ -9,6 +9,8 @@ import { Eye, EyeOff, Lock, ShieldCheck, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { NotificationsCard, type NotifKey } from "@/components/agency/NotificationsCard";
+import { AgencyTeamCard } from "@/components/agency/AgencyTeamCard";
+import { useAgencyStore } from "@/stores/agencyStore";
 
 // The "Verified Business Information" / "Agency Profile" / "Bank Account" /
 // "Stripe Connect" sections that used to live here all queried the old
@@ -29,16 +31,21 @@ import { NotificationsCard, type NotifKey } from "@/components/agency/Notificati
 // `new_review` (see supabase/migrations/20260916000014_notifications.sql).
 export default function AgencySettings() {
   const [profileLoading, setProfileLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Record<NotifKey, boolean>>({
     new_booking: true, booking_cancel: true, payout: true, review: true,
   });
   const [notifSaving, setNotifSaving] = useState<NotifKey | null>(null);
+
+  const { myAgency, fetchMyApplication } = useAgencyStore();
+  useEffect(() => { void fetchMyApplication(); }, [fetchMyApplication]);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (cancelled || !authUser) { setProfileLoading(false); return; }
+      setCurrentUserId(authUser.id);
 
       const { data } = await supabase
         .from("notification_preferences")
@@ -87,6 +94,10 @@ export default function AgencySettings() {
           title="Agency profile editing is coming soon"
           description="Updating your agency profile, documents, and payout account is being rebuilt. Contact support if you need a change made in the meantime."
         />
+
+        {myAgency && currentUserId && (
+          <AgencyTeamCard agencyId={myAgency.id} currentUserId={currentUserId} />
+        )}
 
         {!profileLoading && (
           <NotificationsCard

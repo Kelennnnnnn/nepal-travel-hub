@@ -13,121 +13,117 @@ export interface Message {
 
 export interface Conversation {
   id: string;
-  traveler_id: string;
   agency_id: string;
+  traveler_id: string | null;
   listing_id: string | null;
-  last_message_at: string;
+  booking_id: string | null;
+  last_message_at: string | null;
   listing_title: string | null;
   last_message: string | null;
   unread_count: number;
   other_party_name: string;
-  other_party_id: string;
+  other_party_id: string | null;
 }
 
-// ── Traveler conversations ────────────────────────────────────
+type ConversationRow = {
+  id: string;
+  agency_id: string;
+  traveler_id: string | null;
+  listing_id: string | null;
+  booking_id: string | null;
+  last_message_at: string | null;
+  listing: { title: string } | null;
+};
+
+type DisplayNameRow = { user_id: string; display_name: string; participant_role: string };
+
+// ── Shared conversation-list loader ─────────────────────────────
+//
+// Both the traveler inbox and the agency inbox are just "conversations I'm
+// a participant in" — conversation_participants rows are the only source of
+// visibility now (audit C2: start_conversation() adds the traveler and
+// every active accepted agency staff member as a participant at creation
+// time), so there's one query shape for both, not a traveler_id/agency_id
+// branch like the old (broken) version had.
+async function fetchConversationsForUser(): Promise<Conversation[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: rows, error } = await supabase
+    .from("conversation_participants")
+    .select("participant_role, conversation:conversations(id, agency_id, traveler_id, listing_id, booking_id, last_message_at, listing:listings(title))")
+    .eq("user_id", user.id);
+
+  if (error || !rows?.length) return [];
+
+  const memberships = rows
+    .map((row) => ({
+      myRole: row.participant_role as string,
+      conv: row.conversation as unknown as ConversationRow | null,
+    }))
+    .filter((m): m is { myRole: string; conv: ConversationRow } => !!m.conv);
+
+  if (!memberships.length) return [];
+
+  const ids = memberships.map((m) => m.conv.id);
+
+  const [{ data: recentMessages }, displayNameResults] = await Promise.all([
+    supabase
+      .from("messages")
+      .select("conversation_id, content, sender_id, read_at, created_at")
+      .in("conversation_id", ids)
+      .order("created_at", { ascending: false }),
+    Promise.all(ids.map((id) => supabase.rpc("conversation_display_names", { p_conversation_id: id }))),
+  ]);
+
+  const namesByConversation = new Map<string, DisplayNameRow[]>(
+    ids.map((id, i) => [id, (displayNameResults[i].data ?? []) as DisplayNameRow[]])
+  );
+
+  const conversations = memberships.map(({ myRole, conv }): Conversation => {
+    const convMessages = (recentMessages ?? []).filter((m) => m.conversation_id === conv.id);
+    const lastMsg = convMessages[0];
+    const unread = convMessages.filter((m) => m.sender_id !== user.id && !m.read_at).length;
+    const names = namesByConversation.get(conv.id) ?? [];
+    const other = names.find((n) => n.user_id !== user.id) ?? names.find((n) => n.participant_role !== myRole);
+
+    return {
+      id: conv.id,
+      agency_id: conv.agency_id,
+      traveler_id: conv.traveler_id,
+      listing_id: conv.listing_id,
+      booking_id: conv.booking_id,
+      last_message_at: conv.last_message_at,
+      listing_title: conv.listing?.title ?? null,
+      last_message: lastMsg?.content ?? null,
+      unread_count: unread,
+      other_party_name: other?.display_name ?? (myRole === "traveler" ? "Agency" : "Traveler"),
+      other_party_id: other?.user_id ?? null,
+    };
+  });
+
+  conversations.sort((a, b) => {
+    if (!a.last_message_at && !b.last_message_at) return 0;
+    if (!a.last_message_at) return 1;
+    if (!b.last_message_at) return -1;
+    return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
+  });
+
+  return conversations;
+}
 
 export function useTravelerConversations() {
   return useQuery({
     queryKey: ["conversations", "traveler"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data: convs, error } = await supabase
-        .from("conversations")
-        .select("id, traveler_id, agency_id, listing_id, last_message_at, listing:listings(title)")
-        .eq("traveler_id", user.id)
-        .order("last_message_at", { ascending: false });
-
-      if (error || !convs?.length) return [];
-
-      // Resolve agency names
-      const agencyIds = [...new Set(convs.map((c) => c.agency_id))];
-      const [{ data: agencies }, { data: recentMessages }] = await Promise.all([
-        supabase
-          .from("agency_applications")
-          .select("user_id, company_name")
-          .in("user_id", agencyIds),
-        supabase
-          .from("messages")
-          .select("conversation_id, content, sender_id, read_at")
-          .in("conversation_id", convs.map((c) => c.id))
-          .order("created_at", { ascending: false }),
-      ]);
-
-      const agencyMap = new Map((agencies ?? []).map((a) => [a.user_id, a.company_name]));
-
-      return convs.map((conv): Conversation => {
-        const convMessages = (recentMessages ?? []).filter((m) => m.conversation_id === conv.id);
-        const lastMsg = convMessages[0];
-        const unread = convMessages.filter((m) => m.sender_id !== user.id && !m.read_at).length;
-        return {
-          id: conv.id,
-          traveler_id: conv.traveler_id,
-          agency_id: conv.agency_id,
-          listing_id: conv.listing_id,
-          last_message_at: conv.last_message_at,
-          listing_title: (conv.listing as unknown as { title: string } | null)?.title ?? null,
-          last_message: lastMsg?.content ?? null,
-          unread_count: unread,
-          other_party_name: agencyMap.get(conv.agency_id) ?? "Agency",
-          other_party_id: conv.agency_id,
-        };
-      });
-    },
+    queryFn: fetchConversationsForUser,
     staleTime: 30_000,
   });
 }
 
-// ── Agency conversations ──────────────────────────────────────
-
 export function useAgencyConversations() {
   return useQuery({
     queryKey: ["conversations", "agency"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data: convs, error } = await supabase
-        .from("conversations")
-        .select("id, traveler_id, agency_id, listing_id, last_message_at, listing:listings(title)")
-        .eq("agency_id", user.id)
-        .order("last_message_at", { ascending: false });
-
-      if (error || !convs?.length) return [];
-
-      const travelerIds = [...new Set(convs.map((c) => c.traveler_id))];
-      const [{ data: displayNames }, { data: recentMessages }] = await Promise.all([
-        supabase.rpc("get_user_display_names", { user_ids: travelerIds }),
-        supabase
-          .from("messages")
-          .select("conversation_id, content, sender_id, read_at")
-          .in("conversation_id", convs.map((c) => c.id))
-          .order("created_at", { ascending: false }),
-      ]);
-
-      const nameMap = new Map(
-        (displayNames as { id: string; display_name: string }[] ?? []).map((u) => [u.id, u.display_name])
-      );
-
-      return convs.map((conv): Conversation => {
-        const convMessages = (recentMessages ?? []).filter((m) => m.conversation_id === conv.id);
-        const lastMsg = convMessages[0];
-        const unread = convMessages.filter((m) => m.sender_id !== user.id && !m.read_at).length;
-        return {
-          id: conv.id,
-          traveler_id: conv.traveler_id,
-          agency_id: conv.agency_id,
-          listing_id: conv.listing_id,
-          last_message_at: conv.last_message_at,
-          listing_title: (conv.listing as unknown as { title: string } | null)?.title ?? null,
-          last_message: lastMsg?.content ?? null,
-          unread_count: unread,
-          other_party_name: nameMap.get(conv.traveler_id) ?? "Traveler",
-          other_party_id: conv.traveler_id,
-        };
-      });
-    },
+    queryFn: fetchConversationsForUser,
     staleTime: 30_000,
   });
 }
@@ -216,35 +212,37 @@ export function useSendMessage() {
 }
 
 // ── Start (or reuse) a conversation with an agency ────────────
-
+//
+// The only client-side entry point for creating a conversation (audit C2):
+// everything — the conversations row, the caller's own participant row, and
+// every active accepted agency staff member's participant row — is created
+// server-side by start_conversation(), which also validates the agency is
+// actually publicly approved and the listing/booking (if given) really
+// belong to it. Idempotent: calling this again with the same agency+listing
+// returns the existing conversation id.
 export function useStartConversation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ agencyId, listingId = null }: { agencyId: string; listingId?: string | null }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Please sign in to message this agency.");
-
-      let existingQuery = supabase
-        .from("conversations")
-        .select("id")
-        .eq("traveler_id", user.id)
-        .eq("agency_id", agencyId);
-      existingQuery = listingId
-        ? existingQuery.eq("listing_id", listingId)
-        : existingQuery.is("listing_id", null);
-
-      const { data: existing } = await existingQuery.maybeSingle();
-      if (existing) return existing.id as string;
-
-      const { data, error } = await supabase
-        .from("conversations")
-        .insert({ traveler_id: user.id, agency_id: agencyId, listing_id: listingId })
-        .select("id")
-        .single();
-
+    mutationFn: async ({
+      agencyId,
+      listingId = null,
+      bookingId = null,
+      subject = null,
+    }: {
+      agencyId: string;
+      listingId?: string | null;
+      bookingId?: string | null;
+      subject?: string | null;
+    }) => {
+      const { data, error } = await supabase.rpc("start_conversation", {
+        p_agency_id: agencyId,
+        p_listing_id: listingId,
+        p_booking_id: bookingId,
+        p_subject: subject,
+      });
       if (error) throw error;
-      return data.id as string;
+      return data as string;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
@@ -272,21 +270,12 @@ export function useUnreadCount() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return 0;
 
-      // Get user's conversations
-      const role = user.user_metadata?.role;
-      const field = role === "agency" ? "agency_id" : "traveler_id";
-
-      const { data: convs } = await supabase
-        .from("conversations")
-        .select("id")
-        .eq(field, user.id);
-
-      if (!convs?.length) return 0;
-
+      // messages_select_participant RLS already scopes visible rows to
+      // conversations this user participates in — no need to first fetch
+      // the conversation id list and IN-filter by hand.
       const { count } = await supabase
         .from("messages")
         .select("id", { count: "exact", head: true })
-        .in("conversation_id", convs.map((c) => c.id))
         .is("read_at", null)
         .neq("sender_id", user.id);
 
@@ -295,52 +284,4 @@ export function useUnreadCount() {
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
-}
-
-// ── Create or find conversation + send first message ──────────
-
-export async function startConversation({
-  travelerId,
-  agencyId,
-  listingId,
-  content,
-}: {
-  travelerId: string;
-  agencyId: string;
-  listingId: string;
-  content: string;
-}): Promise<{ conversationId: string }> {
-  const { data: existing, error: findError } = await supabase
-    .from("conversations")
-    .select("id")
-    .eq("traveler_id", travelerId)
-    .eq("agency_id", agencyId)
-    .eq("listing_id", listingId)
-    .maybeSingle();
-
-  if (findError) throw findError;
-
-  let conversationId = existing?.id;
-
-  if (!conversationId) {
-    const { data: conv, error: convError } = await supabase
-      .from("conversations")
-      .insert({ traveler_id: travelerId, agency_id: agencyId, listing_id: listingId })
-      .select("id")
-      .single();
-
-    if (convError || !conv) throw convError ?? new Error("Failed to create conversation");
-    conversationId = conv.id;
-  }
-
-  // Insert message
-  const { error: msgError } = await supabase.from("messages").insert({
-    conversation_id: conversationId,
-    sender_id: travelerId,
-    content: content.trim(),
-  });
-
-  if (msgError) throw msgError;
-
-  return { conversationId };
 }

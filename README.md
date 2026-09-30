@@ -46,9 +46,14 @@ Open `.env.local` and fill in your values:
 ```env
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_TURNSTILE_SITE_KEY=your_turnstile_site_key
+VITE_SENTRY_DSN=
+VITE_APP_ENV=development
 ```
 
-Both Supabase keys are in **Supabase Dashboard → Project Settings → API**.
+Both Supabase keys are in **Supabase Dashboard → Project Settings → API**. `VITE_TURNSTILE_SITE_KEY` is the public site key for the contact form's bot-protection widget — see **Supabase → Project Settings → API** for the Supabase keys, and **Cloudflare Dashboard → Turnstile** for the Turnstile key pair (its matching secret key is an Edge Functions secret, set in step 5b, never a client-side variable).
+
+`VITE_SENTRY_DSN` and `VITE_APP_ENV` are for frontend error tracking (`src/lib/sentry.ts`) — leave `VITE_SENTRY_DSN` empty for local development; Sentry initializes only when it's set, and the app runs identically either way. In production, set it to your Sentry project's DSN (**Sentry → Project Settings → Client Keys**) and set `VITE_APP_ENV=production` so events are tagged correctly. Events are also tagged `portal` (`www`/`partner`/`admin`) based on the request's hostname subdomain.
 
 > **Security:** Never put `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` or any client-side file. It is injected into Edge Functions as a Supabase secret only (see step 5).
 
@@ -115,6 +120,26 @@ supabase link --project-ref your-project-ref
 
 ```bash
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# Email — see supabase/functions/_shared/email.ts. EMAIL_MODE=mailtrap is
+# refused at boot whenever ENVIRONMENT is "production".
+supabase secrets set ENVIRONMENT=production
+supabase secrets set EMAIL_MODE=resend
+supabase secrets set FROM_EMAIL=noreply@intonepal.com
+supabase secrets set SUPPORT_INBOX=support@intonepal.com
+
+# Contact form bot protection (Cloudflare Turnstile secret key — pair it
+# with VITE_TURNSTILE_SITE_KEY from step 2).
+supabase secrets set TURNSTILE_SECRET_KEY=your_turnstile_secret_key
+
+# Notification dispatch worker — the pg_cron job presents this header to
+# authenticate its call to dispatch-notifications. Generate a long random
+# value; it must also be stored in Supabase Vault (see 5d below).
+supabase secrets set NOTIFICATIONS_CRON_SECRET=your_random_secret
+
+# Inbox for the daily ops health alert (see 5e below) — only emailed on a
+# day something actually failed, never a daily "all clear" ping.
+supabase secrets set OPS_ALERT_EMAIL=ops@intonepal.com
 ```
 
 The service role key is in **Supabase → Project Settings → API**.
@@ -125,7 +150,33 @@ The service role key is in **Supabase → Project Settings → API**.
 supabase functions deploy admin-users
 supabase functions deploy agency-application
 supabase functions deploy review-agency-application
+supabase functions deploy contact-form
+supabase functions deploy send-welcome-email
+supabase functions deploy agency-invitations
+supabase functions deploy dispatch-notifications
 ```
+
+### 5d. One-time: store the cron secret in Vault and schedule the dispatcher
+
+`dispatch-notifications` runs every minute via `pg_cron` + `pg_net`, which
+calls the deployed function over HTTP and must present the same secret set
+in step 5b as a header. That secret is read from Supabase Vault at
+schedule time (not baked into the migration as plaintext), so it needs to
+be stored once, by hand, after secrets are set:
+
+```sql
+-- Run once in the Supabase SQL editor (or via `supabase db execute`),
+-- against the SAME project the NOTIFICATIONS_CRON_SECRET secret was set on.
+select vault.create_secret('your_random_secret', 'notifications_cron_secret');
+```
+
+Use the exact same value passed to `supabase secrets set NOTIFICATIONS_CRON_SECRET=...` above. The `dispatch-notifications-cron` pg_cron job (created by its migration) reads this Vault entry on every run — rotating the secret means updating both the Edge Functions secret and this Vault entry together.
+
+### 5e. Production observability
+
+- **Frontend error tracking** (`src/lib/sentry.ts`) needs no deploy step beyond setting `VITE_SENTRY_DSN`/`VITE_APP_ENV` (step 2) at build time — it's a static frontend env var, not an Edge Functions secret.
+- **Cron health**: `public.cron_health()` (admin-only) backs the "System Health" card on `/admin` — nothing to configure, it reads `cron.job`/`cron.job_run_details` directly.
+- **Daily ops alert**: `public.check_ops_daily_health()` runs once a day at 18:45 UTC (00:30 NPT) via `pg_cron`, and only queues an email (through the same `dispatch-notifications` worker as everything else) when a cron job failed in the last 24h or a notification permanently failed — a clean day sends nothing. Requires `OPS_ALERT_EMAIL` (above); no Vault step needed, this one doesn't call out over HTTP.
 
 ---
 

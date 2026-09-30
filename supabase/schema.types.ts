@@ -99,6 +99,7 @@ export type Database = {
           size_bytes: number
           status: string
           storage_path: string
+          superseded_at: string | null
         }
         Insert: {
           agency_id: string
@@ -113,6 +114,7 @@ export type Database = {
           size_bytes: number
           status?: string
           storage_path: string
+          superseded_at?: string | null
         }
         Update: {
           agency_id?: string
@@ -127,10 +129,58 @@ export type Database = {
           size_bytes?: number
           status?: string
           storage_path?: string
+          superseded_at?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "agency_documents_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_invitations: {
+        Row: {
+          accepted_at: string | null
+          agency_id: string
+          agency_role: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          agency_id: string
+          agency_role: string
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by: string
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          accepted_at?: string | null
+          agency_id?: string
+          agency_role?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_invitations_agency_id_fkey"
             columns: ["agency_id"]
             isOneToOne: false
             referencedRelation: "agencies"
@@ -711,7 +761,10 @@ export type Database = {
           booking_id: string | null
           created_at: string
           id: string
+          last_message_at: string | null
+          listing_id: string | null
           subject: string | null
+          traveler_id: string | null
           updated_at: string
         }
         Insert: {
@@ -719,7 +772,10 @@ export type Database = {
           booking_id?: string | null
           created_at?: string
           id?: string
+          last_message_at?: string | null
+          listing_id?: string | null
           subject?: string | null
+          traveler_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -727,7 +783,10 @@ export type Database = {
           booking_id?: string | null
           created_at?: string
           id?: string
+          last_message_at?: string | null
+          listing_id?: string | null
           subject?: string | null
+          traveler_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -743,6 +802,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
             referencedColumns: ["id"]
           },
         ]
@@ -799,6 +865,7 @@ export type Database = {
         Row: {
           aggregate_id: string
           aggregate_type: string
+          claimed_at: string | null
           created_at: string
           event_type: string
           id: string
@@ -808,6 +875,7 @@ export type Database = {
         Insert: {
           aggregate_id: string
           aggregate_type: string
+          claimed_at?: string | null
           created_at?: string
           event_type: string
           id?: string
@@ -817,11 +885,39 @@ export type Database = {
         Update: {
           aggregate_id?: string
           aggregate_type?: string
+          claimed_at?: string | null
           created_at?: string
           event_type?: string
           id?: string
           payload?: Json
           processed_at?: string | null
+        }
+        Relationships: []
+      }
+      idempotency_keys: {
+        Row: {
+          created_at: string
+          fn: string
+          key: string
+          response: Json
+          status: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          fn: string
+          key: string
+          response: Json
+          status: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          fn?: string
+          key?: string
+          response?: Json
+          status?: number
+          user_id?: string
         }
         Relationships: []
       }
@@ -1164,36 +1260,45 @@ export type Database = {
       }
       notifications: {
         Row: {
+          attempts: number
           channel: string
+          claimed_at: string | null
           created_at: string
           domain_event_id: string
           error_message: string | null
           id: string
           idempotency_key: string
+          next_attempt_at: string
           read_at: string | null
           recipient_id: string
           sent_at: string | null
           status: string
         }
         Insert: {
+          attempts?: number
           channel: string
+          claimed_at?: string | null
           created_at?: string
           domain_event_id: string
           error_message?: string | null
           id?: string
           idempotency_key: string
+          next_attempt_at?: string
           read_at?: string | null
           recipient_id: string
           sent_at?: string | null
           status?: string
         }
         Update: {
+          attempts?: number
           channel?: string
+          claimed_at?: string | null
           created_at?: string
           domain_event_id?: string
           error_message?: string | null
           id?: string
           idempotency_key?: string
+          next_attempt_at?: string
           read_at?: string | null
           recipient_id?: string
           sent_at?: string | null
@@ -1315,6 +1420,8 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          deleted_at: string | null
+          email: string | null
           full_name: string | null
           id: string
           locale: string
@@ -1324,6 +1431,8 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          deleted_at?: string | null
+          email?: string | null
           full_name?: string | null
           id: string
           locale?: string
@@ -1333,6 +1442,8 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          deleted_at?: string | null
+          email?: string | null
           full_name?: string | null
           id?: string
           locale?: string
@@ -1378,6 +1489,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rate_limits: {
+        Row: {
+          bucket: string
+          count: number
+          window_start: string
+        }
+        Insert: {
+          bucket: string
+          count?: number
+          window_start: string
+        }
+        Update: {
+          bucket?: string
+          count?: number
+          window_start?: string
+        }
+        Relationships: []
       }
       review_photos: {
         Row: {
@@ -1452,11 +1581,16 @@ export type Database = {
       reviews: {
         Row: {
           agency_id: string
+          agency_responded_at: string | null
+          agency_response: string | null
           booking_id: string
           comment: string
           created_at: string
           helpful_count: number
+          hidden_at: string | null
           id: string
+          is_featured: boolean
+          is_flagged: boolean
           listing_id: string
           rating: number
           title: string | null
@@ -1466,11 +1600,16 @@ export type Database = {
         }
         Insert: {
           agency_id: string
+          agency_responded_at?: string | null
+          agency_response?: string | null
           booking_id: string
           comment: string
           created_at?: string
           helpful_count?: number
+          hidden_at?: string | null
           id?: string
+          is_featured?: boolean
+          is_flagged?: boolean
           listing_id: string
           rating: number
           title?: string | null
@@ -1480,11 +1619,16 @@ export type Database = {
         }
         Update: {
           agency_id?: string
+          agency_responded_at?: string | null
+          agency_response?: string | null
           booking_id?: string
           comment?: string
           created_at?: string
           helpful_count?: number
+          hidden_at?: string | null
           id?: string
+          is_featured?: boolean
+          is_flagged?: boolean
           listing_id?: string
           rating?: number
           title?: string | null
@@ -1557,6 +1701,21 @@ export type Database = {
           },
         ]
       }
+      welcome_emails: {
+        Row: {
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       wishlists: {
         Row: {
           created_at: string
@@ -1591,6 +1750,65 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_agency_member_to_conversation: {
+        Args: { p_conversation_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      admin_reinstate_agency: {
+        Args: { p_agency_id: string; p_request_id?: string }
+        Returns: undefined
+      }
+      admin_suspend_agency: {
+        Args: { p_agency_id: string; p_reason: string; p_request_id?: string }
+        Returns: undefined
+      }
+      admin_user_directory: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_role?: string
+          p_search?: string
+        }
+        Returns: {
+          banned_until: string
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          last_sign_in_at: string
+          role: string
+          total_count: number
+        }[]
+      }
+      admin_user_stats: {
+        Args: never
+        Returns: {
+          admins: number
+          agencies: number
+          finance: number
+          support: number
+          suspended: number
+          total: number
+          travelers: number
+        }[]
+      }
+      agency_is_active: { Args: { target_agency_id: string }; Returns: boolean }
+      agency_set_trip_status: {
+        Args: { p_booking_id: string; p_status: string }
+        Returns: undefined
+      }
+      agency_team_roster: {
+        Args: { p_agency_id: string }
+        Returns: {
+          accepted_at: string
+          agency_role: string
+          display_name: string
+          email: string
+          invited_at: string
+          membership_id: string
+          user_id: string
+        }[]
+      }
       assert_valid_transition: {
         Args: {
           p_allowed: Json
@@ -1600,20 +1818,106 @@ export type Database = {
         }
         Returns: undefined
       }
+      audit_definer_exposure: {
+        Args: never
+        Returns: {
+          arguments: string
+          executable_by: string[]
+          function_name: string
+        }[]
+      }
       capacity_available: {
         Args: { inv: Database["public"]["Tables"]["inventory"]["Row"] }
         Returns: number
+      }
+      change_agency_member_role: {
+        Args: { p_agency_id: string; p_role: string; p_user_id: string }
+        Returns: undefined
+      }
+      check_ops_daily_health: { Args: never; Returns: undefined }
+      claim_domain_events: {
+        Args: { p_limit?: number }
+        Returns: {
+          aggregate_id: string
+          aggregate_type: string
+          claimed_at: string | null
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          processed_at: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "domain_events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_pending_notifications: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          channel: string
+          claimed_at: string | null
+          created_at: string
+          domain_event_id: string
+          error_message: string | null
+          id: string
+          idempotency_key: string
+          next_attempt_at: string
+          read_at: string | null
+          recipient_id: string
+          sent_at: string | null
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "notifications"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       confirm_reservation: {
         Args: { p_booking_id: string; p_reservation_id: string }
         Returns: undefined
       }
+      conversation_display_names: {
+        Args: { p_conversation_id: string }
+        Returns: {
+          display_name: string
+          participant_role: string
+          user_id: string
+        }[]
+      }
+      cron_health: {
+        Args: never
+        Returns: {
+          active: boolean
+          is_healthy: boolean
+          jobid: number
+          jobname: string
+          last_end_time: string
+          last_start_time: string
+          last_status: string
+          schedule: string
+        }[]
+      }
       current_platform_role: { Args: never; Returns: string }
       current_platform_role_unverified: { Args: never; Returns: string }
+      delete_my_account: { Args: { p_request_id?: string }; Returns: undefined }
       expire_stale_quotes: { Args: never; Returns: number }
       expire_stale_reservations: { Args: never; Returns: number }
+      finalize_domain_event: {
+        Args: { p_domain_event_id: string }
+        Returns: undefined
+      }
       has_agency_access: {
         Args: { min_role?: string; target_agency_id: string }
+        Returns: boolean
+      }
+      hit_rate_limit: {
+        Args: { p_bucket: string; p_limit: number; p_window_seconds: number }
         Returns: boolean
       }
       hold_inventory: {
@@ -1635,8 +1939,10 @@ export type Database = {
         Returns: boolean
       }
       is_finance_or_admin: { Args: never; Returns: boolean }
+      is_own_review: { Args: { p_review_id: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       is_support_or_admin: { Args: never; Returns: boolean }
+      lookup_user_id_by_email: { Args: { p_email: string }; Returns: string }
       record_audit_log: {
         Args: {
           p_action: string
@@ -1657,12 +1963,47 @@ export type Database = {
         Args: { p_reason?: string; p_reservation_id: string }
         Returns: undefined
       }
+      remove_agency_member: {
+        Args: { p_agency_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      replace_agency_document: {
+        Args: {
+          p_agency_id: string
+          p_document_type: string
+          p_mime_type: string
+          p_size_bytes: number
+          p_storage_path: string
+        }
+        Returns: string
+      }
+      request_booking_cancellation: {
+        Args: { p_booking_id: string; p_reason: string }
+        Returns: undefined
+      }
+      respond_to_review: {
+        Args: { p_review_id: string; p_text: string }
+        Returns: undefined
+      }
+      revoke_user_sessions: { Args: { p_user_id: string }; Returns: undefined }
+      save_agency_draft: { Args: { p_fields: Json }; Returns: string }
       set_departure_capacity: {
         Args: { p_capacity_total: number; p_departure_id: string }
         Returns: undefined
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      start_conversation: {
+        Args: {
+          p_agency_id: string
+          p_booking_id?: string
+          p_listing_id?: string
+          p_subject?: string
+        }
+        Returns: string
+      }
+      submit_agency_application: { Args: never; Returns: string }
+      trigger_dispatch_notifications: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

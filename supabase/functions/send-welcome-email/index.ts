@@ -1,125 +1,88 @@
-/**
- * send-welcome-email
- *
- * Called by a Postgres trigger (via pg_net) whenever a user's
- * email_confirmed_at transitions from NULL → a timestamp, i.e.
- * exactly once after the user verifies their signup link.
- *
- * It can also be called manually from the frontend after an auth
- * state change to EMAIL_CONFIRMED if pg_net is unavailable.
- *
- * Security model:
- *  - Accepts Bearer tokens that are either the SUPABASE_SERVICE_ROLE_KEY
- *    (from the DB trigger) OR a valid user JWT for the same user_id.
- *  - If called with a user JWT, validates that the JWT's sub matches
- *    the requested user_id to prevent IDOR.
- */
+// send-welcome-email
+//
+// Called from the frontend (src/stores/authStore.ts) once a session is
+// established whose email_confirmed_at is set. There is no pg_net/DB
+// trigger anywhere in this project's migration history that ever called
+// this — that was a documented-but-never-built delivery path (see the
+// migration that added welcome_emails for the full story) — so this is
+// now the ONLY caller, and it accepts only a real user JWT: the service-
+// role path this used to also accept is gone, since nothing legitimate
+// calls it that way anymore and dropping it removes an entire class of
+// "is this really the trusted caller" question.
+//
+// Double-send safety: welcome_emails.user_id is a primary key, so
+// `insert ... on conflict do nothing returning user_id` only returns a row
+// for whichever of two concurrent calls actually wins the race — the
+// loser sees no returned row and sends nothing. If the actual send then
+// fails, the winner's row is deleted so a later retry (next page load,
+// next auth state change) can try again instead of being permanently
+// blocked by a row that recorded a send that never happened.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requirePlatformRole, serviceRoleClient, verifyCaller, VerificationError } from "../_shared/auth.ts";
 import { sendEmail } from "../_shared/email.ts";
 import { welcomeEmail } from "../_shared/emailTemplates.ts";
-
-const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
-const corsHeaders = {
-  "Access-Control-Allow-Origin": allowedOrigin,
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
+import { fail, handleOptions, HttpError, ok, parseJson, withRequestLog } from "../_shared/http.ts";
+import { sendWelcomeEmailSchema } from "../_shared/schemas.ts";
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const early = handleOptions(req);
+  if (early) return early;
+  if (req.method !== "POST") return fail(req, 405, "Method not allowed");
 
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) {
-    return json({ error: "Missing or invalid Authorization header" }, 401);
-  }
-  const token = authHeader.slice(7);
-
-  const supabaseAdmin = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  );
-
-  // Allow both the service-role key (from DB trigger) and a valid user JWT.
-  // We distinguish by trying getUser() first; if that fails, the caller must
-  // be the service role whose token is validated by matching env.
-  let requestedUserId: string;
-  let callerIsServiceRole = false;
-
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (token === serviceRoleKey) {
-    callerIsServiceRole = true;
-    // parse user_id from body below
-  } else {
-    const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token);
-    if (authErr || !user) return json({ error: "Invalid or expired token" }, 401);
-    requestedUserId = user.id;
-  }
-
-  let body: { user_id?: string; email?: string; name?: string };
+  return withRequestLog(req, async (logCtx) => {
   try {
-    body = await req.json();
-  } catch {
-    return json({ error: "Invalid JSON body" }, 400);
-  }
+    const caller = await verifyCaller(req);
+    logCtx.userId = caller.id;
+    requirePlatformRole(caller, ["traveler", "agency", "admin", "super_admin", "support", "finance"]);
+    await parseJson(req, sendWelcomeEmailSchema);
 
-  if (callerIsServiceRole) {
-    if (!body.user_id) return json({ error: "user_id required" }, 400);
-    requestedUserId = body.user_id;
-  } else {
-    // JWT caller: must match their own user_id (prevents IDOR)
-    if (body.user_id && body.user_id !== requestedUserId!) {
-      return json({ error: "Forbidden" }, 403);
+    const supabaseAdmin = serviceRoleClient();
+
+    const { data: authUser, error: userErr } = await supabaseAdmin.auth.admin.getUserById(caller.id);
+    if (userErr || !authUser.user) return fail(req, 404, "User not found");
+
+    const user = authUser.user;
+    const email = user.email;
+    if (!email) return fail(req, 400, "User has no email address");
+    if (!user.email_confirmed_at) return ok(req, { success: true, skipped: true });
+
+    const { data: inserted, error: insertErr } = await supabaseAdmin
+      .from("welcome_emails")
+      .insert({ user_id: caller.id })
+      .select("user_id")
+      .maybeSingle();
+    if (insertErr && insertErr.code !== "23505") {
+      return fail(req, 500, "Something went wrong. Please try again.", insertErr, { userId: caller.id });
     }
+    if (!inserted) {
+      // Either already sent, or a concurrent call just won the race —
+      // either way, not this call's job to send.
+      return ok(req, { success: true, skipped: true });
+    }
+
+    const name = (user.user_metadata?.name as string) ?? email.split("@")[0];
+    const { subject, html, text } = welcomeEmail({ name });
+
+    const { error: emailErr } = await sendEmail({
+      to: email,
+      subject,
+      html,
+      text,
+      tags: [{ name: "type", value: "welcome" }],
+    });
+    if (emailErr) {
+      // Sending failed — remove the row we just inserted so a later retry
+      // isn't permanently blocked by a "sent" record for a send that
+      // never actually happened.
+      await supabaseAdmin.from("welcome_emails").delete().eq("user_id", caller.id);
+      return fail(req, 500, "Failed to send welcome email.", emailErr, { userId: caller.id });
+    }
+
+    return ok(req, { success: true });
+  } catch (err) {
+    if (err instanceof VerificationError) return fail(req, err.status, err.message);
+    if (err instanceof HttpError) return fail(req, err.status, err.publicMessage);
+    return fail(req, 500, "Something went wrong. Please try again.", err);
   }
-
-  // Fetch user details from auth.users via admin client
-  const { data: authUser, error: userErr } = await supabaseAdmin.auth.admin.getUserById(requestedUserId!);
-  if (userErr || !authUser.user) return json({ error: "User not found" }, 404);
-
-  const user = authUser.user;
-  const email = user.email;
-  if (!email) return json({ error: "User has no email address" }, 400);
-
-  // Idempotency: check if we already sent this welcome email. Used to check
-  // a `webhook_events` row (a table that belonged to the now-removed
-  // Stripe-based payment model); a flag on the user's own app_metadata is a
-  // simpler, equally sufficient dedup key for this one-per-user email and
-  // needs no dedicated table.
-  if (user.app_metadata?.welcome_email_sent_at) {
-    // Already sent — return 200 so the trigger doesn't retry
-    return json({ success: true, skipped: true });
-  }
-
-  const name = (user.user_metadata?.name as string) ?? email.split("@")[0];
-  const { subject, html, text } = welcomeEmail({ name });
-
-  const { error: emailErr } = await sendEmail({
-    to: email,
-    subject,
-    html,
-    text,
-    tags: [{ name: "type", value: "welcome" }],
   });
-
-  if (emailErr) {
-    console.error("send-welcome-email: failed to send", emailErr);
-    return json({ error: emailErr }, 500);
-  }
-
-  // Record delivery so we never send twice
-  await supabaseAdmin.auth.admin.updateUserById(requestedUserId!, {
-    app_metadata: { welcome_email_sent_at: new Date().toISOString() },
-  });
-
-  return json({ success: true });
 });

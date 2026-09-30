@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { invokeEdge } from "./edge";
 import { logger } from "./logger";
 
 /**
@@ -21,10 +21,10 @@ export async function logAdminAction(
   after?: Record<string, unknown>,
   before?: Record<string, unknown>,
 ) {
-  const { data, error } = await supabase.functions.invoke("record-audit-log", {
+  const { error } = await invokeEdge("record-audit-log", {
     body: { action, resource_type: resourceType, resource_id: resourceId, before, after },
   });
-  if (error || data?.error) {
-    logger.error("logAdminAction failed:", error?.message ?? data?.error);
+  if (error) {
+    logger.error("logAdminAction failed:", error.message);
   }
 }

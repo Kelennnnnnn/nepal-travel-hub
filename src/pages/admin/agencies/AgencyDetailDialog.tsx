@@ -1,7 +1,8 @@
+import { useState } from "react";
 import {
   Building2, Mail, MapPin, Phone, Calendar, FileText,
   CheckCircle, AlertTriangle, ExternalLink, ShieldOff, ShieldCheck,
-  DollarSign, Star, BookOpen, Clock, HelpCircle,
+  DollarSign, Star, BookOpen, Clock, HelpCircle, History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,6 +55,11 @@ export function AgencyDetailDialog({
   open, onOpenChange, item, documents, documentsLoading, metrics, metricsLoading,
   statusBadge, formatDate, onStartReview, onRequestInfo, onApprove, onReject, onSuspend, onReinstate,
 }: Props) {
+  const [showHistory, setShowHistory] = useState(false);
+
+  const currentDocuments = documents.filter((d) => !d.superseded_at);
+  const supersededDocuments = documents.filter((d) => d.superseded_at);
+
   const handleViewDocument = async (storagePath: string) => {
     const { data, error } = await supabase.storage
       .from("agency-documents")
@@ -176,9 +182,17 @@ export function AgencyDetailDialog({
             )}
 
             <div className="p-4 bg-muted/50 rounded-xl space-y-2">
-              <h4 className="font-semibold text-sm flex items-center gap-2">
-                <FileText className="h-4 w-4 text-primary" /> Documents
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary" /> Documents
+                </h4>
+                {supersededDocuments.length > 0 && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowHistory((v) => !v)}>
+                    <History className="h-3.5 w-3.5 mr-1" />
+                    {showHistory ? "Hide history" : `History (${supersededDocuments.length})`}
+                  </Button>
+                )}
+              </div>
               {documentsLoading ? (
                 <div className="space-y-2">
                   <Skeleton className="h-8 w-full" />
@@ -187,7 +201,7 @@ export function AgencyDetailDialog({
               ) : (
                 <div className="space-y-2">
                   {REQUIRED_TYPES.map((type) => {
-                    const doc = documents.find((d) => d.document_type === type);
+                    const doc = currentDocuments.find((d) => d.document_type === type);
                     return (
                       <div key={type} className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
@@ -204,7 +218,7 @@ export function AgencyDetailDialog({
                       </div>
                     );
                   })}
-                  {documents.filter((d) => !REQUIRED_TYPES.includes(d.document_type)).map((doc) => (
+                  {currentDocuments.filter((d) => !REQUIRED_TYPES.includes(d.document_type)).map((doc) => (
                     <div key={doc.id} className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-primary" />
@@ -215,6 +229,24 @@ export function AgencyDetailDialog({
                       </Button>
                     </div>
                   ))}
+
+                  {showHistory && supersededDocuments.length > 0 && (
+                    <div className="pt-2 mt-2 border-t border-border space-y-2">
+                      <p className="text-xs text-muted-foreground font-medium">Superseded (kept for the record, no longer current)</p>
+                      {supersededDocuments.map((doc) => (
+                        <div key={doc.id} className="flex items-center justify-between text-sm opacity-70">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <span>{DOCUMENT_LABELS[doc.document_type]}</span>
+                            <span className="text-xs text-muted-foreground">({formatDate(doc.created_at)})</span>
+                          </div>
+                          <Button variant="outline" size="sm" onClick={() => handleViewDocument(doc.storage_path)}>
+                            <ExternalLink className="h-3.5 w-3.5 mr-1" /> View Document
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

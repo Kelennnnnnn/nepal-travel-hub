@@ -22,6 +22,7 @@ import { Upload, Save, Lock, Trash2, Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
+import { invokeEdge, newIdempotencyKey } from "@/lib/edge";
 
 export default function Account() {
   const { logout } = useAuthStore();
@@ -45,6 +46,9 @@ export default function Account() {
 
   // Danger zone
   const [isDeleting, setIsDeleting] = useState(false);
+  // Reused if the user retries after a failure, so a repeat click doesn't
+  // risk the server treating it as a second, independent deletion attempt.
+  const deleteIdempotencyKeyRef = useRef<string | null>(null);
 
   // Load user data on mount
   useEffect(() => {
@@ -146,20 +150,6 @@ export default function Account() {
     toast.success("Password updated.");
   };
 
-  const getFunctionErrorMessage = async (error: unknown) => {
-    if (error && typeof error === "object" && "context" in error) {
-      const context = (error as { context?: unknown }).context;
-      if (context instanceof Response) {
-        try {
-          const body = await context.json();
-          if (typeof body?.error === "string") return body.error;
-        } catch {
-          // Fall through to the default error message.
-        }
-      }
-    }
-    return error instanceof Error ? error.message : "Failed to delete account.";
-  };
 
   const handleDeleteAccount = async () => {
     setIsDeleting(true);
@@ -170,12 +160,13 @@ export default function Account() {
       return;
     }
 
-    const { error } = await supabase.functions.invoke("delete-account", {
-      body: {},
+    if (!deleteIdempotencyKeyRef.current) deleteIdempotencyKeyRef.current = newIdempotencyKey();
+    const { error } = await invokeEdge("delete-account", {
+      idempotencyKey: deleteIdempotencyKeyRef.current,
     });
 
     if (error) {
-      toast.error(await getFunctionErrorMessage(error));
+      toast.error(error.message);
       setIsDeleting(false);
       return;
     }

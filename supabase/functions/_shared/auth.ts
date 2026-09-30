@@ -13,8 +13,19 @@
 // The two implementations cannot share code (one runs inside Postgres, one
 // in Deno) and must be kept in sync BY HAND — documented here and there so
 // this duplication is a deliberate, tracked decision, not a discovered gap.
+//
+// Freshness (audit H1): verifyCaller() below has always been the "fresh"
+// side of this duplication — auth.getUser(token) is a live Admin API call,
+// so caller.role here is never more stale than the request itself,
+// regardless of what the JWT claims. RLS's role helpers (current_platform_
+// role() and everything built on it) used to be the stale side, reading
+// auth.jwt()'s app_metadata claim — up to an hour old after a role change
+// or ban. supabase/migrations/20260917000006_fresh_role_lookup.sql fixed
+// that: current_platform_role() now reads auth.users live too, keyed by
+// auth.uid(). Both layers now share the same freshness guarantee; this
+// file's independent getUser() call was never the gap.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
 
 export type PlatformRole = "traveler" | "agency" | "admin" | "super_admin" | "support" | "finance";
 

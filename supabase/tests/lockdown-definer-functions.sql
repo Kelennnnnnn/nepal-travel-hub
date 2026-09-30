@@ -48,66 +48,81 @@ values ('a0000000-0000-0000-0000-000000000005', 5);
 
 -- ── Group 1: anon is blocked from every function in audit C1's step 1 list,
 --    plus set_departure_capacity (step 4 — authenticated only) ─────────────
+--
+-- NOTE: these check the ACL state via has_function_privilege() rather than
+-- actually invoking the function and expecting a 42501 error. A genuine
+-- EXECUTE-permission-denied call to a SECURITY DEFINER function, made via a
+-- direct psql/pgTAP session with `set local role`, reproducibly SEGFAULTS
+-- this environment's local Postgres build (17.6 on aarch64) — confirmed
+-- with a minimal one-line repro function outside of pgTAP/throws_ok
+-- entirely, so it is not a bug in these functions or in pgTAP. Confirmed
+-- SAFE via the real request path instead: a live anon call to
+-- /rest/v1/rpc/hold_inventory through PostgREST (exactly how production
+-- traffic reaches these functions) returns a normal 42501 JSON error with
+-- no crash — see scripts/anon-rpc-probe.ts, which exercises that path and
+-- is the authoritative live-call check for this behaviour. has_function_
+-- privilege() asserts the identical fact (the grant is absent) without
+-- walking through the code path that crashes this local build.
 
-set local role anon;
-
-select throws_ok(
-  $$ select public.hold_inventory('a0000000-0000-0000-0000-000000000003'::uuid, 1, 15) $$,
-  '42501', null, 'anon: hold_inventory is permission denied'
+select ok(
+  not has_function_privilege('anon', 'public.hold_inventory'::regproc, 'EXECUTE'),
+  'anon: hold_inventory has no EXECUTE grant'
 );
-select throws_ok(
-  $$ select public.confirm_reservation(gen_random_uuid(), gen_random_uuid()) $$,
-  '42501', null, 'anon: confirm_reservation is permission denied'
+select ok(
+  not has_function_privilege('anon', 'public.confirm_reservation'::regproc, 'EXECUTE'),
+  'anon: confirm_reservation has no EXECUTE grant'
 );
-select throws_ok(
-  $$ select public.release_reservation(gen_random_uuid(), 'released') $$,
-  '42501', null, 'anon: release_reservation is permission denied'
+select ok(
+  not has_function_privilege('anon', 'public.release_reservation'::regproc, 'EXECUTE'),
+  'anon: release_reservation has no EXECUTE grant'
 );
-select throws_ok(
-  $$ select public.record_booking_event(gen_random_uuid(), 'x') $$,
-  '42501', null, 'anon: record_booking_event is permission denied'
+select ok(
+  not has_function_privilege('anon', 'public.record_booking_event'::regproc, 'EXECUTE'),
+  'anon: record_booking_event has no EXECUTE grant'
 );
-select throws_ok(
-  $$ select public.record_audit_log(gen_random_uuid(), 'x', 'x', 'x') $$,
-  '42501', null, 'anon: record_audit_log is permission denied'
+select ok(
+  not has_function_privilege('anon', 'public.record_audit_log'::regproc, 'EXECUTE'),
+  'anon: record_audit_log has no EXECUTE grant'
 );
-select throws_ok(
-  $$ select public.set_departure_capacity('a0000000-0000-0000-0000-000000000003'::uuid, 5) $$,
-  '42501', null, 'anon: set_departure_capacity is permission denied'
+select ok(
+  not has_function_privilege('anon', 'public.set_departure_capacity'::regproc, 'EXECUTE'),
+  'anon: set_departure_capacity has no EXECUTE grant'
 );
-
-reset role;
 
 -- ── Group 2: authenticated (a signed-in traveler, no special role) is
 --    blocked from the same audit C1 functions — these are service-role-only
---    regardless of being signed in ─────────────────────────────────────────
+--    regardless of being signed in. Same has_function_privilege() approach
+--    as Group 1, for the same crash-avoidance reason. ─────────────────────
 
-set local role authenticated;
-select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated', 'app_metadata', json_build_object('role', 'traveler'))::text, true);
-
-select throws_ok(
-  $$ select public.hold_inventory('a0000000-0000-0000-0000-000000000003'::uuid, 1, 15) $$,
-  '42501', null, 'authenticated traveler: hold_inventory is permission denied'
+select ok(
+  not has_function_privilege('authenticated', 'public.hold_inventory'::regproc, 'EXECUTE'),
+  'authenticated traveler: hold_inventory has no EXECUTE grant'
 );
-select throws_ok(
-  $$ select public.confirm_reservation(gen_random_uuid(), gen_random_uuid()) $$,
-  '42501', null, 'authenticated traveler: confirm_reservation is permission denied'
+select ok(
+  not has_function_privilege('authenticated', 'public.confirm_reservation'::regproc, 'EXECUTE'),
+  'authenticated traveler: confirm_reservation has no EXECUTE grant'
 );
-select throws_ok(
-  $$ select public.release_reservation(gen_random_uuid(), 'released') $$,
-  '42501', null, 'authenticated traveler: release_reservation is permission denied'
+select ok(
+  not has_function_privilege('authenticated', 'public.release_reservation'::regproc, 'EXECUTE'),
+  'authenticated traveler: release_reservation has no EXECUTE grant'
 );
-select throws_ok(
-  $$ select public.record_audit_log(gen_random_uuid(), 'x', 'x', 'x') $$,
-  '42501', null, 'authenticated traveler: record_audit_log is permission denied'
+select ok(
+  not has_function_privilege('authenticated', 'public.record_audit_log'::regproc, 'EXECUTE'),
+  'authenticated traveler: record_audit_log has no EXECUTE grant'
 );
-select throws_ok(
-  $$ select public.record_booking_event(gen_random_uuid(), 'x') $$,
-  '42501', null, 'authenticated traveler: record_booking_event is permission denied'
+select ok(
+  not has_function_privilege('authenticated', 'public.record_booking_event'::regproc, 'EXECUTE'),
+  'authenticated traveler: record_booking_event has no EXECUTE grant'
 );
 
 -- Sanity check: step 4 didn't accidentally lock authenticated out of the
--- RLS helper functions it genuinely needs.
+-- RLS helper functions it genuinely needs. This IS a live call, not a
+-- permission check — but it's the success path (authenticated genuinely
+-- has EXECUTE here), which never touches the ACL-denial code path that
+-- crashes, so it's safe.
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated', 'app_metadata', json_build_object('role', 'traveler'))::text, true);
+
 select lives_ok(
   $$ select public.is_admin() $$,
   'authenticated traveler: is_admin() (an RLS helper) is still callable'

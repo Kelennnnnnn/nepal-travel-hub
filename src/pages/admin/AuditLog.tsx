@@ -69,11 +69,16 @@ export default function AuditLogPage() {
   // ── Admin users (for filter) ───────────────────────────────────────
 
   useEffect(() => {
+    // admin_user_directory() (supabase/migrations/20260917000021_admin_
+    // user_directory.sql) returns a flat {id, email, role, ...} row now —
+    // no more nested user_metadata/app_metadata. p_role="admin" filters
+    // server-side (limit=200 comfortably covers every admin account; the
+    // RPC's own cap), same "admin" exact-role-only scope the old in-JS
+    // filter used (super_admins were never included in this dropdown).
     supabase.functions
-      .invoke("admin-users", { body: { action: "list" } })
+      .invoke("admin-users", { body: { action: "list", role: "admin", limit: 200 } })
       .then(({ data }) => {
-        const admins = ((data?.users ?? []) as { id: string; email: string; user_metadata?: { role?: string } }[])
-          .filter((u) => u.user_metadata?.role === "admin")
+        const admins = ((data?.users ?? []) as { id: string; email: string }[])
           .map((u) => ({ id: u.id, email: u.email }));
         setAdminUsers(admins);
       });

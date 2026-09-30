@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useAuthStore } from "./stores/authStore";
-import { ErrorBoundary } from "./components/ErrorBoundary";
 import { CookieConsent } from "./components/CookieConsent";
 import { supabase } from "./lib/supabase";
 
@@ -48,6 +47,7 @@ const AgencyAvailability = lazy(() => import("./pages/agency/AgencyAvailability"
 const AgencyEarnings = lazy(() => import("./pages/agency/AgencyEarnings"));
 const AgencySettings = lazy(() => import("./pages/agency/AgencySettings"));
 const AgencyAnalytics = lazy(() => import("./pages/agency/AgencyAnalytics"));
+const AcceptAgencyInvite = lazy(() => import("./pages/agency/AcceptAgencyInvite"));
 
 // Admin pages
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
@@ -107,8 +107,7 @@ function MaintenanceBanner() {
 }
 
 const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
+  <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -133,6 +132,7 @@ const App = () => (
               <Route path="/terms" element={<TermsOfService />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/agency/profile/:agencyId" element={<AgencyProfile />} />
+              <Route path="/agency/invite/:token" element={<AcceptAgencyInvite />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/about" element={<About />} />
@@ -189,7 +189,6 @@ const App = () => (
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
-  </ErrorBoundary>
 );
 
 export default App;

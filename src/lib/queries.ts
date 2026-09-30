@@ -41,7 +41,7 @@ export interface Review {
   verified: boolean;
   tripDate: string;
   photos?: string[];
-  adminNote: string | null;
+  agencyResponse: string | null;
 }
 
 interface SubmitReviewData {
@@ -69,9 +69,14 @@ function mapReviewRow(row: Record<string, unknown>): Review {
     comment: row.comment as string,
     date: row.created_at as string,
     helpful: (row.helpful_count as number) ?? 0,
-    verified: (row.verified as boolean) ?? true,
+    // Every row in `reviews` requires a real, completed, owned booking to
+    // exist at all (reviews_traveler_insert_eligible_only, migration 12) —
+    // there's no "unverified" review to distinguish this from. The old
+    // `verified` column this used to read from never actually existed on
+    // the table (selecting it would have errored).
+    verified: true,
     tripDate: formatTripDate(row.created_at as string),
-    adminNote: (row.admin_note as string | null) ?? null,
+    agencyResponse: (row.agency_response as string | null) ?? null,
   };
 }
 
@@ -225,7 +230,7 @@ export function useListingReviews(listingId: string | undefined) {
       if (!listingId) throw new Error("No listing ID");
       const { data, error } = await supabase
         .from("reviews")
-        .select("id, listing_id, agency_id, traveler_name, rating, title, comment, helpful_count, verified, created_at, admin_note")
+        .select("id, listing_id, agency_id, traveler_name, rating, title, comment, helpful_count, created_at, agency_response")
         .eq("listing_id", listingId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -240,11 +245,9 @@ export function useAgencyReviews(agencyId: string | undefined) {
     queryKey: ["reviews", "agency", agencyId],
     queryFn: async () => {
       if (!agencyId) throw new Error("No agency ID");
-      // admin_note is omitted: the live reviews table doesn't have this column yet,
-      // unlike what useListingReviews/useRespondToReview assume.
       const { data, error } = await supabase
         .from("reviews")
-        .select("id, listing_id, agency_id, traveler_name, rating, title, comment, helpful_count, verified, created_at")
+        .select("id, listing_id, agency_id, traveler_name, rating, title, comment, helpful_count, created_at, agency_response")
         .eq("agency_id", agencyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -271,7 +274,7 @@ export function useCanReviewListing(listingId: string | undefined) {
         .select("id")
         .eq("listing_id", listingId)
         .eq("traveler_id", user.id)
-        .eq("status", "completed");
+        .eq("booking_status", "completed");
 
       if (!bookings || bookings.length === 0) return false;
 
@@ -304,12 +307,18 @@ export function useSubmitReview() {
         .select("id")
         .eq("listing_id", listingId)
         .eq("traveler_id", user.id)
-        .eq("status", "completed")
+        .eq("booking_status", "completed")
         .limit(1);
 
       const bookingId = bookings?.[0]?.id;
       if (!bookingId) throw new Error("No completed booking found for this activity");
 
+      // reviews.agency_id has no DB default, so the insert payload must
+      // include SOMETHING — but audit H3's guard_review_fields trigger
+      // always overwrites it server-side from the booking's real agency_id
+      // before the NOT NULL constraint is even checked, so this value is
+      // never actually trusted or used; traveler_name/helpful_count are
+      // likewise always server-derived and intentionally not sent at all.
       const { data: listing } = await supabase
         .from("listings")
         .select("agency_id")
@@ -319,9 +328,8 @@ export function useSubmitReview() {
       const { error } = await supabase.from("reviews").insert({
         listing_id: listingId,
         booking_id: bookingId,
-        agency_id: listing?.agency_id ?? null,
         traveler_id: user.id,
-        traveler_name: user.user_metadata?.name ?? user.user_metadata?.full_name ?? null,
+        agency_id: listing?.agency_id ?? "",
         rating,
         title,
         comment,
@@ -337,26 +345,85 @@ export function useSubmitReview() {
   });
 }
 
-// Agency responds to a review via admin_note
+// Agency (manager+) responds to a review via the respond_to_review RPC
+// (audit H3) — reviews.agency_response replaces the old, never-actually-
+// existent admin_note column, and is only ever writable through this RPC,
+// which re-derives manager+ access from the review's real agency_id
+// server-side rather than trusting anything the client sends.
 export function useRespondToReview() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ reviewId, note, listingId }: { reviewId: string; note: string; listingId: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { error } = await supabase
-        .from("reviews")
-        .update({ admin_note: note.trim() || null })
-        .eq("id", reviewId)
-        .eq("agency_id", user.id);
-
+      const { error } = await supabase.rpc("respond_to_review", {
+        p_review_id: reviewId,
+        p_text: note,
+      });
       if (error) throw error;
       return listingId;
     },
     onSuccess: (listingId) => {
       void queryClient.invalidateQueries({ queryKey: ["reviews", listingId] });
+    },
+  });
+}
+
+// The current user's own review_votes, for a given set of review ids — lets
+// ReviewCard show correct "already voted" button state on load/reload
+// instead of relying on localStorage (audit H3).
+export function useMyReviewVotes(reviewIds: string[]) {
+  const sortedIds = [...reviewIds].sort();
+  return useQuery({
+    queryKey: ["review-votes", "mine", sortedIds],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || sortedIds.length === 0) return new Set<string>();
+
+      const { data, error } = await supabase
+        .from("review_votes")
+        .select("review_id")
+        .in("review_id", sortedIds);
+      if (error) throw error;
+      return new Set((data ?? []).map((v) => v.review_id as string));
+    },
+    enabled: sortedIds.length > 0,
+  });
+}
+
+// Vote/un-vote a review as helpful. Refetches the review's real
+// helpful_count from the server afterward (via the reviews query
+// invalidation) instead of an optimistic-only +1/-1, since helpful_count is
+// maintained server-side by recalc_review_helpful_count (migration 12).
+export function useToggleReviewHelpful() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ reviewId, hasVoted }: { reviewId: string; listingId: string; hasVoted: boolean }) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Please sign in to vote.");
+
+      if (hasVoted) {
+        const { error } = await supabase
+          .from("review_votes")
+          .delete()
+          .eq("review_id", reviewId)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("review_votes").insert({ review_id: reviewId, user_id: user.id });
+        // A unique-violation means this vote already exists (e.g. a second
+        // tab, or stale client state) — treat that as success rather than
+        // an error; the query invalidation below reconciles the UI either way.
+        if (error && error.code !== "23505") throw error;
+      }
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["reviews", variables.listingId] });
+      void queryClient.invalidateQueries({ queryKey: ["review-votes", "mine"] });
     },
   });
 }
@@ -370,7 +437,7 @@ export function useTravelerBookings() {
       if (!user) throw new Error("Not authenticated");
       const { data, error } = await supabase
         .from("bookings")
-        .select(`*, listing:listings(title, location, duration, images, category)`)
+        .select(`*, listing:listings(title, location, duration:duration_label, images, category)`)
         .eq("traveler_id", user.id)
         .order("created_at", { ascending: false });
       if (error) throw error;

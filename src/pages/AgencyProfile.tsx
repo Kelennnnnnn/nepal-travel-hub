@@ -27,7 +27,7 @@ import { ActivityCard } from "@/components/activities/ActivityCard";
 import { ReviewSummary } from "@/components/reviews/ReviewSummary";
 import { ReviewCard } from "@/components/reviews/ReviewCard";
 import { supabase } from "@/lib/supabase";
-import { useAgencyReviews } from "@/lib/queries";
+import { useAgencyReviews, useMyReviewVotes } from "@/lib/queries";
 import { useStartConversation } from "@/hooks/useMessages";
 import { useAuthStore } from "@/stores/authStore";
 import type { Activity } from "@/components/activities/ActivityCard";
@@ -86,6 +86,7 @@ export default function AgencyProfile() {
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
 
   const { data: reviews = [], isLoading: reviewsLoading } = useAgencyReviews(agencyId);
+  const { data: myVotes } = useMyReviewVotes(reviews.map((r) => r.id));
   const startConversation = useStartConversation();
 
   useEffect(() => {
@@ -350,7 +351,7 @@ export default function AgencyProfile() {
                     ) : (
                       <div>
                         {filteredReviews.map((review) => (
-                          <ReviewCard key={review.id} review={review} />
+                          <ReviewCard key={review.id} review={review} hasVoted={myVotes?.has(review.id) ?? false} />
                         ))}
                       </div>
                     )}

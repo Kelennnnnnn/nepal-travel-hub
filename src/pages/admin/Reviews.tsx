@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Loader2,
   Trash2,
+  EyeOff,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { logAdminAction } from "@/lib/audit";
+import { useAuthStore } from "@/stores/authStore";
 import {
   ReviewDetailDialog, StarRating, formatReviewDate as formatDate, type AdminReview,
 } from "./reviews/ReviewDetailDialog";
@@ -52,6 +54,8 @@ const PAGE_SIZE = 25;
 // ── Page ─────────────────────────────────────────────────────────────
 
 export default function AdminReviews() {
+  const callerIsSuperAdmin = useAuthStore((s) => s.user?.role === "super_admin");
+
   const [reviews, setReviews]         = useState<AdminReview[]>([]);
   const [totalCount, setTotalCount]   = useState(0);
   const [isLoading, setIsLoading]     = useState(true);
@@ -59,7 +63,7 @@ export default function AdminReviews() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Filters
-  const [viewFilter, setViewFilter]   = useState<"all" | "flagged" | "low_rating" | "featured" | "recent">("all");
+  const [viewFilter, setViewFilter]   = useState<"all" | "flagged" | "low_rating" | "featured" | "hidden" | "recent">("all");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch]           = useState("");
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,13 +86,14 @@ export default function AdminReviews() {
 
     let query = supabase
       .from("reviews")
-      .select("id,listing_id,traveler_id,traveler_name,agency_id,rating,title,comment,helpful_count,verified,flagged,featured,admin_note,created_at,listing:listings(title)", { count: "exact" })
+      .select("id,listing_id,traveler_id,traveler_name,agency_id,rating,title,comment,helpful_count,is_flagged,is_featured,hidden_at,created_at,listing:listings(title)", { count: "exact" })
       .order("created_at", { ascending: false })
       .range((activePage - 1) * PAGE_SIZE, activePage * PAGE_SIZE - 1);
 
-    if (activeView === "flagged")    query = query.eq("flagged", true);
+    if (activeView === "flagged")    query = query.eq("is_flagged", true);
     if (activeView === "low_rating") query = query.lte("rating", 2);
-    if (activeView === "featured")   query = query.eq("featured", true);
+    if (activeView === "featured")   query = query.eq("is_featured", true);
+    if (activeView === "hidden")     query = query.not("hidden_at", "is", null);
     if (activeView === "recent") {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 7);
@@ -129,6 +134,8 @@ export default function AdminReviews() {
 
   // ── Actions ────────────────────────────────────────────────────────
 
+  // Hard delete is restricted server-side to super_admin (reviews_admin_delete) —
+  // this only removes the button for a plain admin; RLS is the real boundary.
   const handleDelete = async () => {
     if (!reviewToDelete) return;
     setActionLoading(reviewToDelete.id);
@@ -136,11 +143,11 @@ export default function AdminReviews() {
     setActionLoading(null);
     if (error) { toast.error(`Failed to delete: ${error.message}`); return; }
     toast.success("Review deleted.");
-    void logAdminAction("delete_review", "listing", reviewToDelete.listing_id ?? undefined, {
-      reviewer: reviewToDelete.traveler_name,
-      rating: reviewToDelete.rating,
-      reason: deleteReason,
-    });
+    void logAdminAction(
+      "delete_review", "listing", reviewToDelete.listing_id ?? undefined,
+      undefined,
+      { id: reviewToDelete.id, reviewer: reviewToDelete.traveler_name, rating: reviewToDelete.rating, comment: reviewToDelete.comment, reason: deleteReason },
+    );
     setShowDeleteDialog(false);
     setReviewToDelete(null);
     setDeleteReason("");
@@ -149,41 +156,64 @@ export default function AdminReviews() {
 
   const handleFlag = async (review: AdminReview) => {
     setActionLoading(review.id);
-    const newFlag = !review.flagged;
+    const newFlag = !review.is_flagged;
     const { error } = await supabase
       .from("reviews")
-      .update({ flagged: newFlag })
+      .update({ is_flagged: newFlag })
       .eq("id", review.id);
     setActionLoading(null);
     if (error) { toast.error(`Failed to flag: ${error.message}`); return; }
     toast.success(newFlag ? "Review flagged for agency response." : "Flag removed.");
-    void logAdminAction(newFlag ? "flag_review" : "unflag_review", "listing", review.listing_id ?? undefined, {
-      reviewer: review.traveler_name,
-    });
+    void logAdminAction(
+      newFlag ? "flag_review" : "unflag_review", "listing", review.listing_id ?? undefined,
+      { is_flagged: newFlag },
+      { is_flagged: review.is_flagged },
+    );
     void fetchReviews();
   };
 
   const handleFeature = async (review: AdminReview) => {
     setActionLoading(review.id);
-    const newFeatured = !review.featured;
+    const newFeatured = !review.is_featured;
     const { error } = await supabase
       .from("reviews")
-      .update({ featured: newFeatured })
+      .update({ is_featured: newFeatured })
       .eq("id", review.id);
     setActionLoading(null);
     if (error) { toast.error(`Failed to update: ${error.message}`); return; }
     toast.success(newFeatured ? "Review featured." : "Review unfeatured.");
-    void logAdminAction(newFeatured ? "feature_review" : "unfeature_review", "listing", review.listing_id ?? undefined, {
-      reviewer: review.traveler_name,
-    });
+    void logAdminAction(
+      newFeatured ? "feature_review" : "unfeature_review", "listing", review.listing_id ?? undefined,
+      { is_featured: newFeatured },
+      { is_featured: review.is_featured },
+    );
+    void fetchReviews();
+  };
+
+  const handleHide = async (review: AdminReview) => {
+    setActionLoading(review.id);
+    const nowHidden = !review.hidden_at;
+    const newHiddenAt = nowHidden ? new Date().toISOString() : null;
+    const { error } = await supabase
+      .from("reviews")
+      .update({ hidden_at: newHiddenAt })
+      .eq("id", review.id);
+    setActionLoading(null);
+    if (error) { toast.error(`Failed to update: ${error.message}`); return; }
+    toast.success(nowHidden ? "Review hidden — excluded from the public listing and its rating." : "Review unhidden.");
+    void logAdminAction(
+      nowHidden ? "hide_review" : "unhide_review", "listing", review.listing_id ?? undefined,
+      { hidden_at: newHiddenAt },
+      { hidden_at: review.hidden_at },
+    );
     void fetchReviews();
   };
 
   // ── Stats ──────────────────────────────────────────────────────────
 
-  const flaggedCount = reviews.filter((r) => r.flagged).length;
+  const flaggedCount = reviews.filter((r) => r.is_flagged).length;
   const lowRatingCount = reviews.filter((r) => r.rating <= 2).length;
-  const featuredCount = reviews.filter((r) => r.featured).length;
+  const featuredCount = reviews.filter((r) => r.is_featured).length;
 
   const showSkeleton = isLoading && reviews.length === 0;
 
@@ -248,6 +278,7 @@ export default function AdminReviews() {
               <SelectItem value="flagged">Flagged</SelectItem>
               <SelectItem value="low_rating">Low Rating (≤2★)</SelectItem>
               <SelectItem value="featured">Featured</SelectItem>
+              <SelectItem value="hidden">Hidden</SelectItem>
               <SelectItem value="recent">Recent (7 days)</SelectItem>
             </SelectContent>
           </Select>
@@ -301,19 +332,25 @@ export default function AdminReviews() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1 flex-wrap">
-                          {review.flagged && (
+                          {review.is_flagged && (
                             <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-xs">
                               <Flag className="h-3 w-3 mr-1" />
                               Flagged
                             </Badge>
                           )}
-                          {review.featured && (
+                          {review.is_featured && (
                             <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
                               <Award className="h-3 w-3 mr-1" />
                               Featured
                             </Badge>
                           )}
-                          {review.rating <= 2 && !review.flagged && (
+                          {review.hidden_at && (
+                            <Badge className="bg-muted text-muted-foreground border-border text-xs">
+                              <EyeOff className="h-3 w-3 mr-1" />
+                              Hidden
+                            </Badge>
+                          )}
+                          {review.rating <= 2 && !review.is_flagged && (
                             <Badge variant="destructive" className="text-xs">Low</Badge>
                           )}
                         </div>
@@ -338,20 +375,28 @@ export default function AdminReviews() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => handleFlag(review)}>
                               <Flag className="h-4 w-4 mr-2" />
-                              {review.flagged ? "Remove Flag" : "Flag for Agency"}
+                              {review.is_flagged ? "Remove Flag" : "Flag for Agency"}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleFeature(review)}>
                               <Award className="h-4 w-4 mr-2" />
-                              {review.featured ? "Unfeature" : "Feature Review"}
+                              {review.is_featured ? "Unfeature" : "Feature Review"}
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => { setReviewToDelete(review); setShowDeleteDialog(true); }}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete Review
+                            <DropdownMenuItem onClick={() => handleHide(review)}>
+                              <EyeOff className="h-4 w-4 mr-2" />
+                              {review.hidden_at ? "Unhide" : "Hide Review"}
                             </DropdownMenuItem>
+                            {callerIsSuperAdmin && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => { setReviewToDelete(review); setShowDeleteDialog(true); }}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Review
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -417,7 +462,9 @@ export default function AdminReviews() {
         onClose={() => setSelectedReview(null)}
         onFlag={handleFlag}
         onFeature={handleFeature}
+        onHide={handleHide}
         onDelete={(r) => { setReviewToDelete(r); setShowDeleteDialog(true); }}
+        canDelete={callerIsSuperAdmin}
       />
 
       <ReviewDeleteDialog

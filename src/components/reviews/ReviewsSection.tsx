@@ -11,14 +11,19 @@ import {
 import { ReviewCard } from "./ReviewCard";
 import { ReviewSummary } from "./ReviewSummary";
 import { WriteReviewDialog } from "./WriteReviewDialog";
-import { useCanReviewListing, useListingReviews, useRespondToReview, type Review } from "@/lib/queries";
+import { useCanReviewListing, useListingReviews, useMyReviewVotes, useRespondToReview, type Review } from "@/lib/queries";
 import { toast } from "sonner";
 
 interface ReviewsSectionProps {
   activityId: string;
   activityTitle: string;
-  /** Pass the agency's user_id when the viewer is this listing's verified agency. */
-  agencyUserId?: string;
+  /**
+   * True when the signed-in viewer is manager+ of this listing's agency
+   * (checked server-side via has_agency_access, not a raw id comparison —
+   * agency_id on a review/listing is the agencies table's row id, never a
+   * specific staff member's auth id).
+   */
+  canRespondAsAgency?: boolean;
 }
 
 function computeSummary(reviews: Review[]) {
@@ -32,10 +37,11 @@ function computeSummary(reviews: Review[]) {
   return { average: total / reviews.length, count: reviews.length, distribution };
 }
 
-export function ReviewsSection({ activityId, activityTitle, agencyUserId }: ReviewsSectionProps) {
+export function ReviewsSection({ activityId, activityTitle, canRespondAsAgency }: ReviewsSectionProps) {
   const [sortBy, setSortBy] = useState("newest");
   const { data: reviews = [], isLoading } = useListingReviews(activityId);
   const { data: canReview = false } = useCanReviewListing(activityId);
+  const { data: myVotes } = useMyReviewVotes(reviews.map((r) => r.id));
   const respondMutation = useRespondToReview();
 
   const handleRespond = async (reviewId: string, note: string) => {
@@ -102,7 +108,8 @@ export function ReviewsSection({ activityId, activityTitle, agencyUserId }: Revi
               <ReviewCard
                 key={review.id}
                 review={review}
-                onRespond={agencyUserId && review.agencyId === agencyUserId ? handleRespond : undefined}
+                hasVoted={myVotes?.has(review.id) ?? false}
+                onRespond={canRespondAsAgency ? handleRespond : undefined}
               />
             ))}
           </div>

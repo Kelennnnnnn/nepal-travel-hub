@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Users, Search, MoreHorizontal, Eye, ShieldCheck, ShieldOff,
   UserCog, Loader2, Trash2, ArrowLeft, ArrowRight, RefreshCw,
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { invokeEdge } from "@/lib/edge";
 import {
   UserDetailDialog, AvatarInitials, RoleBadge,
   displayName, userRole, isSuspended, formatDate,
@@ -39,7 +40,7 @@ interface PlatformStats {
   suspended: number;
 }
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 
 // ── Sub-components ───────────────────────────────────────────────────
 
@@ -64,19 +65,21 @@ export default function AdminUsers() {
   const selfId = useAuthStore((s) => s.user?.id);
   const callerIsSuperAdmin = useAuthStore((s) => s.user?.role === "super_admin");
 
-  const [allUsers, setAllUsers]       = useState<AdminUser[]>([]);
+  const [users, setUsers]             = useState<AdminUser[]>([]);
+  const [totalCount, setTotalCount]   = useState(0);
   const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
   const [isLoading, setIsLoading]     = useState(true);
 
-  // Search (server-side via edge function)
+  // Search (server-side via edge function → admin_user_directory(), debounced)
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch]           = useState("");
   const searchDebounce                = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Role filter (client-side on returned set)
+  // Role filter — also server-side now (admin_user_directory()'s p_role)
   const [roleFilter, setRoleFilter]   = useState("all");
 
-  // Pagination
+  // Pagination — server-side (admin_user_directory()'s p_limit/p_offset);
+  // PAGE_SIZE=50 matches the RPC call below.
   const [page, setPage]               = useState(1);
 
   // Dialogs
@@ -94,20 +97,41 @@ export default function AdminUsers() {
 
   // ── Fetch ──────────────────────────────────────────────────────────
 
-  const fetchUsers = useCallback(async (q = search) => {
+  // Note: the "Admins" filter button matches only role="admin" here (not
+  // admin+super_admin) — admin_user_directory()'s p_role is a single exact
+  // value, and the RPC has no "admin-or-super_admin" concept to pass
+  // through. A super_admin viewing "All" still sees every role, just not
+  // as a distinct filter button of its own — same tradeoff the stats
+  // cards already made differently (admins counts both together there).
+  const fetchUsers = useCallback(async (opts?: { search?: string; role?: string; page?: number }) => {
+    const activeSearch = opts?.search ?? search;
+    const activeRole    = opts?.role   ?? roleFilter;
+    const activePage    = opts?.page   ?? page;
+
     setIsLoading(true);
-    const { data, error } = await supabase.functions.invoke("admin-users", {
-      body: { action: "list", search: q },
+    const { data, error } = await invokeEdge<{
+      users?: AdminUser[];
+      stats?: PlatformStats;
+      pagination?: { limit: number; offset: number; total: number };
+    }>("admin-users", {
+      body: {
+        action: "list",
+        search: activeSearch || undefined,
+        role: activeRole === "all" ? undefined : activeRole,
+        limit: PAGE_SIZE,
+        offset: (activePage - 1) * PAGE_SIZE,
+      },
     });
     if (error) {
       toast.error(`Failed to load users: ${error.message}`);
       setIsLoading(false);
       return;
     }
-    setAllUsers((data?.users ?? []) as AdminUser[]);
+    setUsers((data?.users ?? []) as AdminUser[]);
+    setTotalCount(data?.pagination?.total ?? 0);
     if (data?.stats) setPlatformStats(data.stats as PlatformStats);
     setIsLoading(false);
-  }, [search]);
+  }, [search, roleFilter, page]);
 
   useEffect(() => { void fetchUsers(); }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -116,33 +140,36 @@ export default function AdminUsers() {
     setSearchInput(v);
     if (searchDebounce.current) clearTimeout(searchDebounce.current);
     searchDebounce.current = setTimeout(() => {
-      setSearch(v.trim());
+      const trimmed = v.trim();
+      setSearch(trimmed);
       setPage(1);
-      void fetchUsers(v.trim());
+      void fetchUsers({ search: trimmed, page: 1 });
     }, 350);
   };
 
-  // ── Filtered + paginated set ───────────────────────────────────────
+  const handleRoleFilterChange = (role: string) => {
+    setRoleFilter(role);
+    setPage(1);
+    void fetchUsers({ role, page: 1 });
+  };
 
-  const filtered = useMemo(() => {
-    if (roleFilter === "all") return allUsers;
-    if (roleFilter === "admin") return allUsers.filter((u) => userRole(u) === "admin" || userRole(u) === "super_admin");
-    return allUsers.filter((u) => userRole(u) === roleFilter);
-  }, [allUsers, roleFilter]);
+  const handlePageChange = (nextPage: number) => {
+    setPage(nextPage);
+    void fetchUsers({ page: nextPage });
+  };
 
-  const totalPages    = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage      = Math.min(page, totalPages);
-  const paginatedUsers = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-
-  // Reset page when role filter changes
-  useEffect(() => { setPage(1); }, [roleFilter]);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   // ── Invoke helper ──────────────────────────────────────────────────
 
   const invoke = async (body: Record<string, unknown>): Promise<{ error: string | null }> => {
-    const { data, error } = await supabase.functions.invoke("admin-users", { body });
+    // A fresh key per call (invokeEdge's default) — NOT a deterministic
+    // one derived from action+user_id, which would wrongly dedupe two
+    // genuinely separate actions taken at different times (suspend, then
+    // later suspend again after an unsuspend) as if they were the same
+    // retried request.
+    const { error } = await invokeEdge("admin-users", { body });
     if (error) return { error: error.message };
-    if (data?.error) return { error: data.error as string };
     return { error: null };
   };
 
@@ -242,12 +269,12 @@ export default function AdminUsers() {
     { value: "all",      label: "All" },
     { value: "traveler", label: "Travelers" },
     { value: "agency",   label: "Agencies" },
-    { value: "admin",    label: "Admins" },     // matches admin + super_admin, see `filtered` below
+    { value: "admin",    label: "Admins" },     // exact role="admin" only — see handleRoleFilterChange's note
     { value: "support",  label: "Support" },
     { value: "finance",  label: "Finance" },
   ];
 
-  const showSkeleton = isLoading && allUsers.length === 0;
+  const showSkeleton = isLoading && users.length === 0;
 
   return (
     <AdminLayout>
@@ -258,7 +285,7 @@ export default function AdminUsers() {
           <div>
             <h1 className="text-2xl font-bold">Users</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {isLoading ? "Loading…" : `${filtered.length.toLocaleString()} user${filtered.length !== 1 ? "s" : ""}${search ? " matching search" : ""}`}
+              {isLoading ? "Loading…" : `${totalCount.toLocaleString()} user${totalCount !== 1 ? "s" : ""}${search ? " matching search" : ""}`}
             </p>
           </div>
           <Button variant="outline" size="sm" className="gap-2 self-start"
@@ -296,7 +323,7 @@ export default function AdminUsers() {
                 key={btn.value}
                 variant={roleFilter === btn.value ? "default" : "outline"}
                 size="sm"
-                onClick={() => setRoleFilter(btn.value)}
+                onClick={() => handleRoleFilterChange(btn.value)}
               >
                 {btn.label}
               </Button>
@@ -322,7 +349,7 @@ export default function AdminUsers() {
                   </div>
                 ))}
               </div>
-            ) : paginatedUsers.length === 0 ? (
+            ) : users.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
                 <Users className="h-10 w-10 mx-auto mb-3 opacity-30" />
                 <p>No users found</p>
@@ -342,7 +369,7 @@ export default function AdminUsers() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedUsers.map((user) => {
+                    {users.map((user) => {
                       const suspended = isSuspended(user);
                       return (
                         <TableRow key={user.id} className={suspended ? "opacity-60" : ""}>
@@ -428,16 +455,16 @@ export default function AdminUsers() {
                 {totalPages > 1 && (
                   <div className="flex items-center justify-between px-4 py-3 border-t border-border">
                     <p className="text-sm text-muted-foreground">
-                      Page {safePage} of {totalPages} · {filtered.length} users
+                      Page {page} of {totalPages} · {totalCount} users
                     </p>
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" disabled={safePage <= 1}
-                        onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                      <Button variant="outline" size="sm" disabled={page <= 1 || isLoading}
+                        onClick={() => handlePageChange(Math.max(1, page - 1))}>
                         <ArrowLeft className="h-4 w-4 mr-1" />
                         Previous
                       </Button>
-                      <Button variant="outline" size="sm" disabled={safePage >= totalPages}
-                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+                      <Button variant="outline" size="sm" disabled={page >= totalPages || isLoading}
+                        onClick={() => handlePageChange(Math.min(totalPages, page + 1))}>
                         Next
                         <ArrowRight className="h-4 w-4 ml-1" />
                       </Button>

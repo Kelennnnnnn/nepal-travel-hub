@@ -1,4 +1,4 @@
-import { Star, Flag, Award, Trash2, Loader2 } from "lucide-react";
+import { Star, Flag, Award, Trash2, EyeOff, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,10 +13,9 @@ export interface AdminReview {
   title: string | null;
   comment: string | null;
   helpful_count: number;
-  verified: boolean;
-  flagged: boolean;
-  featured: boolean;
-  admin_note: string | null;
+  is_flagged: boolean;
+  is_featured: boolean;
+  hidden_at: string | null;
   created_at: string;
   listing: { title: string } | null;
 }
@@ -46,10 +45,13 @@ interface Props {
   onClose: () => void;
   onFlag: (review: AdminReview) => void;
   onFeature: (review: AdminReview) => void;
+  onHide: (review: AdminReview) => void;
   onDelete: (review: AdminReview) => void;
+  /** Hard delete is restricted to super_admin server-side (reviews_admin_delete) — hide the action entirely for a plain admin. */
+  canDelete: boolean;
 }
 
-export function ReviewDetailDialog({ review, onClose, onFlag, onFeature, onDelete }: Props) {
+export function ReviewDetailDialog({ review, onClose, onFlag, onFeature, onHide, onDelete, canDelete }: Props) {
   return (
     <Dialog open={!!review} onOpenChange={onClose}>
       <DialogContent className="max-w-lg">
@@ -91,32 +93,40 @@ export function ReviewDetailDialog({ review, onClose, onFlag, onFeature, onDelet
               </div>
             )}
             <div className="flex gap-2 flex-wrap">
-              {review.flagged && (
+              {review.is_flagged && (
                 <Badge className="bg-amber-100 text-amber-800 border-amber-200">
                   <Flag className="h-3 w-3 mr-1" /> Flagged
                 </Badge>
               )}
-              {review.featured && (
+              {review.is_featured && (
                 <Badge className="bg-primary/10 text-primary border-primary/20">
                   <Award className="h-3 w-3 mr-1" /> Featured
                 </Badge>
               )}
-              {review.verified && (
-                <Badge className="bg-green-100 text-green-700 border-green-200">Verified</Badge>
+              {review.hidden_at && (
+                <Badge className="bg-muted text-muted-foreground border-border">
+                  <EyeOff className="h-3 w-3 mr-1" /> Hidden
+                </Badge>
               )}
             </div>
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-2 flex-wrap">
               <Button size="sm" variant="outline" onClick={() => { onFlag(review); onClose(); }}>
                 <Flag className="h-4 w-4 mr-1" />
-                {review.flagged ? "Remove Flag" : "Flag"}
+                {review.is_flagged ? "Remove Flag" : "Flag"}
               </Button>
               <Button size="sm" variant="outline" onClick={() => { onFeature(review); onClose(); }}>
                 <Award className="h-4 w-4 mr-1" />
-                {review.featured ? "Unfeature" : "Feature"}
+                {review.is_featured ? "Unfeature" : "Feature"}
               </Button>
-              <Button size="sm" variant="destructive" onClick={() => { onDelete(review); onClose(); }}>
-                <Trash2 className="h-4 w-4 mr-1" /> Delete
+              <Button size="sm" variant="outline" onClick={() => { onHide(review); onClose(); }}>
+                {review.hidden_at ? <Eye className="h-4 w-4 mr-1" /> : <EyeOff className="h-4 w-4 mr-1" />}
+                {review.hidden_at ? "Unhide" : "Hide"}
               </Button>
+              {canDelete && (
+                <Button size="sm" variant="destructive" onClick={() => { onDelete(review); onClose(); }}>
+                  <Trash2 className="h-4 w-4 mr-1" /> Delete
+                </Button>
+              )}
             </div>
           </div>
         )}

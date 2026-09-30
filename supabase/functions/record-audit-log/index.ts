@@ -19,37 +19,26 @@
 // attributed to someone else.
 
 import { requirePlatformRole, serviceRoleClient, verifyCaller, VerificationError } from "../_shared/auth.ts";
-import { logError, scrub } from "../_shared/guards.ts";
-
-const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
-const corsHeaders = {
-  "Access-Control-Allow-Origin": allowedOrigin,
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-}
+import { scrub } from "../_shared/guards.ts";
+import { fail, getRequestId, handleOptions, HttpError, ok, parseJson, withRequestLog } from "../_shared/http.ts";
+import { recordAuditLogSchema } from "../_shared/schemas.ts";
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const early = handleOptions(req);
+  if (early) return early;
 
+  return withRequestLog(req, async (logCtx) => {
   try {
     const caller = await verifyCaller(req);
+    logCtx.userId = caller.id;
     // Admin-tier only — this is specifically for admin-panel actions.
     // Travelers/agencies have no legitimate reason to write audit_logs
     // entries, and admitting them here would make this an open logging
     // sink rather than an audit trail.
     requirePlatformRole(caller, ["admin", "super_admin", "support", "finance"]);
 
-    const body = await req.json() as {
-      action: string; resource_type: string; resource_id?: string;
-      before?: Record<string, unknown>; after?: Record<string, unknown>;
-    };
-    if (!body.action || !body.resource_type) {
-      return json({ error: "action and resource_type are required" }, 400);
-    }
+    const body = await parseJson(req, recordAuditLogSchema);
+    logCtx.action = body.action;
 
     const supabaseAdmin = serviceRoleClient();
     const { error } = await supabaseAdmin.rpc("record_audit_log", {
@@ -62,13 +51,15 @@ Deno.serve(async (req: Request) => {
       // secrets in audit logs."
       p_before: body.before ? scrub(body.before) : null,
       p_after: body.after ? scrub(body.after) : null,
+      p_request_id: getRequestId(req),
     });
-    if (error) return json({ error: error.message }, 500);
+    if (error) return fail(req, 500, "Failed to record audit log.", error, { actorId: caller.id });
 
-    return json({ success: true });
+    return ok(req, { success: true });
   } catch (err) {
-    if (err instanceof VerificationError) return json({ error: err.message }, err.status);
-    logError("record-audit-log", err);
-    return json({ error: "Internal server error" }, 500);
+    if (err instanceof VerificationError) return fail(req, err.status, err.message);
+    if (err instanceof HttpError) return fail(req, err.status, err.publicMessage);
+    return fail(req, 500, "Something went wrong. Please try again.", err);
   }
+  });
 });

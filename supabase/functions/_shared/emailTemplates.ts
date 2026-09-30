@@ -367,3 +367,139 @@ If you believe this is a mistake, reply to this email.
 
   return { subject, html, text };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. Agency reinstated  (agency) — admin_reinstate_agency() has always
+//    inserted an AGENCY_REINSTATED domain_event, but nothing ever consumed
+//    it, so a reinstated agency never actually heard about it. Added
+//    alongside the notification-dispatch worker (audit item 4).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function agencyReinstatedEmail(data: {
+  agencyName: string;
+}): EmailTemplate {
+  const agencyName = escapeHtml(data.agencyName);
+  const subject = `Your Agency Account Has Been Reinstated — Into Nepal`;
+
+  const html = renderEmail(`
+    ${alertBanner("Your agency account has been reinstated.", "success")}
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">Welcome Back</h1>
+    <p style="margin:0 0 20px;color:#374151;">Hi ${agencyName}, your agency account is active again and you can accept new bookings.</p>
+
+    <p style="margin:0 0 20px;color:#374151;">Your listings were paused when your account was suspended and are NOT automatically republished — review each one and republish it manually before travellers can book it again.</p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
+      <tr>
+        <td>
+          <a href="${SITE_URL}/agency/listings" style="${btnStyle()}">Review Your Listings</a>
+        </td>
+      </tr>
+    </table>
+
+    ${HR}
+    <p style="margin:0;font-size:13px;color:#6b7280;">Questions? Reply to this email.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">— The Into Nepal Team</p>
+  `);
+
+  const text = `Your Agency Account Has Been Reinstated
+
+Hi ${data.agencyName},
+
+Your agency account is active again and you can accept new bookings.
+
+Your listings were paused when your account was suspended and are NOT automatically republished — review each one and republish it manually before travellers can book it again.
+
+Review your listings: ${SITE_URL}/agency/listings
+
+— The Into Nepal Team`;
+
+  return { subject, html, text };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. Agency team invitation  (audit M1) — sent when an owner invites a
+//    manager/staff member to join their agency.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function agencyTeamInvitationEmail(data: {
+  agencyName: string;
+  role: string;
+  inviteUrl: string;
+}): EmailTemplate {
+  const agencyName = escapeHtml(data.agencyName);
+  const role = escapeHtml(data.role);
+  const subject = `You've been invited to join ${data.agencyName} on Into Nepal`;
+
+  const html = renderEmail(`
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">You're Invited</h1>
+    <p style="margin:0 0 20px;color:#374151;"><strong>${agencyName}</strong> has invited you to join their team on Into Nepal as a <strong>${role}</strong>.</p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
+      <tr>
+        <td>
+          <a href="${data.inviteUrl}" style="${btnStyle()}">Accept Invitation</a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:0 0 20px;font-size:13px;color:#6b7280;">This invitation expires in 7 days. If you don't recognize ${agencyName} or weren't expecting this, you can safely ignore this email.</p>
+
+    ${HR}
+    <p style="margin:0;font-size:13px;color:#6b7280;">Questions? Reply to this email.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">— The Into Nepal Team</p>
+  `);
+
+  const text = `You're Invited
+
+${data.agencyName} has invited you to join their team on Into Nepal as a ${data.role}.
+
+Accept your invitation: ${data.inviteUrl}
+
+This invitation expires in 7 days. If you don't recognize ${data.agencyName} or weren't expecting this, you can safely ignore this email.
+
+— The Into Nepal Team`;
+
+  return { subject, html, text };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. Ops daily health alert  (internal — OPS_ALERT_EMAIL, not a
+//    traveler/agency-facing template) — sent by check_ops_daily_health()'s
+//    OPS_DAILY_HEALTH domain_event, and only when something is actually
+//    wrong (see that function's own comment for why a clean day sends
+//    nothing at all).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function opsDailyHealthEmail(data: {
+  failedJobIds: number[];
+  permanentlyFailedNotifications: number;
+  checkedAt: string;
+}): EmailTemplate {
+  const subject = `[Into Nepal] Daily health check found issues — ${data.checkedAt.slice(0, 10)}`;
+
+  const jobsLine = data.failedJobIds.length > 0
+    ? `${data.failedJobIds.length} cron job run(s) failed in the last 24h (job ids: ${data.failedJobIds.join(", ")}).`
+    : null;
+  const notificationsLine = data.permanentlyFailedNotifications > 0
+    ? `${data.permanentlyFailedNotifications} notification(s) permanently failed (exhausted all retries).`
+    : null;
+
+  const html = renderEmail(`
+    ${alertBanner("Daily platform health check found one or more issues.", "warning")}
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">Ops Daily Health Alert</h1>
+    <ul style="margin:0 0 20px;padding-left:20px;color:#374151;">
+      ${jobsLine ? `<li style="margin-bottom:8px;">${escapeHtml(jobsLine)}</li>` : ""}
+      ${notificationsLine ? `<li>${escapeHtml(notificationsLine)}</li>` : ""}
+    </ul>
+    <p style="margin:0;font-size:13px;color:#6b7280;">Check cron.job_run_details and the notifications table directly for full details — this email is a summary, not a substitute for the admin dashboard's cron-health card.</p>
+  `);
+
+  const text = `Ops Daily Health Alert — ${data.checkedAt}
+
+${jobsLine ?? ""}
+${notificationsLine ?? ""}
+
+Check cron.job_run_details and the notifications table directly for full details.`;
+
+  return { subject, html, text };
+}

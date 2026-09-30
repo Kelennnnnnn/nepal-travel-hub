@@ -8,27 +8,39 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { invokeEdge } from "@/lib/edge";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
 
 export default function Contact() {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [sending, setSending] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  // Bumping this remounts the widget after each submit (success or failure)
+  // — Turnstile tokens are single-use, so the widget always needs a fresh
+  // render before the next submission can succeed.
+  const [turnstileKey, setTurnstileKey] = useState(0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSending(true);
-    try {
-      const { error } = await supabase.functions.invoke("contact-form", {
-        body: form,
-      });
-      if (error) throw error;
-      toast.success("Message sent! We'll reply within one business day.");
-      setForm({ name: "", email: "", subject: "", message: "" });
-    } catch {
-      toast.error("Failed to send message. Please try again.");
-    } finally {
-      setSending(false);
+    if (!turnstileToken) {
+      toast.error("Please complete the verification check.");
+      return;
     }
+    setSending(true);
+    // contact-form has no signed-in caller to key an idempotency record on
+    // (the server-side helper requires a userId) — no Idempotency-Key
+    // benefit here, but invokeEdge still surfaces the real error message
+    // (e.g. the rate-limit sentence) instead of a generic fallback.
+    const { error } = await invokeEdge("contact-form", { body: { ...form, turnstileToken } });
+    setSending(false);
+    setTurnstileToken("");
+    setTurnstileKey((k) => k + 1);
+    if (error) {
+      toast.error(error.message || "Failed to send message. Please try again.");
+      return;
+    }
+    toast.success("Message sent! We'll reply within one business day.");
+    setForm({ name: "", email: "", subject: "", message: "" });
   };
 
   return (
@@ -90,7 +102,12 @@ export default function Contact() {
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full" disabled={sending}>
+                  <TurnstileWidget
+                    key={turnstileKey}
+                    onVerify={setTurnstileToken}
+                    onExpire={() => setTurnstileToken("")}
+                  />
+                  <Button type="submit" className="w-full" disabled={sending || !turnstileToken}>
                     {sending ? "Sending..." : "Send Message"}
                   </Button>
                 </form>
@@ -115,10 +132,10 @@ export default function Contact() {
                   <div>
                     <p className="font-medium">Email</p>
                     <a
-                      href="mailto:hello@yatranepal.com"
+                      href="mailto:support@intonepal.com"
                       className="text-muted-foreground hover:text-primary transition-colors"
                     >
-                      hello@yatranepal.com
+                      support@intonepal.com
                     </a>
                   </div>
                 </div>

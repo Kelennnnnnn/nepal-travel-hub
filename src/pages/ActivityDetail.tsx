@@ -11,6 +11,7 @@ import { Layout } from "@/components/layout/Layout";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { ReviewsSection } from "@/components/reviews/ReviewsSection";
 import { useListing } from "@/lib/queries";
 import { availableCapacity, type Departure } from "@/stores/departuresStore";
@@ -46,6 +47,23 @@ export default function ActivityDetail() {
 
   const { data: wishlistIds = new Set<string>() } = useWishlistIds();
   const toggleWishlist = useToggleWishlist();
+
+  // Whether the viewer can respond to this listing's reviews as its agency.
+  // Checked server-side via has_agency_access — never a raw id comparison
+  // against listing.agency_id, which is the agencies table's row id, not
+  // any specific staff member's auth id.
+  const { data: canRespondAsAgency = false } = useQuery({
+    queryKey: ["has-agency-access", listing?.agency_id, "manager"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("has_agency_access", {
+        target_agency_id: listing!.agency_id as string,
+        min_role: "manager",
+      });
+      if (error) return false;
+      return !!data;
+    },
+    enabled: !!listing?.agency_id && user?.role === "agency",
+  });
 
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [selectedDate, setSelectedDate] = useState("");
@@ -461,11 +479,7 @@ export default function ActivityDetail() {
                 <ReviewsSection
                   activityId={listing.id}
                   activityTitle={listing.title}
-                  agencyUserId={
-                    user?.role === "agency" && user.id === listing.agency_id
-                      ? user.id
-                      : undefined
-                  }
+                  canRespondAsAgency={canRespondAsAgency}
                 />
               )}
             </div>

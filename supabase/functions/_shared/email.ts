@@ -1,7 +1,39 @@
+// Email transport selection — audit M3.
+//
+// The old logic routed to the Mailtrap sandbox whenever Mailtrap secrets
+// happened to be *present* in the environment, regardless of what
+// environment this actually was — leaving MAILTRAP_* secrets set in a
+// production project (e.g. forgotten after testing) would silently
+// swallow every real email into a sandbox inbox nobody looks at, with no
+// error, no log, nothing. Transport is now an explicit choice
+// (EMAIL_MODE), not an accident of which secrets exist, and picking the
+// sandbox in production is a boot-time failure, not a silent behavior
+// change.
+
+const ENVIRONMENT = (Deno.env.get("ENVIRONMENT") ?? "").toLowerCase();
+const IS_PRODUCTION = ENVIRONMENT === "production";
+
+const EMAIL_MODE = (Deno.env.get("EMAIL_MODE") ?? "resend").toLowerCase();
+if (EMAIL_MODE !== "resend" && EMAIL_MODE !== "mailtrap") {
+  throw new Error(`Invalid EMAIL_MODE "${EMAIL_MODE}" — must be "resend" or "mailtrap".`);
+}
+if (EMAIL_MODE === "mailtrap" && IS_PRODUCTION) {
+  throw new Error("EMAIL_MODE=mailtrap is not allowed when ENVIRONMENT=production — refusing to boot.");
+}
+
 const RESEND_API_KEY  = Deno.env.get("RESEND_API_KEY")  ?? "";
-const FROM_EMAIL      = Deno.env.get("FROM_EMAIL")      ?? "onboarding@resend.dev";
 const REPLY_TO_EMAIL  = Deno.env.get("REPLY_TO_EMAIL")  ?? "hello@intonepal.com";
 const PLATFORM_NAME   = "Into Nepal";
+
+// No onboarding@resend.dev fallback in production — that address is
+// Resend's own shared test sender, rate-limited and not actually
+// deliverable as "from" real domains' inboxes expect; a production
+// deployment that never set FROM_EMAIL would otherwise silently send
+// every email from a sandbox address indefinitely.
+const FROM_EMAIL = Deno.env.get("FROM_EMAIL") ?? (IS_PRODUCTION ? "" : "onboarding@resend.dev");
+if (IS_PRODUCTION && !FROM_EMAIL) {
+  throw new Error("FROM_EMAIL must be set when ENVIRONMENT=production — refusing to boot.");
+}
 
 // Mailtrap Email Testing — set MAILTRAP_USER + MAILTRAP_PASS (the SMTP credentials
 // shown in mailtrap.io → Email Testing → Inboxes → Show Credentials).
@@ -10,6 +42,16 @@ const PLATFORM_NAME   = "Into Nepal";
 const MAILTRAP_USER      = Deno.env.get("MAILTRAP_USER")      ?? "";
 const MAILTRAP_API_TOKEN = Deno.env.get("MAILTRAP_API_TOKEN") ?? Deno.env.get("MAILTRAP_PASS") ?? "";
 const MAILTRAP_INBOX_ID  = Deno.env.get("MAILTRAP_INBOX_ID")  ?? "";
+if (EMAIL_MODE === "mailtrap" && !((MAILTRAP_USER || MAILTRAP_API_TOKEN) && MAILTRAP_INBOX_ID)) {
+  throw new Error("EMAIL_MODE=mailtrap requires MAILTRAP_USER/MAILTRAP_API_TOKEN and MAILTRAP_INBOX_ID to be set.");
+}
+
+// Logged exactly once, at module load (cold start) — one line per running
+// isolate, not per request, so this doesn't add log noise but still makes
+// "which transport is this deployment actually using" a fact anyone
+// reading the logs can just see, rather than something to infer from
+// which secrets happen to be set.
+console.log(JSON.stringify({ level: "info", msg: "email transport active", mode: EMAIL_MODE, environment: ENVIRONMENT || "(unset)" }));
 
 export interface EmailParams {
   to: string;
@@ -30,13 +72,11 @@ export async function sendEmail({
   tags,
   headers,
 }: EmailParams): Promise<{ error: string | null }> {
-
-  // ── Mailtrap sandbox (dev / staging) ────────────────────────────────────
-  if ((MAILTRAP_USER || MAILTRAP_API_TOKEN) && MAILTRAP_INBOX_ID) {
+  if (EMAIL_MODE === "mailtrap") {
     return sendViaMailtrap({ to, subject, html, text, replyTo });
   }
 
-  // ── Resend (production) ──────────────────────────────────────────────────
+  // ── Resend ────────────────────────────────────────────────────────────
   if (!RESEND_API_KEY) {
     console.error("RESEND_API_KEY not configured");
     return { error: "Email service not configured" };
@@ -67,6 +107,7 @@ export async function sendEmail({
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!res.ok) {
@@ -91,7 +132,7 @@ async function sendViaMailtrap(params: {
 }): Promise<{ error: string | null }> {
   try {
     const body = {
-      from:    { email: FROM_EMAIL, name: PLATFORM_NAME },
+      from:    { email: FROM_EMAIL || "onboarding@resend.dev", name: PLATFORM_NAME },
       to:      [{ email: params.to }],
       reply_to: { email: params.replyTo ?? REPLY_TO_EMAIL },
       subject: params.subject,
@@ -108,6 +149,7 @@ async function sendViaMailtrap(params: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(8000),
       },
     );
 

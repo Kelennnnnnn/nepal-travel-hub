@@ -36,7 +36,8 @@ const QUICK_REPLIES = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatTime(iso: string) {
+function formatTime(iso: string | null) {
+  if (!iso) return "New";
   const d = new Date(iso);
   const now = new Date();
   const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));

@@ -1,99 +1,96 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Account deletion — pseudonymize, never hard-delete (supabase/
+// migrations/20260917000014_account_deletion.sql). bookings/booking_
+// quotes/reviews stay (tax/legal record, and other travelers' trust in
+// review content); only personal data is scrubbed. The auth.users row
+// itself is never deleted — deleteUser() would fail anyway (bookings.
+// traveler_id, booking_quotes.traveler_id, messages.sender_id, review_
+// votes.user_id, conversation_participants.user_id all reference it with
+// no ON DELETE rule, by design, since those records must survive account
+// deletion) — instead this function bans the account and scrubs its
+// email/metadata via updateUserById(), which is what actually makes
+// "cannot sign in" true without breaking every FK that points at this user.
 
-const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
+import { requirePlatformRole, serviceRoleClient, verifyCaller, VerificationError } from "../_shared/auth.ts";
+import { logError } from "../_shared/guards.ts";
+import { fail, getRequestId, handleOptions, HttpError, ok, parseJson, userClient, withIdempotency, withRequestLog } from "../_shared/http.ts";
+import { deleteAccountSchema } from "../_shared/schemas.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": allowedOrigin,
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+// delete_my_account() raises these as P0001 with the code itself as the
+// message — mapped here to the actual sentence shown to the user. Any
+// other error (a genuinely unexpected one) gets a generic message + a
+// requestId, never the raw Postgres error text.
+const KNOWN_ERROR_MESSAGES: Record<string, string> = {
+  NOT_AUTHENTICATED: "You must be signed in to delete your account.",
+  ACTIVE_BOOKINGS: "You have an active or upcoming booking. Please wait until it's completed, or cancel it, before deleting your account.",
+  SOLE_AGENCY_OWNER: "You're the only owner of an agency. Add another owner or transfer ownership before deleting your account.",
 };
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  const early = handleOptions(req);
+  if (early) return early;
 
-  // JWT verification
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return json({ error: "Missing or invalid Authorization header" }, 401);
-  }
-  const token = authHeader.slice(7);
-
-  const supabaseAdmin = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-
-  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-  if (authError || !user) {
-    return json({ error: "Invalid or expired token" }, 401);
-  }
-
-  const userId = user.id;
-
+  return withRequestLog(req, async (logCtx) => {
   try {
-    // Block deletion if upcoming confirmed bookings exist. The trip date
-    // lives on the related departure (bookings.departure_id ->
-    // departures.departure_date), not on bookings itself — bookings also
-    // uses booking_status, not status (both fixed here; this function
-    // pre-dates the current schema and was never updated for it).
-    const today = new Date().toISOString().split("T")[0];
-    const { data: upcomingBookings } = await supabaseAdmin
-      .from("bookings")
-      .select("id, departures!inner(departure_date)")
-      .eq("traveler_id", userId)
-      .eq("booking_status", "confirmed")
-      .gte("departures.departure_date", today)
-      .limit(1);
+    const caller = await verifyCaller(req);
+    logCtx.userId = caller.id;
+    requirePlatformRole(caller, ["traveler", "agency", "admin", "super_admin", "support", "finance"]);
+    await parseJson(req, deleteAccountSchema);
 
-    if (upcomingBookings && upcomingBookings.length > 0) {
-      return json(
-        { error: "You have upcoming confirmed bookings. Please cancel them before deleting your account." },
-        400
-      );
-    }
+    return await withIdempotency(req, caller.id, "delete-account", async () => {
+      // delete_my_account() uses auth.uid() internally to scope every
+      // write to the caller's own data — that only resolves correctly
+      // when this call is authenticated as the caller's own JWT, not the
+      // service-role key.
+      const callerClient = userClient(req);
 
-    // Delete reviews
-    await supabaseAdmin
-      .from("reviews")
-      .delete()
-      .eq("traveler_id", userId);
+      const { error: rpcErr } = await callerClient.rpc("delete_my_account", { p_request_id: getRequestId(req) });
+      if (rpcErr) {
+        if (rpcErr.code === "P0001" && KNOWN_ERROR_MESSAGES[rpcErr.message]) {
+          return fail(req, 400, KNOWN_ERROR_MESSAGES[rpcErr.message]);
+        }
+        return fail(req, 500, "Something went wrong. Please try again.", rpcErr, { userId: caller.id });
+      }
 
-    // Cancel (archive) past bookings instead of hard-deleting
-    await supabaseAdmin
-      .from("bookings")
-      .update({ booking_status: "cancelled", cancellation_reason: "Account deleted by user" })
-      .eq("traveler_id", userId)
-      .neq("booking_status", "cancelled");
+      // From here on the caller's personal data has already been scrubbed
+      // and committed — these remaining steps (avatar removal, banning
+      // the auth account, revoking sessions) are best-effort cleanup on
+      // top of that, not a second chance to refuse the deletion.
+      const supabaseAdmin = serviceRoleClient();
 
-    // Delete avatar from storage
-    const { data: avatarFiles } = await supabaseAdmin.storage
-      .from("avatars")
-      .list(userId);
+      const { data: avatarFiles } = await supabaseAdmin.storage.from("avatars").list(caller.id);
+      if (avatarFiles?.length) {
+        const { error: removeErr } = await supabaseAdmin.storage
+          .from("avatars")
+          .remove(avatarFiles.map((f) => `${caller.id}/${f.name}`));
+        if (removeErr) logError("delete-account:remove-avatar", removeErr, { userId: caller.id });
+      }
 
-    if (avatarFiles && avatarFiles.length > 0) {
-      const paths = avatarFiles.map((f) => `${userId}/${f.name}`);
-      await supabaseAdmin.storage.from("avatars").remove(paths);
-    }
+      // The actual "you can no longer sign in" guarantee. If this fails,
+      // the promise this endpoint makes is broken even though the
+      // person's data is already gone, so it's surfaced as an error
+      // rather than silently reported as success.
+      const { error: banErr } = await supabaseAdmin.auth.admin.updateUserById(caller.id, {
+        email: `deleted+${caller.id}@deleted.intonepal.invalid`,
+        user_metadata: {},
+        ban_duration: "876000h",
+      });
+      if (banErr) {
+        return fail(
+          req, 500,
+          "Your data has been deleted, but we couldn't fully lock your account. Please contact support.",
+          banErr, { userId: caller.id },
+        );
+      }
 
-    // Delete the auth user (cascades auth session)
-    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-    if (deleteError) {
-      return json({ error: deleteError.message }, 500);
-    }
+      const { error: revokeErr } = await supabaseAdmin.rpc("revoke_user_sessions", { p_user_id: caller.id });
+      if (revokeErr) logError("delete-account:revoke_user_sessions", revokeErr, { userId: caller.id });
 
-    return json({ success: true });
+      return ok(req, { success: true });
+    });
   } catch (err) {
-    return json({ error: (err as Error).message }, 500);
+    if (err instanceof VerificationError) return fail(req, err.status, err.message);
+    if (err instanceof HttpError) return fail(req, err.status, err.publicMessage);
+    return fail(req, 500, "Something went wrong. Please try again.", err);
   }
+  });
 });

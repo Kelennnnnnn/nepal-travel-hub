@@ -1,12 +1,14 @@
 import { Star, ThumbsUp, BadgeCheck, MessageSquare } from "lucide-react";
 import type { Review } from "@/lib/queries";
+import { useToggleReviewHelpful } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
 
 interface ReviewCardProps {
   review: Review;
+  /** From useMyReviewVotes() — whether the signed-in user already voted this review helpful. */
+  hasVoted: boolean;
   /** When provided the agency can inline-edit their response to this review. */
   onRespond?: (reviewId: string, note: string) => Promise<void>;
 }
@@ -31,29 +33,11 @@ function StarRating({ rating, size = "sm" }: { rating: number; size?: "sm" | "md
 
 export { StarRating };
 
-const HELPFUL_KEY = "review_helpful_votes";
-
-function getVotedReviews(): Set<string> {
-  try {
-    const raw = localStorage.getItem(HELPFUL_KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function markVoted(reviewId: string) {
-  const voted = getVotedReviews();
-  voted.add(reviewId);
-  localStorage.setItem(HELPFUL_KEY, JSON.stringify([...voted]));
-}
-
-export function ReviewCard({ review, onRespond }: ReviewCardProps) {
-  const [helpfulCount, setHelpfulCount] = useState(review.helpful);
-  const [hasVoted, setHasVoted] = useState(() => getVotedReviews().has(review.id));
+export function ReviewCard({ review, hasVoted, onRespond }: ReviewCardProps) {
   const [showResponseEditor, setShowResponseEditor] = useState(false);
-  const [responseText, setResponseText] = useState(review.adminNote ?? "");
+  const [responseText, setResponseText] = useState(review.agencyResponse ?? "");
   const [isSavingResponse, setIsSavingResponse] = useState(false);
+  const toggleHelpful = useToggleReviewHelpful();
 
   const handleSaveResponse = async () => {
     if (!onRespond) return;
@@ -66,16 +50,12 @@ export function ReviewCard({ review, onRespond }: ReviewCardProps) {
     }
   };
 
-  const handleHelpful = async () => {
-    if (hasVoted) return;
-    // Optimistic update
-    setHelpfulCount((c) => c + 1);
-    setHasVoted(true);
-    markVoted(review.id);
-    const { error } = await supabase.rpc("increment_helpful", { review_id: review.id });
-    if (error) {
-      await supabase.rpc("increment_review_helpful", { review_id: review.id });
-    }
+  const handleHelpful = () => {
+    if (toggleHelpful.isPending) return;
+    // No optimistic +1/-1 here — helpful_count is server-maintained
+    // (recalc_review_helpful_count), and the mutation's onSuccess
+    // invalidates the reviews query, which refetches the real count.
+    toggleHelpful.mutate({ reviewId: review.id, listingId: review.activityId, hasVoted });
   };
 
   return (
@@ -114,10 +94,10 @@ export function ReviewCard({ review, onRespond }: ReviewCardProps) {
           size="sm"
           className="text-xs text-muted-foreground gap-1.5"
           onClick={handleHelpful}
-          disabled={hasVoted}
+          disabled={toggleHelpful.isPending}
         >
           <ThumbsUp className={`h-3.5 w-3.5 ${hasVoted ? "fill-primary text-primary" : ""}`} />
-          Helpful ({helpfulCount})
+          Helpful ({review.helpful})
         </Button>
         <span className="text-xs text-muted-foreground">
           {new Date(review.date).toLocaleDateString("en-US", {
@@ -134,16 +114,16 @@ export function ReviewCard({ review, onRespond }: ReviewCardProps) {
             onClick={() => setShowResponseEditor((v) => !v)}
           >
             <MessageSquare className="h-3.5 w-3.5" />
-            {review.adminNote ? "Edit Response" : "Respond"}
+            {review.agencyResponse ? "Edit Response" : "Respond"}
           </Button>
         )}
       </div>
 
       {/* Agency response — always visible when it exists */}
-      {review.adminNote && !showResponseEditor && (
+      {review.agencyResponse && !showResponseEditor && (
         <div className="mt-4 pl-4 border-l-2 border-primary/30 bg-primary/5 rounded-r-lg p-3">
           <p className="text-xs font-semibold text-primary mb-1">Response from the Agency</p>
-          <p className="text-sm text-foreground/80 leading-relaxed">{review.adminNote}</p>
+          <p className="text-sm text-foreground/80 leading-relaxed">{review.agencyResponse}</p>
         </div>
       )}
 
@@ -161,7 +141,7 @@ export function ReviewCard({ review, onRespond }: ReviewCardProps) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => { setShowResponseEditor(false); setResponseText(review.adminNote ?? ""); }}
+              onClick={() => { setShowResponseEditor(false); setResponseText(review.agencyResponse ?? ""); }}
               disabled={isSavingResponse}
             >
               Cancel

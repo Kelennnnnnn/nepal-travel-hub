@@ -16,21 +16,15 @@ export type PlatformRole = "traveler" | "agency" | "admin" | "super_admin" | "su
 export interface AdminUser {
   id: string;
   email: string;
+  full_name: string | null;
   created_at: string;
   last_sign_in_at: string | null;
   banned_until: string | null;
-  user_metadata: {
-    name?: string;
-    full_name?: string;
-  };
-  // Role lives in app_metadata — server-controlled, never client-editable
-  // (AUDIT_REPORT.md AUTH-07/RLS-02). The old version of this file read
-  // role from user_metadata, which meant the admin panel's own role badges
-  // could show a value the account itself had set, not its real
-  // authorization — fixed here, not carried forward.
-  app_metadata: {
-    role?: PlatformRole;
-  };
+  // Server-controlled, never client-editable (AUDIT_REPORT.md AUTH-07/
+  // RLS-02) — this is admin_user_directory()'s own `role` column, read
+  // live from auth.users.raw_app_meta_data, never from anything the
+  // account itself could have set.
+  role: PlatformRole;
 }
 
 export interface UserDetail {
@@ -41,11 +35,11 @@ export interface UserDetail {
 }
 
 export function displayName(u: AdminUser): string {
-  return u.user_metadata?.name ?? u.user_metadata?.full_name ?? u.email.split("@")[0];
+  return u.full_name ?? u.email.split("@")[0];
 }
 
 export function userRole(u: AdminUser): PlatformRole {
-  return u.app_metadata?.role ?? "traveler";
+  return u.role ?? "traveler";
 }
 
 export function isSuspended(u: AdminUser): boolean {

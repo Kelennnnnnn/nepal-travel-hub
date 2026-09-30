@@ -1,5 +1,11 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
+import { invokeEdge } from "@/lib/edge";
+
+// Per-tab dedupe for the send-welcome-email fire-and-forget call below —
+// purely a courtesy to avoid one HTTP round trip per page load; the real
+// dedupe guarantee is server-side (welcome_emails.user_id, insert-or-nothing).
+const attemptedWelcomeEmailFor = new Set<string>();
 
 // Platform-wide role (target §28) — lives ONLY in auth.users.app_metadata,
 // never user_metadata (client-editable, never trusted for authorization —
@@ -111,7 +117,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       };
     };
 
-    const applySession = async (session: { user: Parameters<typeof buildUser>[0]; access_token: string } | null) => {
+    const applySession = async (session: { user: Parameters<typeof buildUser>[0] & { email_confirmed_at?: string | null }; access_token: string } | null) => {
       if (!session?.user) {
         set({ user: null, isAuthenticated: false, isLoading: false, aal: "aal1", agencyMemberships: [], hasVerifiedMfaFactor: false });
         return;
@@ -123,6 +129,16 @@ export const useAuthStore = create<AuthState>()((set) => ({
         ELEVATED_ROLES.includes(user.role) ? fetchHasVerifiedMfaFactor() : Promise.resolve(false),
       ]);
       set({ user, isAuthenticated: true, isLoading: false, aal, agencyMemberships, hasVerifiedMfaFactor });
+
+      // Fire and forget — send-welcome-email dedupes server-side (an
+      // insert-or-nothing on welcome_emails.user_id), so calling this on
+      // every session-apply is safe. The per-tab flag below just avoids
+      // an HTTP round trip on every single page load once we already know
+      // this session has tried it.
+      if (session.user.email_confirmed_at && !attemptedWelcomeEmailFor.has(user.id)) {
+        attemptedWelcomeEmailFor.add(user.id);
+        void invokeEdge("send-welcome-email", {});
+      }
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {

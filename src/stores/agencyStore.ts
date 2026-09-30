@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
 import { logger } from "@/lib/logger";
+import { invokeEdge } from "@/lib/edge";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 // PHASE_4_AGENCY_ONBOARDING.md. Rebuilt against the Phase 2 schema, which
@@ -60,6 +61,7 @@ export interface AgencyDocument {
   size_bytes: number;
   status: "pending" | "approved" | "rejected" | "expired";
   created_at: string;
+  superseded_at: string | null;
 }
 
 export interface AgencyListItem {
@@ -83,9 +85,11 @@ export interface ApplicationFields {
 }
 
 async function invokeFn(name: string, body: Record<string, unknown>): Promise<{ data: unknown; error: string | null }> {
-  const { data, error } = await supabase.functions.invoke(name, { body });
+  // invokeEdge() sends a fresh Idempotency-Key per call and extracts the
+  // real {error, requestId} body an edge function sent (via http.ts's
+  // fail()) instead of supabase-js's generic FunctionsHttpError message.
+  const { data, error } = await invokeEdge(name, { body });
   if (error) return { data: null, error: error.message };
-  if (data?.error) return { data: null, error: data.error as string };
   return { data, error: null };
 }
 
@@ -152,7 +156,7 @@ export const useAgencyStore = create<AgencyStore>((set, get) => ({
     const [agencyRes, verificationRes, documentsRes] = await Promise.all([
       supabase.from("agencies").select("*").eq("id", membership.agency_id).single(),
       supabase.from("agency_verification").select("*").eq("agency_id", membership.agency_id).single(),
-      supabase.from("agency_documents").select("*").eq("agency_id", membership.agency_id),
+      supabase.from("agency_documents").select("*").eq("agency_id", membership.agency_id).is("superseded_at", null),
     ]);
 
     if (agencyRes.error || verificationRes.error) {
@@ -179,26 +183,33 @@ export const useAgencyStore = create<AgencyStore>((set, get) => ({
     return { error: null, agencyId };
   },
 
-  // ── Applicant: upload a document (direct client upload — RLS-protected
-  //    via has_agency_access, which works once saveDraft has run once) ──
+  // ── Applicant: upload a document (audit H4) ──────────────────────────
+  // Uploads with upsert:false to a unique path (no client role has
+  // UPDATE/DELETE on the agency-documents bucket anymore — an existing
+  // object at the same path can never be silently overwritten), then
+  // calls replace_agency_document() to create the row and mark any prior
+  // document of the same type superseded (never deleted — that's what
+  // replaces the old, silently-no-op delete() call this used to make;
+  // agency_documents never had a DELETE policy for a client role).
   uploadDocument: async (agencyId, documentType, file) => {
     if (file.size > 5 * 1024 * 1024) return { error: "File must be under 5MB" };
     const allowedMime = ["application/pdf", "image/jpeg", "image/png"];
     if (!allowedMime.includes(file.type)) return { error: "File must be a PDF, JPG, or PNG" };
 
     const ext = file.type === "application/pdf" ? "pdf" : file.type === "image/png" ? "png" : "jpg";
-    const storagePath = `${agencyId}/${documentType}-${Date.now()}.${ext}`;
+    const storagePath = `${agencyId}/${documentType}-${crypto.randomUUID()}.${ext}`;
 
-    const { error: uploadErr } = await supabase.storage.from("agency-documents").upload(storagePath, file, { upsert: true });
+    const { error: uploadErr } = await supabase.storage.from("agency-documents").upload(storagePath, file, { upsert: false });
     if (uploadErr) return { error: uploadErr.message };
 
-    // Replace any prior row of the same document_type for this agency —
-    // an agency should have at most one current file per document type.
-    await supabase.from("agency_documents").delete().eq("agency_id", agencyId).eq("document_type", documentType);
-    const { error: insertErr } = await supabase.from("agency_documents").insert({
-      agency_id: agencyId, document_type: documentType, storage_path: storagePath, mime_type: file.type, size_bytes: file.size,
+    const { error: rpcErr } = await supabase.rpc("replace_agency_document", {
+      p_agency_id: agencyId,
+      p_document_type: documentType,
+      p_storage_path: storagePath,
+      p_mime_type: file.type,
+      p_size_bytes: file.size,
     });
-    if (insertErr) return { error: insertErr.message };
+    if (rpcErr) return { error: rpcErr.message };
 
     await get().fetchMyApplication();
     return { error: null };
