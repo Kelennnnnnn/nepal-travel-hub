@@ -10,8 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { invokeEdge } from "@/lib/edge";
 import { TurnstileWidget } from "@/components/TurnstileWidget";
+import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 
 export default function Contact() {
+  const { platformName, supportEmail } = usePlatformSettings();
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [sending, setSending] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
@@ -45,7 +47,7 @@ export default function Contact() {
 
   return (
     <Layout>
-      <SEO title="Contact Us" description="Get in touch with the Yatra Nepal team. We're here to help with your Nepal travel questions." />
+      <SEO title="Contact Us" description={`Get in touch with the ${platformName} team. We're here to help with your Nepal travel questions.`} />
       <div className="pt-32 pb-16 min-h-screen bg-muted/30">
         <div className="container mx-auto px-4 max-w-5xl">
           <div className="text-center mb-12">
@@ -132,10 +134,10 @@ export default function Contact() {
                   <div>
                     <p className="font-medium">Email</p>
                     <a
-                      href="mailto:support@intonepal.com"
+                      href={`mailto:${supportEmail}`}
                       className="text-muted-foreground hover:text-primary transition-colors"
                     >
-                      support@intonepal.com
+                      {supportEmail}
                     </a>
                   </div>
                 </div>

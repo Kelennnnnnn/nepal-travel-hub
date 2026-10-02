@@ -1,5 +1,5 @@
 // (assertPaymentsEnabled/assertPayoutsEnabled/getCommissionRate used to live
-// here, backing the old Stripe-based payment/payout/commission model —
+// here, backing the old payment/payout/commission model —
 // removed along with that model. Their platform_settings keys
 // (payments_enabled, payouts_enabled, commission_rate) are gone too; see
 // supabase/migrations/20260916000015_admin_and_audit.sql for what

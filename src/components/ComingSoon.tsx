@@ -10,8 +10,8 @@ interface ComingSoonProps {
 
 /**
  * Shared placeholder for any page whose functionality was removed along
- * with the old Stripe-based payment/checkout/commission/payout model and
- * has not yet been rebuilt for the new NPR reservation-fee model.
+ * with the old payment/checkout/commission/payout model and has not yet
+ * been rebuilt for the new NPR reservation-fee model.
  */
 export function ComingSoon({ title, description, icon: Icon = Construction }: ComingSoonProps) {
   return (

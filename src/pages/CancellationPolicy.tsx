@@ -1,12 +1,14 @@
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/SEO";
+import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 
 const LAST_UPDATED = "April 9, 2026";
 
 export default function CancellationPolicy() {
+  const { platformName, supportEmail } = usePlatformSettings();
   return (
     <Layout>
-      <SEO title="Cancellation Policy" description="Review Yatra Nepal's cancellation and refund policy for Nepal travel bookings." />
+      <SEO title="Cancellation Policy" description={`Review ${platformName}'s cancellation and refund policy for Nepal travel bookings.`} />
       <div className="max-w-3xl mx-auto px-6 py-16">
         <div className="mb-10">
           <h1 className="text-4xl font-bold mb-3">Cancellation Policy</h1>
@@ -17,7 +19,7 @@ export default function CancellationPolicy() {
           <section>
             <h2 className="text-xl font-semibold mb-3">Overview</h2>
             <p className="text-muted-foreground">
-              Yatra Nepal operates as a marketplace connecting travelers with local Nepali travel
+              {platformName} operates as a marketplace connecting travelers with local Nepali travel
               agencies. Cancellation policies are governed by this platform policy and, where
               applicable, supplemented by the individual agency's terms displayed on each listing page.
             </p>
@@ -46,7 +48,7 @@ export default function CancellationPolicy() {
 
               <div className="p-5 border border-border rounded-xl">
                 <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-amber-500 mt-2 shrink-0" />
+                  <div className="w-2 h-2 rounded-full bg-warning-foreground mt-2 shrink-0" />
                   <div>
                     <p className="font-semibold text-foreground">
                       7–14 days before departure
@@ -83,7 +85,7 @@ export default function CancellationPolicy() {
             <p className="text-muted-foreground">
               If a verified agency cancels a confirmed booking for any reason, you will receive a
               full refund of the total amount paid, including any fees, within 5–10 business days.
-              Yatra Nepal will contact you by email to confirm the cancellation and initiate the refund.
+              {platformName} will contact you by email to confirm the cancellation and initiate the refund.
             </p>
           </section>
 
@@ -93,7 +95,7 @@ export default function CancellationPolicy() {
               Cancellations caused by events outside the agency's reasonable control — including
               natural disasters, government travel advisories, political unrest, extreme weather,
               or health emergencies — are handled on a case-by-case basis. In such circumstances,
-              agencies are encouraged to offer full credit or rescheduling options. Yatra Nepal will
+              agencies are encouraged to offer full credit or rescheduling options. {platformName} will
               mediate any disputes between travelers and agencies in good faith.
             </p>
           </section>
@@ -103,10 +105,10 @@ export default function CancellationPolicy() {
             <p className="text-muted-foreground mb-3">
               To cancel a booking, email us at{" "}
               <a
-                href="mailto:hello@yatranepal.com"
+                href={`mailto:${supportEmail}`}
                 className="text-primary hover:underline"
               >
-                hello@yatranepal.com
+                {supportEmail}
               </a>{" "}
               with your booking reference number. We process cancellation requests within one
               business day and will confirm the applicable refund amount by email.
@@ -132,10 +134,10 @@ export default function CancellationPolicy() {
             <p className="text-muted-foreground">
               Questions about our cancellation policy? Contact us at{" "}
               <a
-                href="mailto:hello@yatranepal.com"
+                href={`mailto:${supportEmail}`}
                 className="text-primary hover:underline"
               >
-                hello@yatranepal.com
+                {supportEmail}
               </a>{" "}
               or visit our{" "}
               <a href="/contact" className="text-primary hover:underline">

@@ -1,12 +1,14 @@
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/SEO";
+import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 
 const LAST_UPDATED = "April 9, 2026";
 
 export default function CookiePolicy() {
+  const { platformName, supportEmail } = usePlatformSettings();
   return (
     <Layout>
-      <SEO title="Cookie Policy" description="Learn how Yatra Nepal uses cookies and similar technologies to operate and improve the marketplace." />
+      <SEO title="Cookie Policy" description={`Learn how ${platformName} uses cookies and similar technologies to operate and improve the marketplace.`} />
       <div className="max-w-3xl mx-auto px-6 py-16">
         <div className="mb-10">
           <h1 className="text-4xl font-bold mb-3">Cookie Policy</h1>
@@ -19,7 +21,7 @@ export default function CookiePolicy() {
             <p className="text-muted-foreground">
               Cookies are small text files stored on your device when you visit a website. They help
               websites remember your preferences, keep you logged in, and understand how you use the
-              site. Yatra Nepal uses cookies to provide a better, more personalised experience.
+              site. {platformName} uses cookies to provide a better, more personalised experience.
             </p>
           </section>
 
@@ -46,7 +48,7 @@ export default function CookiePolicy() {
               <div className="p-5 border border-border rounded-xl">
                 <p className="font-semibold mb-1">Analytics Cookies</p>
                 <p className="text-muted-foreground text-sm">
-                  Help us understand how visitors use Yatra Nepal — which pages are most popular,
+                  Help us understand how visitors use {platformName} — which pages are most popular,
                   how users navigate the site, and where we can improve. We use anonymised,
                   aggregated data only and do not sell this information to third parties.
                 </p>
@@ -114,8 +116,8 @@ export default function CookiePolicy() {
             <h2 className="text-xl font-semibold mb-3">Contact</h2>
             <p className="text-muted-foreground">
               Questions about our use of cookies? Contact us at{" "}
-              <a href="mailto:hello@yatranepal.com" className="text-primary hover:underline">
-                hello@yatranepal.com
+              <a href={`mailto:${supportEmail}`} className="text-primary hover:underline">
+                {supportEmail}
               </a>
               .
             </p>

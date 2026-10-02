@@ -300,7 +300,7 @@ export default function AdminUsers() {
           <StatCard label="Total Users"  value={platformStats?.total ?? 0}     loading={showSkeleton} />
           <StatCard label="Travelers"    value={platformStats?.travelers ?? 0}  color="text-blue-600"  loading={showSkeleton} />
           <StatCard label="Agencies"     value={platformStats?.agencies ?? 0}   color="text-primary"   loading={showSkeleton} />
-          <StatCard label="Admins"       value={platformStats?.admins ?? 0}     color="text-amber-600" loading={showSkeleton} />
+          <StatCard label="Admins"       value={platformStats?.admins ?? 0}     color="text-warning-foreground" loading={showSkeleton} />
           <StatCard label="Support"      value={platformStats?.support ?? 0}    color="text-violet-600" loading={showSkeleton} />
           <StatCard label="Finance"      value={platformStats?.finance ?? 0}    color="text-emerald-600" loading={showSkeleton} />
           <StatCard label="Suspended"    value={platformStats?.suspended ?? 0}  color="text-destructive" loading={showSkeleton} />
@@ -427,7 +427,7 @@ export default function AdminUsers() {
                                       </DropdownMenuItem>
                                     ) : (
                                       <DropdownMenuItem
-                                        className="text-amber-600 focus:text-amber-600"
+                                        className="text-warning-foreground focus:text-warning-foreground"
                                         onClick={() => void handleSuspend(user)}>
                                         <ShieldOff className="h-4 w-4 mr-2" />
                                         Suspend

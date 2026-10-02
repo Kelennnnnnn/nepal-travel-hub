@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { supabase } from "@/lib/supabase";
 import { logAdminAction } from "@/lib/audit";
+import { useAuthStore } from "@/stores/authStore";
 import { toast } from "sonner";
 
 export default function AdminSettings() {
+  const adminId = useAuthStore((s) => s.user?.id);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -42,13 +44,13 @@ export default function AdminSettings() {
     });
   }, []);
 
-  const save = async (key: string, value: boolean) => {
+  const save = async (key: string, oldValue: boolean, value: boolean) => {
     const { error } = await supabase
       .from("platform_settings")
-      .update({ value, updated_at: new Date().toISOString() })
+      .update({ value, updated_at: new Date().toISOString(), updated_by: adminId ?? null })
       .eq("key", key);
     if (error) { toast.error(error.message); return; }
-    await logAdminAction("update_setting", "settings", key, { value });
+    await logAdminAction("update_setting", "settings", key, { value }, { value: oldValue });
     toast.success("Setting updated");
   };
 
@@ -70,14 +72,14 @@ export default function AdminSettings() {
             <Row label="Maintenance Mode" desc="Freezes the entire platform and shows a maintenance banner to visitors.">
               <Switch
                 checked={maintenanceMode}
-                onCheckedChange={(v) => { setMaintenanceMode(v); save("maintenance_mode", v); }}
+                onCheckedChange={(v) => { const old = maintenanceMode; setMaintenanceMode(v); save("maintenance_mode", old, v); }}
               />
             </Row>
           </CardContent>
         </Card>
 
         {/* Reservation-fee settings (commission rate, payments/payouts kill
-            switches) belonged to the removed Stripe-based payment model and
+            switches) belonged to the removed payment model and
             will return once the new NPR reservation-fee model is designed —
             not invented here. */}
         <Card>

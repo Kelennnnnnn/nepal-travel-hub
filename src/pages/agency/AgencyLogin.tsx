@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mountain, Mail, Lock, Building2, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Building2, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -83,22 +84,10 @@ export default function AgencyLogin() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left Panel - Image */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-primary">
-        <div className="absolute inset-0">
-          <img
-            src="https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=1200"
-            alt="Nepal mountains"
-            className="w-full h-full object-cover opacity-20 sepia"
-          />
-        </div>
+      {/* Left Panel */}
+      <div className="hidden lg:flex lg:w-1/2 relative bg-primary brand-texture">
         <div className="relative z-10 flex flex-col justify-between p-12 text-primary-foreground">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-primary-foreground/20">
-              <Mountain className="h-6 w-6" />
-            </div>
-            <span className="text-xl font-bold">Into Nepal</span>
-          </div>
+          <BrandLogo variant="full" colour="primary" animate="intro" height={120} />
 
           <div>
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white/20 mb-6 backdrop-blur-sm">
@@ -123,12 +112,7 @@ export default function AgencyLogin() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden flex justify-center mb-8">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-primary">
-                <Mountain className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold">Into Nepal</span>
-            </div>
+            <BrandLogo variant="full" colour="blue" height={96} />
           </div>
 
           <div className="text-center mb-8">

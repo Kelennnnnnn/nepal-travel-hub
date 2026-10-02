@@ -4,7 +4,7 @@ import { ClipboardList } from "lucide-react";
 
 // Rebuilt as a stub: the old booking admin table here queried bookings
 // columns (trip_date, total_amount, commission_amount, net_payout) that
-// belonged to the removed Stripe-based payment model and no longer exist.
+// belonged to the removed payment model and no longer exist.
 // Bring back once the new NPR reservation-fee booking flow exists.
 export default function AdminBookings() {
   return (

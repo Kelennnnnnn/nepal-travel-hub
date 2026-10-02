@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Mountain, Mail, RefreshCw, CheckCircle } from "lucide-react";
+import { Mail, RefreshCw, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -60,11 +61,8 @@ export default function VerifyEmail() {
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 px-4">
       <div className="w-full max-w-md text-center space-y-6">
         {/* Logo */}
-        <Link to="/" className="inline-flex items-center gap-2 mb-2">
-          <div className="p-2 rounded-xl bg-primary">
-            <Mountain className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <span className="text-xl font-bold">Into Nepal</span>
+        <Link to="/" className="inline-flex items-center justify-center mb-2">
+          <BrandLogo variant="full" colour="blue" height={96} />
         </Link>
 
         {/* Icon */}

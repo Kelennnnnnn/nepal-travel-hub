@@ -1,0 +1,225 @@
+/* Animations for BrandLogo (src/components/brand/BrandLogo.tsx). CSS
+ * only, per spec — no JS animation libraries. See that file's header
+ * comment for why "intro" and "loop" only get the full per-pane
+ * treatment for colour="primary" (always) and colour="blue" (only when
+ * animate is "hover" or "loop" — the two dynamic, digital-only uses);
+ * every other colour/animate combination renders the true flat
+ * one-colour asset, which has no separate pane elements to animate, so
+ * those selectors below simply never match for it and no-op safely.
+ *
+ * prefers-reduced-motion: every animation in this file is wrapped in
+ * `@media (prefers-reduced-motion: no-preference)` — nothing here plays
+ * for a reduced-motion user, full stop. Do not add a new animation to
+ * this file outside that guard.
+ */
+
+/* ── responsive size helpers ──────────────────────────────────────────
+ * BrandLogo's `height` prop sets height/width as an inline style (so the
+ * SVG has a sane default size with no CSS at all), which a plain
+ * Tailwind class like `md:h-11` can't win against (inline style beats a
+ * normal stylesheet rule). `!important` here is deliberate and the
+ * correct tool for that one, specific override -- not a general escape
+ * hatch for this component. */
+@media (min-width: 768px) {
+  .brand-logo--header-sized {
+    height: 44px !important;
+    width: auto !important;
+  }
+}
+
+/* ── intro (~1.5s, once): the window opens ───────────────────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes brand-logo-arch-rise {
+    from {
+      transform: translateY(24px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .brand-logo--animate-intro .brand-logo__arch {
+    animation: brand-logo-arch-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Panes swing open from their hinge: left panes from the left edge,
+   * right panes from the right edge, ~110ms apart. Approximated as a
+   * scaleX reveal from the hinge (transform-origin) rather than a true
+   * rotateY flip — SVG elements' 3D-transform support is inconsistent
+   * enough across browsers that a reveal reads more reliably as
+   * "opening" than a flip that might render as a flat squash. */
+  @keyframes brand-logo-pane-open {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  .brand-logo--primary.brand-logo--animate-intro .brand-logo__pane {
+    animation: brand-logo-pane-open 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .brand-logo--primary.brand-logo--animate-intro .brand-logo__pane--tl {
+    transform-origin: left center;
+    animation-delay: 0ms;
+  }
+  .brand-logo--primary.brand-logo--animate-intro .brand-logo__pane--tr {
+    transform-origin: right center;
+    animation-delay: 110ms;
+  }
+  .brand-logo--primary.brand-logo--animate-intro .brand-logo__pane--bl {
+    transform-origin: left center;
+    animation-delay: 220ms;
+  }
+  .brand-logo--primary.brand-logo--animate-intro .brand-logo__pane--br {
+    transform-origin: right center;
+    animation-delay: 330ms;
+  }
+
+  /* Rhododendron blooms: scales up with a slight turn, once the panes
+   * have mostly finished opening. Works for every colour, not just
+   * primary — this group exists in both the pane structure and the
+   * flat one-colour structure. */
+  @keyframes brand-logo-bloom {
+    from {
+      transform: scale(0.3) rotate(-14deg);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1) rotate(0deg);
+      opacity: 1;
+    }
+  }
+
+  .brand-logo--animate-intro .brand-logo__rhododendron {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: brand-logo-bloom 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: 500ms;
+  }
+
+  /* Letters rise in one by one, ~45ms apart, after the window has
+   * settled. Colour-independent: letters are always 9 separate paths. */
+  @keyframes brand-logo-letter-rise {
+    from {
+      transform: translateY(18px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .brand-logo--animate-intro .brand-logo__letter {
+    animation: brand-logo-letter-rise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .brand-logo--animate-intro .brand-logo__letter--0 { animation-delay: 950ms; }
+  .brand-logo--animate-intro .brand-logo__letter--1 { animation-delay: 995ms; }
+  .brand-logo--animate-intro .brand-logo__letter--2 { animation-delay: 1040ms; }
+  .brand-logo--animate-intro .brand-logo__letter--3 { animation-delay: 1085ms; }
+  .brand-logo--animate-intro .brand-logo__letter--4 { animation-delay: 1130ms; }
+  .brand-logo--animate-intro .brand-logo__letter--5 { animation-delay: 1175ms; }
+  .brand-logo--animate-intro .brand-logo__letter--6 { animation-delay: 1220ms; }
+  .brand-logo--animate-intro .brand-logo__letter--7 { animation-delay: 1265ms; }
+  .brand-logo--animate-intro .brand-logo__letter--8 { animation-delay: 1310ms; }
+
+  /* Non-primary "intro" fallback: no separate panes to swing, so the
+   * whole fused window just rises with the arch (the rule above already
+   * covers it, since .brand-logo__arch IS the whole window in that
+   * structure) — nothing extra needed here.
+   */
+}
+
+/* ── hover: the white-header one-colour blue logo ────────────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  .brand-logo--blue.brand-logo--animate-hover .brand-logo__pane-fill,
+  .brand-logo--blue.brand-logo--animate-hover .brand-logo__rhododendron {
+    transition: fill 0.25s ease;
+  }
+
+  /* One after another: bottom-left green, bottom-right orange, then the
+   * rhododendron red, each a little later than the last. The top-right
+   * pane's real colour already IS Summit Blue, so it has nothing to
+   * transition to and is left out. */
+  .brand-logo--blue.brand-logo--animate-hover:hover .brand-logo__pane--bl .brand-logo__pane-fill {
+    fill: #267b3d;
+    transition-delay: 110ms;
+  }
+  .brand-logo--blue.brand-logo--animate-hover:hover .brand-logo__pane--br .brand-logo__pane-fill {
+    fill: #f37421;
+    transition-delay: 220ms;
+  }
+  .brand-logo--blue.brand-logo--animate-hover:hover .brand-logo__rhododendron {
+    fill: #c12126;
+    transition-delay: 330ms;
+  }
+}
+
+/* No prefers-reduced-motion guard needed for the hover fill transition
+ * itself in the reduced-motion case below -- a colour swap triggered by
+ * :hover is not a self-playing animation, but we still drop the
+ * transition's easing to an instant swap so reduced-motion users get the
+ * colour feedback without the staggered motion. */
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo--blue.brand-logo--animate-hover .brand-logo__pane-fill,
+  .brand-logo--blue.brand-logo--animate-hover .brand-logo__rhododendron {
+    transition: none;
+  }
+  .brand-logo--blue.brand-logo--animate-hover:hover .brand-logo__pane--bl .brand-logo__pane-fill {
+    fill: #267b3d;
+  }
+  .brand-logo--blue.brand-logo--animate-hover:hover .brand-logo__pane--br .brand-logo__pane-fill {
+    fill: #f37421;
+  }
+  .brand-logo--blue.brand-logo--animate-hover:hover .brand-logo__rhododendron {
+    fill: #c12126;
+  }
+}
+
+/* ── loop (loader): panes fade down and up in turn ───────────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes brand-logo-pane-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.3;
+    }
+  }
+
+  .brand-logo--animate-loop .brand-logo__pane {
+    animation: brand-logo-pane-pulse 1.2s ease-in-out infinite;
+  }
+  .brand-logo--animate-loop .brand-logo__pane--tl { animation-delay: 0ms; }
+  .brand-logo--animate-loop .brand-logo__pane--tr { animation-delay: 150ms; }
+  .brand-logo--animate-loop .brand-logo__pane--bl { animation-delay: 300ms; }
+  .brand-logo--animate-loop .brand-logo__pane--br { animation-delay: 450ms; }
+
+  /* Fallback for colours with no separate panes (shouldn't normally
+   * reach "loop" except via colour="blue", which already gets the pane
+   * structure above — kept as a safety net, not dead code, in case a
+   * future caller passes e.g. colour="red" animate="loop"). */
+  .brand-logo--animate-loop:not(.brand-logo--primary):not(.brand-logo--blue) .brand-logo__arch {
+    animation: brand-logo-pane-pulse 1.2s ease-in-out infinite;
+  }
+}
+
+/* prefers-reduced-motion: no animation at all, anywhere in this
+ * component, no exceptions -- each rule above is already scoped inside
+ * `@media (prefers-reduced-motion: no-preference)`, so a reduced-motion
+ * user simply never matches any of them. This final rule is a second,
+ * belt-and-suspenders guard in case a future edit to this file adds an
+ * animation outside that pattern. */
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo * {
+    animation: none !important;
+  }
+}

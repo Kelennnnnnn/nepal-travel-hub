@@ -41,7 +41,7 @@ export function AgencySuspendDialog({
             rows={3}
           />
         </div>
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+        <div className="p-4 bg-warning border border-warning-foreground/20 rounded-lg text-sm text-warning-foreground">
           <AlertTriangle className="h-4 w-4 inline mr-2" />
           Published listings will be paused immediately. Active bookings will not be affected.
         </div>

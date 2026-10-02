@@ -197,11 +197,11 @@ export default function AdminAgencies() {
       case "in_review":
         return <Badge className="bg-blue-100 text-blue-700 border-blue-200">In Review</Badge>;
       case "more_info_required":
-        return <Badge className="bg-amber-100 text-amber-800 border-amber-200">Info Requested</Badge>;
+        return <Badge className="bg-warning text-warning-foreground border-warning">Info Requested</Badge>;
       case "rejected":
         return <Badge variant="destructive">Rejected</Badge>;
       case "suspended":
-        return <Badge className="bg-amber-100 text-amber-800 border-amber-200">Suspended</Badge>;
+        return <Badge className="bg-warning text-warning-foreground border-warning">Suspended</Badge>;
       default:
         return null;
     }
@@ -243,9 +243,9 @@ export default function AdminAgencies() {
           {[
             { label: "Total",        value: allAgencies.length, color: "" },
             { label: "Verified",     value: verifiedCount,  color: "text-primary" },
-            { label: "Pending / Review", value: pendingCount + inReviewCount, color: "text-amber-600" },
+            { label: "Pending / Review", value: pendingCount + inReviewCount, color: "text-warning-foreground" },
             { label: "Rejected",     value: rejectedCount,  color: "text-destructive" },
-            { label: "Suspended",    value: suspendedCount, color: "text-amber-800" },
+            { label: "Suspended",    value: suspendedCount, color: "text-warning-foreground" },
           ].map((s) => (
             <Card key={s.label}>
               <CardContent className="p-4">

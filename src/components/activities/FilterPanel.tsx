@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { DURATION_RANGES } from "@/data/activities";
+import { DURATION_RANGES } from "@/lib/catalog";
 
 const DIFFICULTIES = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
 

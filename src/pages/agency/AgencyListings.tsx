@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, MoreVertical, Edit, Pause, Play, Trash2, Archive, Send, Star, MapPin, Loader2 } from "lucide-react";
+import { Plus, Search, MoreVertical, Edit, Pause, Play, Trash2, Archive, Send, Star, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useListingsStore } from "@/stores/listingsStore";
@@ -19,7 +19,7 @@ const statusStyle: Record<string, string> = {
   published: "bg-primary/10 text-primary",
   approved: "bg-blue-100 text-blue-700",
   draft: "bg-muted text-muted-foreground",
-  paused: "bg-amber-100 text-amber-700",
+  paused: "bg-warning text-warning-foreground",
   pending_review: "bg-blue-100 text-blue-700",
   rejected: "bg-destructive/10 text-destructive",
   archived: "bg-muted text-muted-foreground",
@@ -161,7 +161,7 @@ export default function AgencyListings() {
                             <h3 className="font-semibold text-foreground truncate">{listing.title}</h3>
                             <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
                               <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {listing.location}</span>
-                              <span className="flex items-center gap-1"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {listing.rating}</span>
+                              <span className="flex items-center gap-1"><Star className="h-3 w-3 fill-rating text-rating" /> {listing.rating}</span>
                               <span>{listing.review_count} reviews</span>
                             </div>
                           </div>

@@ -19,8 +19,17 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
-      "@typescript-eslint/no-unused-vars": "off",
+      // Disabled rather than fixed: shadcn/ui's own generated primitives
+      // (src/components/ui/**) violate this by design (re-exporting a
+      // cva() variants function alongside the component), and this
+      // codebase's own established pattern of colocating a dialog with
+      // its small display helpers (UserDetailDialog.tsx, AuditEntryDialog.tsx,
+      // ReviewDetailDialog.tsx) does too. It's a dev-experience/HMR-
+      // granularity nicety, not a correctness rule — restructuring either
+      // category into extra files to satisfy it would be churn with no
+      // behavioral benefit.
+      "react-refresh/only-export-components": "off",
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
 );

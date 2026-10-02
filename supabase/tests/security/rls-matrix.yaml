@@ -1,0 +1,488 @@
+# ============================================================================
+# RLS + EXECUTE matrix — source of truth for the generated pgTAP suite in
+# supabase/tests/security/generated/. Regenerate with `npm run test:db`
+# (scripts/generate-security-tests.ts runs first and will FAIL THE BUILD —
+# non-zero exit, no generated SQL written — if:
+#   - any public.* base table has no entry under `tables:` below, or
+#   - any SECURITY DEFINER function in public.* has no entry under
+#     `functions:` below.
+# This is the mechanism that makes "add a table/SECURITY DEFINER function
+# without updating this file" fail CI, per the prompt's acceptance check.
+#
+# Fixture roster (see fixtures.sql for the full dataset this probes):
+#   anon        — unauthenticated
+#   T1          — traveler, owns the canonical booking/review/conversation
+#   T2          — traveler, unrelated to every fixture row (the "foreign
+#                 traveler" probe)
+#   OA, MA, SA  — owner/manager/staff of Agency A (the canonical row-owner
+#                 agency for every agency-scoped table below)
+#   OB          — owner of Agency B (an unrelated, "foreign" agency)
+#   OS          — owner of Agency S (suspended)
+#   admin       — platform admin, aal2 (is_admin() true)
+#   admin_aal1  — platform admin role, but aal1 session (is_admin() FALSE —
+#                 this is AUTH-01/aal2-enforcement's own regression tripwire)
+#   super_admin — aal2
+#   support     — aal2 (is_support_or_admin() true, is_admin() false)
+#   finance     — aal2 (is_finance_or_admin() true, is_admin() false)
+#
+# Every table entry's `row` names the exact fixture row (by primary key)
+# every select/update/delete probe runs against. `insert` additionally
+# needs `insert_values` (the literal column list for a fresh INSERT
+# attempt) when any role is expected to be able to insert at all — tables
+# where every role is denied omit it (the generator only needs a values
+# clause when testing a path that might actually succeed; a denied INSERT
+# is asserted via 0-rows/42501 on a minimal columns-only attempt the
+# generator builds from `insert_values` regardless, so this key is
+# REQUIRED on every table — see generator for the exact probe it runs).
+#
+# A role omitted from an operation's list is asserted DENIED for that
+# operation. service_role is never listed — it bypasses RLS entirely
+# (rolbypassrls=true) and is asserted allow-all separately, once, by the
+# generator rather than repeated on every table.
+# ============================================================================
+
+roles: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+
+tables:
+  agencies:
+    row: { id: "5ec00000-0000-0000-0000-00000000000a" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { legal_name: "'Probe Agency'", display_name: "'Probe Agency'", slug: "'probe-agency-matrix'", city: "'Kathmandu'" }
+    insert: [admin, super_admin]
+    update: { set: "city = 'Updated City'" }
+    update_allow: [OA, MA, admin, super_admin]
+    delete: []   # RLS would allow admin/super_admin (agencies_admin_all); not exercised live to avoid cascading the shared fixture row — see exploit tests for a dedicated delete-target row if ever needed.
+
+  agency_documents:
+    row: { id: "5ed50000-0000-0000-0000-000000000001" }
+    select: [OA, MA, SA, admin, super_admin]
+    insert_values: { agency_id: "'5ec00000-0000-0000-0000-00000000000a'", document_type: "'other'", storage_path: "'5ec00000-0000-0000-0000-00000000000a/probe.pdf'", mime_type: "'application/pdf'", size_bytes: "100" }
+    insert: [admin, super_admin]
+    update: { set: "status = 'rejected'" }
+    update_allow: [admin, super_admin]
+    delete: [admin, super_admin]
+
+  agency_invitations:
+    row: { id: "5ed60000-0000-0000-0000-000000000001" }
+    select: [OA]
+    insert_values: { agency_id: "'5ec00000-0000-0000-0000-00000000000a'", email: "'probe@test.com'", agency_role: "'staff'", token_hash: "'probe'", invited_by: "'5ec20000-0000-0000-0000-000000000001'" }
+    insert: []
+    update: { set: "revoked_at = now()" }
+    update_allow: []
+    delete: []
+
+  agency_status_history:
+    row: { id: "5ed70000-0000-0000-0000-000000000001" }
+    select: [OS, admin, super_admin]
+    insert_values: { agency_id: "'5ec00000-0000-0000-0000-00000000000a'", to_status: "'approved'" }
+    insert: []
+    update: { set: "reason = 'probe'" }
+    update_allow: []
+    delete: []
+
+  agency_users:
+    row: { id_column: "user_id", id: "5ec20000-0000-0000-0000-000000000001" }
+    select: [OA, MA, SA, admin, super_admin]
+    insert_values: { agency_id: "'5ec00000-0000-0000-0000-00000000000a'", user_id: "'5ec10000-0000-0000-0000-000000000002'", agency_role: "'staff'" }
+    insert: [admin, super_admin]
+    update: { set: "agency_role = 'manager'" }
+    update_allow: [admin, super_admin]
+    delete: [admin, super_admin]
+
+  agency_verification:
+    row: { id_column: "agency_id", id: "5ec00000-0000-0000-0000-00000000000a" }
+    select: [OA, MA, SA, admin, super_admin]
+    insert_values: {}   # every agency fixture row already has a verification row (unique on agency_id) -- any insert probe collides on the constraint before RLS is even reached, for every role; not a meaningful RLS signal, so not probed here.
+    insert: []
+    update: { set: "rejection_reason = 'probe'" }
+    update_allow: [admin, super_admin]
+    delete: [admin, super_admin]
+
+  audit_logs:
+    row: { id: "5ee00000-0000-0000-0000-000000000001" }
+    select: [admin, super_admin]
+    insert_values: { action: "'probe'", resource_type: "'listing'" }
+    insert: []
+    update: { set: "action = 'probe2'" }
+    update_allow: []
+    delete: []
+
+  blackout_dates:
+    row: { id: "5ed80000-0000-0000-0000-000000000001" }
+    select: [OA, MA, admin, super_admin]
+    insert_values: { listing_id: "'5ec40000-0000-0000-0000-000000000001'", blackout_date: "current_date + 200" }
+    insert: [OA, MA, admin, super_admin]
+    update: { set: "reason = 'probe'" }
+    update_allow: [OA, MA, admin, super_admin]
+    delete: [OA, MA, admin, super_admin]
+
+  booking_guests:
+    row: { id: "5eca0000-0000-0000-0000-000000000001" }
+    select: [T1, OA, MA, SA, admin, super_admin]
+    insert_values: { booking_id: "'5ec90000-0000-0000-0000-000000000001'", full_name: "'Probe Guest'" }
+    insert: [T1]
+    update: { set: "full_name = 'Updated Guest'" }
+    update_allow: []
+    delete: []
+
+  booking_items:
+    row: { id: "5ecb0000-0000-0000-0000-000000000001" }
+    select: [T1, OA, MA, SA, admin, super_admin]
+    insert_values: { booking_id: "'5ec90000-0000-0000-0000-000000000001'", description: "'probe'", unit_price: "100", quantity: "1", line_total: "100" }
+    insert: []
+    update: { set: "description = 'probe2'" }
+    update_allow: []
+    delete: []
+
+  booking_quotes:
+    row: { id: "5ec80000-0000-0000-0000-000000000001" }
+    select: [T1, OA, MA, SA, admin, super_admin]
+    insert_values: { listing_id: "'5ec40000-0000-0000-0000-000000000001'", departure_id: "'5ec50000-0000-0000-0000-000000000001'", agency_id: "'5ec00000-0000-0000-0000-00000000000a'", traveler_id: "'5ec10000-0000-0000-0000-000000000001'", participant_count: "1", product_value: "100", platform_fee_percent: "10", platform_fee: "10", agency_balance: "90", currency: "'NPR'", cancellation_policy_snapshot: "'{}'::jsonb", inventory_reservation_id: "'5ec70000-0000-0000-0000-000000000001'", expires_at: "now() + interval '1 hour'" }
+    insert: []
+    update: { set: "status = 'cancelled'" }
+    update_allow: []
+    delete: []
+
+  booking_status_history:
+    row: { id: "5ecd0000-0000-0000-0000-000000000001" }
+    select: [T1, OA, MA, SA, admin, super_admin]
+    insert_values: { booking_id: "'5ec90000-0000-0000-0000-000000000001'", event_type: "'probe'" }
+    insert: []
+    update: { set: "event_type = 'probe2'" }
+    update_allow: []
+    delete: []
+
+  bookings:
+    row: { id: "5ec90000-0000-0000-0000-000000000001" }
+    select: [T1, OA, MA, SA, admin, super_admin, support]
+    insert_values: { quote_id: "'5ec80000-0000-0000-0000-000000000001'", listing_id: "'5ec40000-0000-0000-0000-000000000001'", departure_id: "'5ec50000-0000-0000-0000-000000000001'", agency_id: "'5ec00000-0000-0000-0000-00000000000a'", traveler_id: "'5ec10000-0000-0000-0000-000000000001'", participant_count: "1" }
+    insert: [admin, super_admin]
+    update: { set: "cancellation_reason = 'probe'" }
+    update_allow: [admin, super_admin]
+    delete: []
+
+  contact_submissions:
+    row: { id: "5edf0000-0000-0000-0000-000000000001" }
+    select: [admin, super_admin, support]
+    insert_values: { name: "'Probe'", email: "'probe@test.com'", message: "'probe message'" }
+    insert: []
+    update: { set: "status = 'read'" }
+    update_allow: []
+    delete: []
+
+  conversation_participants:
+    row: { id: "5ed20000-0000-0000-0000-000000000001" }
+    select: [T1, MA]
+    insert_values: { conversation_id: "'5ed10000-0000-0000-0000-000000000001'", user_id: "'5ec10000-0000-0000-0000-000000000002'", participant_role: "'traveler'" }
+    insert: []
+    update: { set: "participant_role = 'agency'" }
+    update_allow: []
+    delete: []
+
+  conversations:
+    row: { id: "5ed10000-0000-0000-0000-000000000001" }
+    select: [T1, OA, MA, SA, admin, super_admin, support]
+    insert_values: { agency_id: "'5ec00000-0000-0000-0000-00000000000a'", traveler_id: "'5ec10000-0000-0000-0000-000000000002'" }
+    insert: [admin, super_admin, support]
+    update: { set: "subject = 'probe'" }
+    update_allow: [admin, super_admin, support]
+    delete: [admin, super_admin, support]
+
+  departures:
+    row: { id: "5ec50000-0000-0000-0000-000000000001" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { listing_id: "'5ec40000-0000-0000-0000-000000000001'", agency_id: "'5ec00000-0000-0000-0000-00000000000a'", departure_date: "current_date + 200" }
+    insert: [OA, MA, admin, super_admin]
+    update: { set: "status = 'closed'" }
+    update_allow: [OA, MA, admin, super_admin]
+    delete: []   # guard_departure_delete + dependent booking fixture row makes a live delete probe unreliable; covered by H7's exploit test instead.
+
+  domain_events:
+    row: { id: "5edc0000-0000-0000-0000-000000000001" }
+    select: [admin, super_admin]
+    insert_values: { event_type: "'probe'", aggregate_type: "'booking'", aggregate_id: "'5ec90000-0000-0000-0000-000000000001'" }
+    insert: []
+    update: { set: "processed_at = now()" }
+    update_allow: []
+    delete: []
+
+  idempotency_keys:
+    row: { id_column: "key", id: "fixture-idem-key" }
+    select: []
+    insert_values: { key: "'probe-key'", user_id: "'5ec10000-0000-0000-0000-000000000001'", fn: "'probe'", response: "'{}'::jsonb", status: "200" }
+    insert: []
+    update: { set: "status = 500" }
+    update_allow: []
+    delete: []
+
+  inventory:
+    row: { id: "5ec60000-0000-0000-0000-000000000001" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: {}   # departure_id is unique -- the only departure fixture already has an inventory row, so a fresh insert probe collides on the constraint before RLS, for every role; not a meaningful RLS signal.
+    insert: []
+    update: { set: "capacity_total = 20" }
+    update_allow: [admin, super_admin]
+    delete: []
+
+  inventory_reservations:
+    row: { id: "5ec70000-0000-0000-0000-000000000001" }
+    select: [admin, super_admin]
+    insert_values: { inventory_id: "'5ec60000-0000-0000-0000-000000000001'", quantity: "1", expires_at: "now() + interval '1 hour'" }
+    insert: []
+    update: { set: "status = 'released'" }
+    update_allow: []
+    delete: []
+
+  listing_images:
+    row: { id: "5ed90000-0000-0000-0000-000000000001" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { listing_id: "'5ec40000-0000-0000-0000-000000000001'", storage_path: "'probe.jpg'", mime_type: "'image/jpeg'", size_bytes: "100" }
+    insert: [OA, MA, admin, super_admin]
+    update: { set: "sort_order = 1" }
+    update_allow: [OA, MA, admin, super_admin]
+    delete: [OA, MA, admin, super_admin]
+
+  listings:
+    row: { id: "5ec40000-0000-0000-0000-000000000001" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { agency_id: "'5ec00000-0000-0000-0000-00000000000a'", slug: "'probe-listing'", title: "'Probe Listing Title'", category: "'Trekking'", location: "'Kathmandu'", duration_label: "'1 day'", duration_days: "1", base_price: "100" }
+    insert: [OA, MA, admin, super_admin]
+    update: { set: "title = 'Updated Probe Title'" }
+    update_allow: [OA, MA, admin, super_admin]
+    delete: []   # listing A has dependent departures/bookings; see H7 exploit test for a dedicated no-dependents row if a delete probe is ever needed.
+
+  message_attachments:
+    row: { id: "5ed40000-0000-0000-0000-000000000001" }
+    select: [T1, MA]
+    insert_values: { message_id: "'5ed30000-0000-0000-0000-000000000001'", storage_path: "'probe.pdf'", mime_type: "'application/pdf'", size_bytes: "100" }
+    insert: [T1]
+    update: { set: "mime_type = 'application/octet-stream'" }
+    update_allow: []
+    delete: []
+
+  messages:
+    row: { id: "5ed30000-0000-0000-0000-000000000001" }
+    select: [T1, MA, admin, super_admin, support]
+    insert_values: { conversation_id: "'5ed10000-0000-0000-0000-000000000001'", sender_id: "'5ec10000-0000-0000-0000-000000000001'", content: "'probe'" }
+    insert: [T1]
+    update: { set: "read_at = now()" }
+    update_allow: [MA]   # messages_update_mark_read: sender_id <> auth.uid() required -- T1 (the sender) is correctly excluded; only the OTHER participant (MA) may mark read. This is RLS-04/AUTH-02's own fix.
+    delete: []
+
+  notification_preferences:
+    row: { id_column: "user_id", id: "5ec10000-0000-0000-0000-000000000001" }
+    select: [T1]
+    insert_values: { user_id: "'5ec10000-0000-0000-0000-000000000002'" }
+    insert: [T2]
+    update: { set: "marketing = true" }
+    update_allow: [T1]
+    delete: [T1]
+
+  notifications:
+    row: { id: "5edd0000-0000-0000-0000-000000000001" }
+    select: [T1, admin, super_admin]
+    insert_values: { domain_event_id: "'5edc0000-0000-0000-0000-000000000001'", recipient_id: "'5ec10000-0000-0000-0000-000000000001'", channel: "'in_app'", idempotency_key: "'probe-notif'" }
+    insert: []
+    update: { set: "read_at = now()" }   # the one column notifications_update_mark_read_own actually intends to be writable; a "status" probe would be silently re-pinned by lock_notification_fields rather than RLS-denied, which is a different, already-dedicated-tested concern (notifications-column-lock.sql).
+    update_allow: [T1]
+    delete: []
+
+  platform_settings:
+    row: { id_column: "key", id: "sec_fixture_setting" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { key: "'probe_setting'", value: "'1'::jsonb" }
+    insert: []
+    update: { set: "description = 'probe'" }
+    update_allow: [admin, super_admin]   # platform_settings_admin_write: is_admin() -- true for both admin and super_admin.
+    delete: []
+
+  platform_settings_history:
+    row: { id: "5ee10000-0000-0000-0000-000000000001" }
+    select: [admin, super_admin]
+    insert_values: { key: "'sec_fixture_setting'", new_value: "'1'::jsonb" }
+    insert: []
+    update: { set: "new_value = '2'::jsonb" }
+    update_allow: []
+    delete: []
+
+  price_overrides:
+    row: { id: "5eda0000-0000-0000-0000-000000000001" }
+    select: [OA, MA, admin, super_admin]
+    insert_values: { listing_id: "'5ec40000-0000-0000-0000-000000000001'", override_date: "current_date + 201", price: "700" }
+    insert: [OA, MA, admin, super_admin]
+    update: { set: "price = 800" }
+    update_allow: [OA, MA, admin, super_admin]
+    delete: [OA, MA, admin, super_admin]
+
+  profiles:
+    row: { id: "5ec10000-0000-0000-0000-000000000001" }
+    select: [T1, admin, super_admin, support]
+    insert_values: {}   # profiles has no INSERT policy at all (every role denied) -- rows come solely from handle_new_user()'s trigger.
+    insert: []
+    update: { set: "full_name = 'Updated Name'" }
+    update_allow: [T1, admin, super_admin]
+    delete: []
+
+  quote_items:
+    row: { id: "5ecc0000-0000-0000-0000-000000000001" }
+    select: [T1, OA, MA, SA, admin, super_admin]
+    insert_values: { quote_id: "'5ec80000-0000-0000-0000-000000000001'", item_type: "'extra'", description: "'probe'", unit_price: "10", quantity: "1", line_total: "10" }
+    insert: []
+    update: { set: "description = 'probe2'" }
+    update_allow: []
+    delete: []
+
+  rate_limits:
+    row: { id_column: "bucket", id: "fixture-bucket" }
+    select: []
+    insert_values: { bucket: "'probe-bucket'", window_start: "now()" }
+    insert: []
+    update: { set: "count = 99" }
+    update_allow: []
+    delete: []
+
+  review_photos:
+    row: { id: "5ed00000-0000-0000-0000-000000000001" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { review_id: "'5ece0000-0000-0000-0000-000000000001'", storage_path: "'probe.jpg'", mime_type: "'image/jpeg'", size_bytes: "100" }
+    insert: [T1]
+    update: { set: "sort_order = 2" }
+    update_allow: []
+    delete: []
+
+  review_votes:
+    row: { id: "5ecf0000-0000-0000-0000-000000000001" }
+    select: [T2]
+    insert_values: { review_id: "'5ece0000-0000-0000-0000-000000000001'", user_id: "'5ec10000-0000-0000-0000-000000000001'" }
+    insert: []   # review_votes_insert_own's own CHECK (not is_own_review(review_id)) correctly rejects T1 voting on T1's own review -- the one role that'd otherwise pass auth.uid()=user_id. See H3-adjacent note: no OTHER role can insert here at all (own-review-only ownership, T2 already has the fixture vote).
+    update: { set: "vote = 'unhelpful'" }
+    update_allow: []
+    delete: [T2]
+
+  reviews:
+    row: { id: "5ece0000-0000-0000-0000-000000000001" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { listing_id: "'5ec40000-0000-0000-0000-000000000001'", agency_id: "'5ec00000-0000-0000-0000-00000000000a'", booking_id: "'5ec90000-0000-0000-0000-000000000001'", traveler_id: "'5ec10000-0000-0000-0000-000000000001'", rating: "5", comment: "'A second probe review comment, long enough to pass the length guard.'" }
+    insert: []   # the booking is already consumed by the fixture review itself -- a second insert against the same booking_id is a meaningful "only via a real completed booking, and only once" probe, not a false negative.
+    update: { set: "comment = 'Updated comment, also long enough to pass the length guard.'" }
+    update_allow: [T1, admin, super_admin]
+    delete: [super_admin]   # reviews_admin_delete uses is_super_admin() specifically, not is_admin() -- a plain admin cannot hard-delete a review.
+
+  seasonal_pricing:
+    row: { id: "5edb0000-0000-0000-0000-000000000001" }
+    select: [OA, MA, admin, super_admin]
+    insert_values: { listing_id: "'5ec40000-0000-0000-0000-000000000001'", season_name: "'Probe Season'", start_date: "current_date + 200", end_date: "current_date + 230", price: "900" }
+    insert: [OA, MA, admin, super_admin]
+    update: { set: "price = 950" }
+    update_allow: [OA, MA, admin, super_admin]
+    delete: [OA, MA, admin, super_admin]
+
+  welcome_emails:
+    row: { id_column: "user_id", id: "5ec10000-0000-0000-0000-000000000001" }
+    select: []
+    insert_values: { user_id: "'5ec10000-0000-0000-0000-000000000002'" }
+    insert: []
+    update: { set: "sent_at = now()" }
+    update_allow: []
+    delete: []
+
+  wishlists:
+    row: { id: "5ede0000-0000-0000-0000-000000000001" }
+    select: [T2]
+    insert_values: { user_id: "'5ec10000-0000-0000-0000-000000000001'", listing_id: "'5ec40000-0000-0000-0000-000000000002'" }
+    insert: [T1]
+    update: { set: "listing_id = '5ec40000-0000-0000-0000-000000000001'" }
+    update_allow: [T2]
+    delete: [T2]
+
+# ============================================================================
+# Functions — EXECUTE grants only (has_function_privilege), not live calls.
+# Every SECURITY DEFINER function in public schema MUST have an entry (the
+# generator enforces this — it is the direct regression tripwire for C1:
+# "a SECURITY DEFINER function left EXECUTE-granted to PUBLIC/anon/
+# authenticated by default"). Non-SECURITY-DEFINER functions (mostly
+# triggers and is_*() predicate helpers, safe to expose since they only
+# read what RLS already lets the caller read) are included too, for
+# completeness, but are not gate-enforced the same way.
+# ============================================================================
+functions:
+  add_agency_member_to_conversation(p_conversation_id uuid, p_user_id uuid): { security_definer: true,  execute: [authenticated] }
+  admin_reinstate_agency(p_agency_id uuid, p_request_id text): { security_definer: true,  execute: [authenticated] }
+  admin_suspend_agency(p_agency_id uuid, p_reason text, p_request_id text): { security_definer: true,  execute: [authenticated] }
+  admin_user_directory(p_search text, p_role text, p_limit integer, p_offset integer): { security_definer: true,  execute: [authenticated] }
+  admin_user_stats(): { security_definer: true,  execute: [authenticated] }
+  agency_is_active(target_agency_id uuid): { security_definer: true,  execute: [anon, authenticated] }
+  agency_set_trip_status(p_booking_id uuid, p_status text): { security_definer: true,  execute: [authenticated] }
+  agency_team_roster(p_agency_id uuid): { security_definer: true,  execute: [authenticated] }
+  assert_valid_transition(p_column text, p_old text, p_new text, p_allowed jsonb): { security_definer: false, execute: [anon, authenticated] }
+  audit_definer_exposure(): { security_definer: false, execute: [] }
+  audit_financial_change(): { security_definer: true,  execute: [anon, authenticated] }
+  capacity_available(inv inventory): { security_definer: false, execute: [anon, authenticated] }
+  change_agency_member_role(p_agency_id uuid, p_user_id uuid, p_role text): { security_definer: true,  execute: [authenticated] }
+  check_ops_daily_health(): { security_definer: true,  execute: [] }
+  claim_domain_events(p_limit integer): { security_definer: true,  execute: [] }
+  claim_pending_notifications(p_limit integer): { security_definer: true,  execute: [] }
+  confirm_reservation(p_reservation_id uuid, p_booking_id uuid): { security_definer: true,  execute: [] }
+  conversation_display_names(p_conversation_id uuid): { security_definer: true,  execute: [authenticated] }
+  cron_health(): { security_definer: true,  execute: [authenticated] }
+  current_platform_role(): { security_definer: true,  execute: [anon, authenticated] }
+  current_platform_role_unverified(): { security_definer: false, execute: [anon, authenticated] }
+  delete_my_account(p_request_id text): { security_definer: true,  execute: [authenticated] }
+  emit_new_message_domain_event(): { security_definer: true,  execute: [anon, authenticated] }
+  enforce_message_rate_limit(): { security_definer: true,  execute: [] }
+  expire_stale_quotes(): { security_definer: true,  execute: [], no_service_role: true }   # pg_cron-only: invoked directly as the scheduling superuser, never granted to service_role
+  expire_stale_reservations(): { security_definer: true,  execute: [], no_service_role: true }
+  finalize_domain_event(p_domain_event_id uuid): { security_definer: true,  execute: [] }
+  guard_agency_document_insert(): { security_definer: true,  execute: [anon, authenticated] }
+  guard_agency_protected_fields(): { security_definer: true,  execute: [anon, authenticated] }
+  guard_agency_verification_transition(): { security_definer: false, execute: [anon, authenticated] }
+  guard_booking_immutable_fields(): { security_definer: true,  execute: [anon, authenticated] }
+  guard_booking_status_transition(): { security_definer: false, execute: [anon, authenticated] }
+  guard_cancellation_policy(): { security_definer: false, execute: [anon, authenticated] }
+  guard_departure_blackout_conflict(): { security_definer: false, execute: [anon, authenticated] }
+  guard_departure_delete(): { security_definer: true,  execute: [anon, authenticated] }
+  guard_departure_past_date(): { security_definer: false, execute: [anon, authenticated] }
+  guard_listing_protected_fields(): { security_definer: false, execute: [anon, authenticated] }
+  guard_listing_status_transition(): { security_definer: false, execute: [anon, authenticated] }
+  guard_payment_status_transition(): { security_definer: false, execute: [anon, authenticated] }
+  guard_price_override_date(): { security_definer: false, execute: [anon, authenticated] }
+  guard_refund_status_transition(): { security_definer: false, execute: [anon, authenticated] }
+  guard_review_fields(): { security_definer: true,  execute: [anon, authenticated] }
+  guard_settlement_status_transition(): { security_definer: false, execute: [anon, authenticated] }
+  handle_new_user(): { security_definer: true,  execute: [anon, authenticated] }
+  has_agency_access(target_agency_id uuid, min_role text): { security_definer: true,  execute: [anon, authenticated] }
+  hit_rate_limit(p_bucket text, p_limit integer, p_window_seconds integer): { security_definer: true,  execute: [] }
+  hold_inventory(p_departure_id uuid, p_quantity integer, p_ttl_minutes integer): { security_definer: true,  execute: [] }
+  is_admin(): { security_definer: false, execute: [anon, authenticated] }
+  is_agency_publicly_approved(target_agency_id uuid): { security_definer: true,  execute: [anon, authenticated] }
+  is_authenticated_aal2(): { security_definer: false, execute: [anon, authenticated] }
+  is_conversation_participant(target_conversation_id uuid): { security_definer: true,  execute: [anon, authenticated] }
+  is_finance_or_admin(): { security_definer: false, execute: [anon, authenticated] }
+  is_own_review(p_review_id uuid): { security_definer: true,  execute: [anon, authenticated] }
+  is_super_admin(): { security_definer: false, execute: [anon, authenticated] }
+  is_support_or_admin(): { security_definer: false, execute: [anon, authenticated] }
+  lock_message_content(): { security_definer: true,  execute: [anon, authenticated] }
+  lock_notification_fields(): { security_definer: false, execute: [anon, authenticated] }
+  lookup_user_id_by_email(p_email text): { security_definer: true,  execute: [] }
+  recalc_listing_rating(): { security_definer: true,  execute: [anon, authenticated] }
+  recalc_review_helpful_count(): { security_definer: true,  execute: [anon, authenticated] }
+  record_agency_status_change(): { security_definer: true,  execute: [anon, authenticated] }
+  record_audit_log(p_actor_id uuid, p_action text, p_resource_type text, p_resource_id text, p_before jsonb, p_after jsonb, p_request_id text): { security_definer: true,  execute: [] }
+  record_booking_event(p_booking_id uuid, p_event_type text, p_metadata jsonb): { security_definer: true,  execute: [] }
+  record_settings_change(): { security_definer: true,  execute: [anon, authenticated] }
+  release_reservation(p_reservation_id uuid, p_reason text): { security_definer: true,  execute: [] }
+  remove_agency_member(p_agency_id uuid, p_user_id uuid): { security_definer: true,  execute: [authenticated] }
+  replace_agency_document(p_agency_id uuid, p_document_type text, p_storage_path text, p_mime_type text, p_size_bytes bigint): { security_definer: true,  execute: [authenticated] }
+  request_booking_cancellation(p_booking_id uuid, p_reason text): { security_definer: true,  execute: [authenticated] }
+  respond_to_review(p_review_id uuid, p_text text): { security_definer: true,  execute: [authenticated] }
+  revoke_user_sessions(p_user_id uuid): { security_definer: true,  execute: [] }
+  save_agency_draft(p_fields jsonb): { security_definer: true,  execute: [authenticated] }
+  set_default_role_on_signup(): { security_definer: true,  execute: [anon, authenticated] }
+  set_departure_capacity(p_departure_id uuid, p_capacity_total integer): { security_definer: true,  execute: [authenticated] }
+  set_updated_at(): { security_definer: false, execute: [anon, authenticated] }
+  start_conversation(p_agency_id uuid, p_listing_id uuid, p_booking_id uuid, p_subject text): { security_definer: true,  execute: [authenticated] }
+  submit_agency_application(): { security_definer: true,  execute: [authenticated] }
+  sync_departure_agency(): { security_definer: true,  execute: [anon, authenticated] }
+  sync_profile_email(): { security_definer: true,  execute: [anon, authenticated] }
+  touch_conversation_last_message(): { security_definer: true,  execute: [] }
+  trigger_dispatch_notifications(): { security_definer: true,  execute: [] }

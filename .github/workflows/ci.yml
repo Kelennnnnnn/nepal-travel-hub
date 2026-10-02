@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Local Supabase demo project's fixed keys (supabase/config.toml's
+# defaults -- every fresh `supabase start` issues these exact JWTs
+# unless the project overrides them, which this one doesn't). Not
+# secrets: they're published in every Supabase CLI's own scaffolding and
+# only work against this ephemeral, throwaway CI database.
+env:
+  SUPABASE_URL: http://127.0.0.1:54321
+  SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+  SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+  VITE_SUPABASE_URL: http://127.0.0.1:54321
+  VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+  ENVIRONMENT: development
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: v2.x
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install postgresql-client (psql)
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # Cloudflare's own published, non-secret Turnstile test key --
+      # see supabase/functions/.env's own (gitignored) local copy and
+      # supabase/functions/tests/contact_form_test.ts for why the
+      # suite needs it. supabase start's bundled edge-runtime reads
+      # secrets from supabase/functions/.env specifically (confirmed
+      # empirically -- supabase/.env and --env-file are both for the
+      # standalone `functions serve` command, not `start`).
+      - name: Write local Edge Function test secrets
+        run: |
+          cat > supabase/functions/.env <<'EOF'
+          TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+          ENVIRONMENT=development
+          EOF
+
+      # test:anon-probe's underlying script loads via `node --env-file=
+      # .env.local`, which errors outright if the file doesn't exist --
+      # .env.local is gitignored (*.local), so CI needs its own copy.
+      - name: Write .env.local for the anon-probe script
+        run: |
+          cat > .env.local <<EOF
+          VITE_SUPABASE_URL=${{ env.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY=${{ env.VITE_SUPABASE_ANON_KEY }}
+          EOF
+
+      - name: supabase start
+        run: supabase start
+
+      - name: supabase db reset
+        run: supabase db reset
+
+      - name: SQL regression suite (RLS/function matrix + exploit tests)
+        run: npm run test:db
+
+      - name: Edge function tests (Deno)
+        run: npm run test:edge
+
+      - name: anon-key RPC lockdown probe
+        run: npm run test:anon-probe

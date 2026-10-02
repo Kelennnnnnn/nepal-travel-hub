@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
 import { logger } from "@/lib/logger";
+import type { Json } from "../../supabase/schema.types";
 
 // ── Types ──────────────────────────────────────────────────
 // Matches supabase/migrations/20260916000004_catalog.sql (Phase 2) as
@@ -194,7 +195,7 @@ export const useListingsStore = create<ListingsStore>((set, get) => ({
       return;
     }
 
-    set({ myListings: (data ?? []) as Listing[], isLoading: false });
+    set({ myListings: (data ?? []) as unknown as Listing[], isLoading: false });
   },
 
   // ── Agency: create a new listing (starts in draft) ───────
@@ -234,7 +235,7 @@ export const useListingsStore = create<ListingsStore>((set, get) => ({
         difficulty: formData.difficulty,
         includes: formData.includes,
         excludes: formData.excludes,
-        itinerary: formData.itinerary,
+        itinerary: formData.itinerary as unknown as Json,
         images: [],
         status: "draft",
       })
@@ -243,14 +244,14 @@ export const useListingsStore = create<ListingsStore>((set, get) => ({
 
     if (error) return { data: null, error: error.message };
 
-    const listing = data as Listing;
+    const listing = data as unknown as Listing;
     set({ myListings: [listing, ...get().myListings] });
     return { data: listing, error: null };
   },
 
   // ── Agency: update an existing listing's editable fields ─
   updateListing: async (id, formData) => {
-    const { error } = await supabase.from("listings").update(formData).eq("id", id);
+    const { error } = await supabase.from("listings").update(formData as unknown as Record<string, unknown>).eq("id", id);
     if (error) return { error: error.message };
 
     set({
@@ -336,7 +337,7 @@ export const useListingsStore = create<ListingsStore>((set, get) => ({
       set({ isLoadingAll: false });
       return;
     }
-    set({ allListings: (data ?? []) as Listing[], isLoadingAll: false });
+    set({ allListings: (data ?? []) as unknown as Listing[], isLoadingAll: false });
   },
 
   subscribeToAllListings: () => {

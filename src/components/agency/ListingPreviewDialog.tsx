@@ -41,9 +41,9 @@ export function ListingPreviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl p-0 gap-0 overflow-hidden flex flex-col h-[92vh]">
         {/* Sticky banner */}
-        <div className="flex-shrink-0 flex items-center gap-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 px-5 py-2.5 pr-12">
-          <Eye className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+        <div className="flex-shrink-0 flex items-center gap-2.5 bg-warning border-b border-warning-foreground/20 px-5 py-2.5 pr-12">
+          <Eye className="h-4 w-4 text-warning-foreground flex-shrink-0" />
+          <p className="text-sm font-medium text-warning-foreground">
             Traveler Preview — this is how your listing appears to customers
           </p>
         </div>
@@ -248,9 +248,9 @@ export function ListingPreviewDialog({
                           Book Now
                         </div>
 
-                        <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-center">
-                          <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">Preview Mode</p>
-                          <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-0.5">
+                        <div className="rounded-md bg-warning border border-warning-foreground/20 px-3 py-2 text-center">
+                          <p className="text-xs text-warning-foreground font-medium">Preview Mode</p>
+                          <p className="text-[11px] text-warning-foreground/80 mt-0.5">
                             Booking is available to travelers on the live listing
                           </p>
                         </div>

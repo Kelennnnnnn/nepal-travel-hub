@@ -44,7 +44,7 @@ export default function Wishlist() {
         .in("id", ids)
         .eq("status", "published");
       if (error) throw error;
-      return (data ?? []) as Listing[];
+      return (data ?? []) as unknown as Listing[];
     },
     enabled: ids.length > 0,
   });

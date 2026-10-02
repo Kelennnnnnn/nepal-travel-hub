@@ -1,11 +1,13 @@
 /**
- * Base HTML shell for all Yatra Nepal transactional emails.
+ * Base HTML shell for every transactional email this platform sends.
  *
  * Produces a 600-px table-based layout that renders correctly in:
  * Gmail, Outlook 2016+, Apple Mail, Yahoo Mail, and mobile clients.
  *
  * Inline CSS only — no <style> block (stripped by many clients).
  */
+
+import { PLATFORM_NAME, SITE_URL } from "./branding.ts";
 
 const BRAND_GREEN = "#16a34a";
 const TEXT_PRIMARY = "#111827";
@@ -46,7 +48,7 @@ export function renderEmail(content: string): string {
                     <span style="font-size:16px;color:#ffffff;font-weight:900;">&#9650;</span>
                   </td>
                   <td style="padding-left:10px;vertical-align:middle;">
-                    <span style="font-size:20px;font-weight:700;color:${TEXT_PRIMARY};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;letter-spacing:-0.3px;">Yatra Nepal</span>
+                    <span style="font-size:20px;font-weight:700;color:${TEXT_PRIMARY};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;letter-spacing:-0.3px;">${PLATFORM_NAME}</span>
                   </td>
                 </tr>
               </table>
@@ -64,15 +66,15 @@ export function renderEmail(content: string): string {
           <tr>
             <td style="background-color:${BG_FOOTER};padding:20px 40px;border-top:1px solid ${BORDER};text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
               <p style="margin:0 0 6px;font-size:12px;color:${TEXT_MUTED};">
-                &copy; ${year} Yatra Nepal &middot; Kathmandu, Nepal
+                &copy; ${year} ${PLATFORM_NAME} &middot; Kathmandu, Nepal
               </p>
               <p style="margin:0;font-size:12px;color:${TEXT_MUTED};">
-                You received this email because you have an account on Yatra Nepal.
+                You received this email because you have an account on ${PLATFORM_NAME}.
                 <br />
-                <a href="https://yatranepal.com/settings/notifications"
+                <a href="${SITE_URL}/settings/notifications"
                   style="color:${TEXT_MUTED};text-decoration:underline;">Manage email preferences</a>
                 &nbsp;&middot;&nbsp;
-                <a href="https://yatranepal.com/privacy"
+                <a href="${SITE_URL}/privacy"
                   style="color:${TEXT_MUTED};text-decoration:underline;">Privacy Policy</a>
               </p>
             </td>

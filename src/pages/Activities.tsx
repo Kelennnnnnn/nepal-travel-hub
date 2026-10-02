@@ -24,7 +24,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { usePublishedListings, usePublicAgencies, type PublishedListingRow } from "@/lib/queries";
 import { SEO } from "@/components/SEO";
-import { categories, locations, DURATION_RANGES } from "@/data/activities";
+import { categories, locations, DURATION_RANGES } from "@/lib/catalog";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import { FilterPanel } from "@/components/activities/FilterPanel";
 import type { Activity } from "@/components/activities/ActivityCard";
@@ -72,15 +72,6 @@ export default function Activities() {
   const [priceMinInput, setPriceMinInput] = useState(searchParams.get("priceMin") || "");
   const [priceMaxInput, setPriceMaxInput] = useState(searchParams.get("priceMax") || "");
 
-  // Sync searchInput → URL with debounce
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      updateParam("search", searchInput || null);
-      updateParam("page", null);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
-
   const updateParam = useCallback((key: string, value: string | null) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -92,6 +83,15 @@ export default function Activities() {
       return next;
     }, { replace: true });
   }, [setSearchParams]);
+
+  // Sync searchInput → URL with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      updateParam("search", searchInput || null);
+      updateParam("page", null);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput, updateParam]);
 
   const setPage = (p: number) => updateParam("page", String(p));
 

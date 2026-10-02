@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mountain, Mail, Lock, ArrowRight, Eye, EyeOff, ShieldAlert } from "lucide-react";
+import { Mail, Lock, ArrowRight, Eye, EyeOff, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -44,11 +45,8 @@ export default function AdminLogin() {
     <div className="min-h-screen flex items-center justify-center p-8 bg-zinc-950">
       <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 p-8 rounded-2xl shadow-xl">
         <div className="flex justify-center mb-6">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-primary">
-              <Mountain className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold text-zinc-100">Into Nepal</span>
+          <Link to="/">
+            <BrandLogo variant="full" colour="blue" height={96} />
           </Link>
         </div>
 
@@ -68,7 +66,7 @@ export default function AdminLogin() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@nepaltrails.com"
+                placeholder="admin@intonepal.com"
                 className="pl-10 bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-500"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

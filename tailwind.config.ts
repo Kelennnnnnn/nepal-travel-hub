@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
@@ -18,8 +19,11 @@ export default {
     },
     extend: {
       fontFamily: {
+        // Body stays Plus Jakarta Sans: p5 calls for Coolvetica, but no
+        // webfont file exists in public/fonts/ (checked before this
+        // change) -- see docs note in README/PR description.
         sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-        serif: ['Fraunces', 'Georgia', 'serif'],
+        serif: ['Lora', 'Georgia', 'serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -38,6 +42,18 @@ export default {
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+        },
+        rating: {
+          DEFAULT: "hsl(var(--rating))",
+          foreground: "hsl(var(--rating-foreground))",
         },
         muted: {
           DEFAULT: "hsl(var(--muted))",
@@ -65,27 +81,43 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Pre-rebrand tokens -- kept only because a couple of existing
+        // components still reference them (bg-brand-navy in Footer.tsx/
+        // TopBar.tsx/PartnerCTA.tsx, to-sienna-dark in AgencyLanding.tsx)
+        // and those files are out of scope here; re-pointed to the
+        // closest new-palette equivalent so they render brand-consistent
+        // instead of the old amber/navy hues.
         sienna: {
           DEFAULT: "hsl(var(--primary))",
-          light: "hsl(18 83% 52%)",
-          dark: "hsl(18 83% 30%)",
+          light: "hsl(212 55% 60%)",
+          dark: "hsl(212 60% 22%)",
         },
         cream: "hsl(var(--secondary))",
         brand: {
+          // p2 — the eight brand colours (also exposed as CSS vars in
+          // index.css, e.g. for the texture/gradient utilities).
+          "summit-blue": "hsl(var(--brand-summit-blue))",
+          "glacier-mist": "hsl(var(--brand-glacier-mist))",
+          "rhododendron-red": "hsl(var(--brand-rhododendron-red))",
+          "dawn-blush": "hsl(var(--brand-dawn-blush))",
+          "monks-robe": "hsl(var(--brand-monks-robe))",
+          "lokta-peach": "hsl(var(--brand-lokta-peach))",
+          "terai-forest": "hsl(var(--brand-terai-forest))",
+          "sage-blush": "hsl(var(--brand-sage-blush))",
           amber: {
-            DEFAULT: "hsl(34 90% 48%)",
-            light: "hsl(34 90% 62%)",
-            dark: "hsl(34 90% 36%)",
+            DEFAULT: "hsl(var(--brand-monks-robe))",
+            light: "hsl(23 91% 66%)",
+            dark: "hsl(23 91% 40%)",
           },
           navy: {
-            DEFAULT: "hsl(213 46% 15%)",
-            light: "hsl(213 40% 24%)",
-            dark: "hsl(213 55% 10%)",
+            DEFAULT: "hsl(var(--sidebar-background))",
+            light: "hsl(212 50% 28%)",
+            dark: "hsl(212 60% 14%)",
           },
           blue: {
-            DEFAULT: "hsl(216 65% 34%)",
-            light: "hsl(216 55% 48%)",
-            dark: "hsl(216 70% 24%)",
+            DEFAULT: "hsl(var(--brand-summit-blue))",
+            light: "hsl(212 55% 60%)",
+            dark: "hsl(212 60% 30%)",
           },
         },
       },
@@ -123,5 +155,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;

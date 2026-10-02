@@ -205,7 +205,7 @@ export function AgencyDetailDialog({
                     return (
                       <div key={type} className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
-                          {doc ? <CheckCircle className="h-4 w-4 text-primary" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />}
+                          {doc ? <CheckCircle className="h-4 w-4 text-primary" /> : <AlertTriangle className="h-4 w-4 text-warning-foreground" />}
                           <span>{DOCUMENT_LABELS[type]}</span>
                         </div>
                         {doc ? (
@@ -261,8 +261,8 @@ export function AgencyDetailDialog({
             )}
 
             {verification.status === "more_info_required" && verification.info_requested_note && (
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
-                <h4 className="font-semibold text-sm text-amber-800">Info Requested</h4>
+              <div className="p-4 bg-warning border border-warning-foreground/20 rounded-xl space-y-2">
+                <h4 className="font-semibold text-sm text-warning-foreground">Info Requested</h4>
                 <p className="text-sm text-muted-foreground">{verification.info_requested_note}</p>
               </div>
             )}

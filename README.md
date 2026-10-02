@@ -12,14 +12,13 @@ A full-stack travel marketplace connecting travelers with verified local agencie
 | State | Zustand |
 | Backend | Supabase (Postgres + Auth + Realtime + Edge Functions) |
 | Payments | TODO — moving to an NPR-only reservation-fee model (Stripe removed) |
-| Package manager | Bun |
+| Package manager | npm |
 
 ---
 
 ## Prerequisites
 
-- **Node.js 18+** — [nodejs.org](https://nodejs.org)
-- **Bun** — `curl -fsSL https://bun.sh/install | bash`
+- **Node.js 18+** — [nodejs.org](https://nodejs.org) (npm ships with it)
 - **Supabase CLI** — `brew install supabase/tap/supabase` or see [CLI docs](https://supabase.com/docs/guides/cli)
 - A **Supabase** account — [supabase.com](https://supabase.com)
 
@@ -30,8 +29,10 @@ A full-stack travel marketplace connecting travelers with verified local agencie
 ```bash
 git clone https://github.com/Kelennnnnnn/nepal-travel-hub.git
 cd nepal-travel-hub
-bun install
+npm install
 ```
+
+> **Note:** this project uses npm — `package-lock.json` is the committed lockfile. `bun.lock`/`bun.lockb` existed briefly from an earlier experiment and have been removed; don't regenerate them.
 
 ---
 
@@ -183,7 +184,7 @@ Use the exact same value passed to `supabase secrets set NOTIFICATIONS_CRON_SECR
 ## 6. Local Development
 
 ```bash
-bun run dev
+npm run dev
 ```
 
 The app runs at `http://localhost:8080`.
@@ -218,7 +219,7 @@ Sign out and back in — the role is read from the JWT on sign-in.
 ## 8. Build for Production
 
 ```bash
-bun run build
+npm run build
 ```
 
 Output is in `dist/`. Deploy to Vercel, Netlify, or Cloudflare Pages.

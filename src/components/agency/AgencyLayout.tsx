@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  Mountain,
   LayoutDashboard,
   ListChecks,
   CalendarDays,
@@ -21,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useUnreadCount } from "@/hooks/useMessages";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 const agencyNavItems = [
   { name: "Dashboard",    href: "/agency/dashboard",    icon: LayoutDashboard },
@@ -60,26 +60,25 @@ export function AgencyLayout({ children, title }: AgencyLayoutProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed top-0 left-0 z-40 h-screen transition-all duration-300 bg-card border-r border-border",
+          "fixed top-0 left-0 z-40 h-screen transition-all duration-300 bg-sidebar text-sidebar-foreground border-r border-sidebar-border",
           sidebarOpen ? "w-64" : "w-16"
         )}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="h-16 flex items-center justify-between px-4 border-b border-border">
-            <Link to="/agency/dashboard" className="flex items-center gap-2 min-w-0">
-              <div className="p-1.5 rounded-lg bg-primary flex-shrink-0">
-                <Mountain className="h-5 w-5 text-primary-foreground" />
-              </div>
-              {sidebarOpen && (
-                <span className="font-bold text-sm truncate">Agency Portal</span>
+          <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
+            <Link to="/agency/dashboard" className="flex items-center min-w-0">
+              {sidebarOpen ? (
+                <BrandLogo variant="horizontal" colour="reversed" height={28} />
+              ) : (
+                <BrandLogo variant="mark" colour="reversed" height={28} />
               )}
             </Link>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="h-8 w-8 flex-shrink-0"
+              className="h-8 w-8 flex-shrink-0 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             >
               <ChevronLeft
                 className={cn(
@@ -101,8 +100,8 @@ export function AgencyLayout({ children, title }: AgencyLayoutProps) {
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}
                 >
                   <item.icon className="h-5 w-5 flex-shrink-0" />
@@ -114,8 +113,8 @@ export function AgencyLayout({ children, title }: AgencyLayoutProps) {
                           className={cn(
                             "h-5 min-w-5 px-1 text-xs flex items-center justify-center",
                             isActive
-                              ? "bg-primary-foreground text-primary"
-                              : "bg-primary text-primary-foreground"
+                              ? "bg-sidebar-primary-foreground text-sidebar-primary"
+                              : "bg-sidebar-primary text-sidebar-primary-foreground"
                           )}
                         >
                           {unreadCount}
@@ -125,7 +124,7 @@ export function AgencyLayout({ children, title }: AgencyLayoutProps) {
                   )}
                   {/* Collapsed unread dot */}
                   {!sidebarOpen && item.href === "/agency/messages" && unreadCount > 0 && (
-                    <span className="absolute left-8 top-1 h-2 w-2 rounded-full bg-primary" />
+                    <span className="absolute left-8 top-1 h-2 w-2 rounded-full bg-sidebar-primary" />
                   )}
                 </Link>
               );
@@ -133,10 +132,10 @@ export function AgencyLayout({ children, title }: AgencyLayoutProps) {
           </nav>
 
           {/* Sign Out */}
-          <div className="p-3 border-t border-border">
+          <div className="p-3 border-t border-sidebar-border">
             <button
               onClick={handleLogout}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg w-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg w-full text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
             >
               <LogOut className="h-5 w-5 flex-shrink-0" />
               {sidebarOpen && <span className="text-sm">Sign Out</span>}

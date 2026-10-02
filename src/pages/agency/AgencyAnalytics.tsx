@@ -3,7 +3,7 @@ import { ComingSoon } from "@/components/ComingSoon";
 import { TrendingUp } from "lucide-react";
 
 // Rebuilt as a stub: this page was entirely booking-funnel/revenue
-// analytics computed from the removed Stripe-based payment model. Bring
+// analytics computed from the removed payment model. Bring
 // back once the new NPR reservation-fee booking flow exists.
 export default function AgencyAnalytics() {
   return (

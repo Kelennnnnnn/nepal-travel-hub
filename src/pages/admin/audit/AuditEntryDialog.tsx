@@ -1,20 +1,25 @@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
+// Matches public.audit_logs (supabase/migrations/20260916000015_admin_and_audit.sql)
+// exactly — actor_id/resource_type/resource_id/before_state/after_state,
+// not the old system's admin_user_id/entity_type/entity_id/details.
 export interface AuditEntry {
   id: string;
-  admin_user_id: string;
+  actor_id: string | null;
   action: string;
-  entity_type: string;
-  entity_id: string | null;
-  details: Record<string, unknown>;
+  resource_type: string;
+  resource_id: string | null;
+  request_id: string | null;
+  before_state: Record<string, unknown> | null;
+  after_state: Record<string, unknown> | null;
   created_at: string;
   admin_email?: string;
 }
 
 const ENTITY_COLORS: Record<string, string> = {
   agency:   "bg-blue-100 text-blue-700 border-blue-200",
-  listing:  "bg-amber-100 text-amber-700 border-amber-200",
+  listing:  "bg-warning text-warning-foreground border-warning",
   user:     "bg-purple-100 text-purple-700 border-purple-200",
   booking:  "bg-green-100 text-green-700 border-green-200",
   payout:   "bg-primary/10 text-primary border-primary/20",
@@ -70,30 +75,45 @@ export function AuditEntryDialog({ entry, onClose }: Props) {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Admin</p>
-                <p className="font-medium">{entry.admin_email ?? entry.admin_user_id}</p>
+                <p className="font-medium">{entry.admin_email ?? entry.actor_id ?? "—"}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Action</p>
                 <p className="font-medium">{actionLabel(entry.action)}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Entity Type</p>
-                <Badge className={`capitalize ${ENTITY_COLORS[entry.entity_type] ?? ""}`}>
-                  {entry.entity_type}
+                <p className="text-xs text-muted-foreground mb-1">Resource Type</p>
+                <Badge className={`capitalize ${ENTITY_COLORS[entry.resource_type] ?? ""}`}>
+                  {entry.resource_type}
                 </Badge>
               </div>
-              {entry.entity_id && (
+              {entry.resource_id && (
                 <div className="col-span-2">
-                  <p className="text-xs text-muted-foreground mb-1">Entity ID</p>
-                  <p className="font-mono text-xs break-all">{entry.entity_id}</p>
+                  <p className="text-xs text-muted-foreground mb-1">Resource ID</p>
+                  <p className="font-mono text-xs break-all">{entry.resource_id}</p>
                 </div>
               )}
             </div>
-            {Object.keys(entry.details).length > 0 && (
+            {entry.before_state && Object.keys(entry.before_state).length > 0 && (
               <div>
-                <p className="text-xs text-muted-foreground mb-2">Details</p>
+                <p className="text-xs text-muted-foreground mb-2">Before</p>
                 <div className="bg-muted rounded-lg p-3 space-y-1">
-                  {Object.entries(entry.details).map(([k, v]) => (
+                  {Object.entries(entry.before_state).map(([k, v]) => (
+                    <div key={k} className="flex gap-2">
+                      <span className="text-muted-foreground capitalize min-w-[100px]">
+                        {k.replace(/_/g, " ")}:
+                      </span>
+                      <span className="font-medium break-all">{String(v)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {entry.after_state && Object.keys(entry.after_state).length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">After</p>
+                <div className="bg-muted rounded-lg p-3 space-y-1">
+                  {Object.entries(entry.after_state).map(([k, v]) => (
                     <div key={k} className="flex gap-2">
                       <span className="text-muted-foreground capitalize min-w-[100px]">
                         {k.replace(/_/g, " ")}:

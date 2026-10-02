@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, User, LogIn, LayoutDashboard, LogOut, BookOpen, Heart, MessageSquare } from "lucide-react";
 import { MobileMenu } from "./MobileMenu";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -70,14 +71,13 @@ export function Header() {
         <div className="flex h-16 md:h-20 items-center justify-between gap-4">
           {/* Logo */}
           <Link to="/" className="flex items-center shrink-0">
-            <span className="flex flex-col leading-none">
-              <span className="font-serif italic text-2xl font-bold text-primary">
-                Into Nepal
-              </span>
-              <span className="hidden sm:block text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground mt-0.5">
-                Himalayan Expeditions
-              </span>
-            </span>
+            <BrandLogo
+              variant="horizontal"
+              colour="blue"
+              animate="hover"
+              height={40}
+              className="brand-logo--header-sized"
+            />
           </Link>
 
           {/* Desktop Navigation */}

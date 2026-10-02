@@ -3,9 +3,9 @@ import { ComingSoon } from "@/components/ComingSoon";
 import { DollarSign } from "lucide-react";
 
 // Rebuilt as a stub: the old earnings/payout UI here computed net_payout
-// from Stripe Connect payout data — removed along with the rest of that
-// model. Bring back once the new NPR reservation-fee settlement model
-// exists.
+// from the old payment provider's payout data — removed along with the
+// rest of that model. Bring back once the new NPR reservation-fee
+// settlement model exists.
 export default function AgencyEarnings() {
   return (
     <AgencyLayout title="Earnings">

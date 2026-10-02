@@ -1,4 +1,5 @@
 import { Helmet } from "react-helmet-async";
+import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 
 interface SEOProps {
   title: string;
@@ -9,11 +10,11 @@ interface SEOProps {
 }
 
 const DEFAULT_DESC = "Discover authentic Nepal travel experiences — trekking, rafting, cultural tours and more with verified local agencies.";
-const DEFAULT_IMAGE = "https://yatranepal.com/og-image.jpg";
-const SITE_NAME = "Into Nepal";
+const DEFAULT_IMAGE = "https://intonepal.com/og-image.jpg";
 
 export function SEO({ title, description, image, url, type = "website" }: SEOProps) {
-  const fullTitle = `${title} | ${SITE_NAME}`;
+  const { platformName } = usePlatformSettings();
+  const fullTitle = `${title} | ${platformName}`;
   const desc = description ?? DEFAULT_DESC;
   const img = image ?? DEFAULT_IMAGE;
 
@@ -23,7 +24,7 @@ export function SEO({ title, description, image, url, type = "website" }: SEOPro
       <meta name="description" content={desc} />
 
       {/* Open Graph */}
-      <meta property="og:site_name" content={SITE_NAME} />
+      <meta property="og:site_name" content={platformName} />
       <meta property="og:title" content={fullTitle} />
       <meta property="og:description" content={desc} />
       <meta property="og:image" content={img} />

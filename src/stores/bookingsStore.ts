@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
-// Booking history/management belonged to the old Stripe-based, two-leg
-// commission model — removed along with the rest of that model. This store
+// Booking history/management belonged to the old two-leg commission-based
+// payment model — removed along with the rest of that model. This store
 // used to query bookings columns (trip_date, total_amount, commission_amount,
 // net_payout, agency_id = user.id) that no longer exist in the current
 // schema (bookings/departures/booking_quotes, Phase 2/6/7), so it is stubbed

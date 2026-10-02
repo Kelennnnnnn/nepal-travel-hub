@@ -69,17 +69,21 @@ export default function AuditLogPage() {
   // ── Admin users (for filter) ───────────────────────────────────────
 
   useEffect(() => {
-    // admin_user_directory() (supabase/migrations/20260917000021_admin_
-    // user_directory.sql) returns a flat {id, email, role, ...} row now —
-    // no more nested user_metadata/app_metadata. p_role="admin" filters
-    // server-side (limit=200 comfortably covers every admin account; the
-    // RPC's own cap), same "admin" exact-role-only scope the old in-JS
-    // filter used (super_admins were never included in this dropdown).
-    supabase.functions
-      .invoke("admin-users", { body: { action: "list", role: "admin", limit: 200 } })
+    // Calls admin_user_directory() (supabase/migrations/20260917000021_
+    // admin_user_directory.sql) directly via RPC rather than through the
+    // admin-users edge function — the RPC does its own is_admin()/
+    // is_support_or_admin() check against auth.uid(), which resolves
+    // correctly from the frontend's own authenticated session with no
+    // extra hop needed (unlike the edge function, which has to swap in a
+    // caller-authenticated client specifically to make that check work,
+    // since its default client is the service role key). p_role="admin"
+    // filters server-side (limit 200 comfortably covers every admin
+    // account; the RPC's own cap) — same "admin" exact-role-only scope
+    // the old in-JS filter used (super_admins were never included here).
+    supabase
+      .rpc("admin_user_directory", { p_role: "admin", p_limit: 200 })
       .then(({ data }) => {
-        const admins = ((data?.users ?? []) as { id: string; email: string }[])
-          .map((u) => ({ id: u.id, email: u.email }));
+        const admins = (data ?? []).map((u) => ({ id: u.id, email: u.email }));
         setAdminUsers(admins);
       });
   }, []);
@@ -92,13 +96,13 @@ export default function AuditLogPage() {
     setIsLoading(true);
 
     let query = supabase
-      .from("audit_log")
+      .from("audit_logs")
       .select("*", { count: "exact" })
       .order("created_at", { ascending: false })
       .range((activePage - 1) * PAGE_SIZE, activePage * PAGE_SIZE - 1);
 
-    if (entityFilter !== "all") query = query.eq("entity_type", entityFilter);
-    if (adminFilter  !== "all") query = query.eq("admin_user_id", adminFilter);
+    if (entityFilter !== "all") query = query.eq("resource_type", entityFilter);
+    if (adminFilter  !== "all") query = query.eq("actor_id", adminFilter);
     if (dateFrom) query = query.gte("created_at", dateFrom);
     if (dateTo)   query = query.lte("created_at", dateTo + "T23:59:59");
     if (activeSearch) query = query.ilike("action", `%${activeSearch}%`);
@@ -110,10 +114,10 @@ export default function AuditLogPage() {
     }
 
     // Enrich with admin email from adminUsers list
-    const enriched: AuditEntry[] = (data ?? []).map((row) => ({
+    const enriched = (data ?? []).map((row) => ({
       ...row,
-      admin_email: adminUsers.find((u) => u.id === row.admin_user_id)?.email,
-    }));
+      admin_email: adminUsers.find((u) => u.id === row.actor_id)?.email,
+    })) as unknown as AuditEntry[];
 
     setEntries(enriched);
     setTotalCount(count ?? 0);
@@ -314,22 +318,22 @@ export default function AuditLogPage() {
                         {formatDateTime(entry.created_at)}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {entry.admin_email ?? entry.admin_user_id.slice(0, 8) + "…"}
+                        {entry.admin_email ?? (entry.actor_id ? entry.actor_id.slice(0, 8) + "…" : "—")}
                       </TableCell>
                       <TableCell className="text-sm font-medium">
                         {actionLabel(entry.action)}
                       </TableCell>
                       <TableCell>
-                        <Badge className={`capitalize text-xs ${ENTITY_COLORS[entry.entity_type] ?? "bg-muted text-muted-foreground"}`}>
-                          {entry.entity_type}
+                        <Badge className={`capitalize text-xs ${ENTITY_COLORS[entry.resource_type] ?? "bg-muted text-muted-foreground"}`}>
+                          {entry.resource_type}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground font-mono">
-                        {entry.entity_id ? entry.entity_id.slice(0, 8) + "…" : "—"}
+                        {entry.resource_id ? entry.resource_id.slice(0, 8) + "…" : "—"}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
-                        {Object.keys(entry.details).length > 0
-                          ? Object.entries(entry.details)
+                        {entry.after_state && Object.keys(entry.after_state).length > 0
+                          ? Object.entries(entry.after_state)
                               .map(([k, v]) => `${k}: ${String(v)}`)
                               .join(", ")
                           : "—"}

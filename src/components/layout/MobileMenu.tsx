@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { LogIn, LogOut, LayoutDashboard, MessageSquare, BookOpen, Heart, User, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 const navigation = [
   { name: "Home", href: "/" },
@@ -27,6 +28,9 @@ interface Props {
 export function MobileMenu({ isAuthenticated, user, unreadCount, dashboardLink, onClose, onLogout }: Props) {
   return (
     <div className="md:hidden py-4 border-t border-border/50 animate-slide-up bg-background">
+      <Link to="/" onClick={onClose} className="flex items-center px-4 mb-3">
+        <BrandLogo variant="horizontal" colour="blue" height={36} />
+      </Link>
       <nav className="flex flex-col gap-3">
         {navigation.map((item) => (
           <Link

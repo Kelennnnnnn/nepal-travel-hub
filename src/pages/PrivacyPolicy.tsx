@@ -1,12 +1,14 @@
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/SEO";
+import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 
 const LAST_UPDATED = "April 8, 2026";
 
 export default function PrivacyPolicy() {
+  const { platformName } = usePlatformSettings();
   return (
     <Layout>
-      <SEO title="Privacy Policy" description="Read Yatra Nepal's privacy policy and learn how traveler, booking, payment, and communication data is handled." />
+      <SEO title="Privacy Policy" description={`Read ${platformName}'s privacy policy and learn how traveler, booking, payment, and communication data is handled.`} />
       <div className="max-w-3xl mx-auto px-6 py-16">
         <div className="mb-10">
           <h1 className="text-4xl font-bold mb-3">Privacy Policy</h1>
@@ -234,10 +236,10 @@ export default function PrivacyPolicy() {
             <p className="text-muted-foreground mt-3">
               To exercise any of these rights, contact us at{" "}
               <a
-                href="mailto:privacy@nepaltrails.com"
+                href="mailto:privacy@intonepal.com"
                 className="text-primary hover:underline"
               >
-                privacy@nepaltrails.com
+                privacy@intonepal.com
               </a>
               . We will respond within 30 days.
             </p>
@@ -262,10 +264,10 @@ export default function PrivacyPolicy() {
               If you have any questions or concerns about this Privacy Policy or
               how we handle your data, please contact us at{" "}
               <a
-                href="mailto:privacy@nepaltrails.com"
+                href="mailto:privacy@intonepal.com"
                 className="text-primary hover:underline"
               >
-                privacy@nepaltrails.com
+                privacy@intonepal.com
               </a>
               .
             </p>

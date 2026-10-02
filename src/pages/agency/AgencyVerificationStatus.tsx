@@ -24,8 +24,8 @@ const statusConfig: Record<
     title: "Application Submitted",
     description:
       "Thank you for applying! Your application is in our queue and will be reviewed within 2-3 business days. We'll notify you via email once the review begins.",
-    color: "text-amber-600",
-    bgColor: "bg-amber-100",
+    color: "text-warning-foreground",
+    bgColor: "bg-warning",
   },
   in_review: {
     icon: FileSearch,
@@ -40,8 +40,8 @@ const statusConfig: Record<
     title: "More Information Needed",
     description:
       "We need a bit more information before we can make a decision. Please review the note below and update your application.",
-    color: "text-amber-700",
-    bgColor: "bg-amber-100",
+    color: "text-warning-foreground",
+    bgColor: "bg-warning",
   },
   approved: {
     icon: CheckCircle2,
@@ -148,8 +148,8 @@ export default function AgencyVerificationStatus() {
 
               {/* More-info-required note */}
               {verificationStatus === "more_info_required" && myVerification?.info_requested_note && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left">
-                  <p className="text-sm font-medium text-amber-800 mb-1">What we need:</p>
+                <div className="bg-warning border border-warning-foreground/20 rounded-xl p-4 text-left">
+                  <p className="text-sm font-medium text-warning-foreground mb-1">What we need:</p>
                   <p className="text-sm text-muted-foreground">{myVerification.info_requested_note}</p>
                 </div>
               )}

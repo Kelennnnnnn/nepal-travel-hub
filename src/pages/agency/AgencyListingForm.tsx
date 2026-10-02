@@ -128,6 +128,13 @@ export default function AgencyListingForm() {
     };
 
     populate();
+    // Deliberately only re-runs on id/isEditing change: fetchMyListings/
+    // navigate/reset are stable references, and myListings.length is read
+    // via useListingsStore.getState() inside populate() for a fresh
+    // snapshot, not meant to make this effect reactive to the store's own
+    // updates (which would re-run it right after fetchMyListings() itself
+    // resolves).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isEditing]);
 
   const addInclude = () => {

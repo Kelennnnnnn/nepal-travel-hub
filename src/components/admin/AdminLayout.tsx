@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  Mountain,
   LayoutDashboard,
   Building2,
   MapPin,
@@ -22,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { useIdleTimer } from "@/hooks/useIdleTimer";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/brand/BrandLogo";
+import { useAuthStore } from "@/stores/authStore";
 
 const adminNavItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -45,6 +46,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
 
   const handleIdle = useCallback(async () => {
     await supabase.auth.signOut();
@@ -59,26 +61,25 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed top-0 left-0 z-40 h-screen transition-all duration-300 bg-card border-r border-border",
+          "fixed top-0 left-0 z-40 h-screen transition-all duration-300 bg-sidebar text-sidebar-foreground border-r border-sidebar-border",
           sidebarOpen ? "w-64" : "w-16"
         )}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="h-16 flex items-center justify-between px-4 border-b border-border">
-            <Link to="/admin" className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-primary">
-                <Mountain className="h-5 w-5 text-primary-foreground" />
-              </div>
-              {sidebarOpen && (
-                <span className="font-bold text-sm">Into Nepal Admin</span>
+          <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
+            <Link to="/admin" className="flex items-center min-w-0">
+              {sidebarOpen ? (
+                <BrandLogo variant="horizontal" colour="reversed" height={28} />
+              ) : (
+                <BrandLogo variant="mark" colour="reversed" height={28} />
               )}
             </Link>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="h-8 w-8"
+              className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             >
               <ChevronLeft
                 className={cn(
@@ -100,8 +101,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}
                 >
                   <item.icon className="h-5 w-5 flex-shrink-0" />
@@ -112,10 +113,10 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </nav>
 
           {/* User Section */}
-          <div className="p-3 border-t border-border">
+          <div className="p-3 border-t border-sidebar-border">
             <Link
               to="/"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
             >
               <LogOut className="h-5 w-5 flex-shrink-0" />
               {sidebarOpen && <span className="text-sm">Back to Site</span>}
@@ -152,12 +153,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               </Button>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-medium">
-                  A
+                  {user?.email?.charAt(0).toUpperCase() || "A"}
                 </div>
                 {sidebarOpen && (
                   <div className="hidden md:block">
-                    <p className="text-sm font-medium">Admin User</p>
-                    <p className="text-xs text-muted-foreground">admin@nepaltrails.com</p>
+                    <p className="text-sm font-medium">{user?.name || "Admin User"}</p>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
                   </div>
                 )}
               </div>

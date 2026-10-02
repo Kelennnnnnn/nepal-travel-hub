@@ -130,7 +130,7 @@ export default function AgencyProfile() {
         .eq("status", "published")
         .order("created_at", { ascending: false });
 
-      setListings((listingData ?? []) as Listing[]);
+      setListings((listingData ?? []) as unknown as Listing[]);
       setIsLoading(false);
     };
 

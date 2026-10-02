@@ -3,8 +3,8 @@
 // attacker can just vary the email every request), no length caps beyond
 // "truthy", an auto-reply that echoed the attacker's own text back to
 // whatever address they typed (a spoofable reflection/spam vector), and a
-// notification recipient still pointing at the pre-rebrand
-// hello@yatranepal.com address. Fixed: a Cloudflare Turnstile token is
+// notification recipient still pointing at the pre-rebrand support
+// address. Fixed: a Cloudflare Turnstile token is
 // required and verified server-side, an IP-based rate limit sits
 // alongside the existing per-email one, the submission is persisted
 // BEFORE any email is sent (so a submission is never silently lost if
@@ -16,6 +16,7 @@ import { sendEmail } from "../_shared/email.ts";
 import { escapeHtml } from "../_shared/html.ts";
 import { fail, handleOptions, HttpError, ok, parseJson, withRequestLog } from "../_shared/http.ts";
 import { contactFormSchema } from "../_shared/schemas.ts";
+import { SUPPORT_INBOX } from "../_shared/branding.ts";
 
 // Public/anonymous — no verifyCaller() here by design (anyone, signed in
 // or not, can use the contact form). No idempotency wrapping either: that
@@ -27,8 +28,6 @@ const EMAIL_RATE_LIMIT_MAX = 3;
 const EMAIL_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const IP_RATE_LIMIT_MAX = 5;
 const IP_RATE_LIMIT_WINDOW_SECONDS = 60 * 60; // 1 hour
-
-const SUPPORT_INBOX = Deno.env.get("SUPPORT_INBOX") ?? "support@intonepal.com";
 
 function getClientIp(req: Request): string {
   const cf = req.headers.get("cf-connecting-ip");

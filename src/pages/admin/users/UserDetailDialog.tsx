@@ -62,7 +62,7 @@ export function formatDate(d: string | null) {
 export function RoleBadge({ role }: { role: PlatformRole }) {
   const cfg: Record<PlatformRole, { label: string; className: string }> = {
     super_admin: { label: "Super Admin", className: "bg-red-100 text-red-800 border-red-200" },
-    admin:       { label: "Admin",       className: "bg-amber-100 text-amber-800 border-amber-200" },
+    admin:       { label: "Admin",       className: "bg-warning text-warning-foreground border-warning" },
     finance:     { label: "Finance",     className: "bg-emerald-100 text-emerald-800 border-emerald-200" },
     support:     { label: "Support",     className: "bg-violet-100 text-violet-800 border-violet-200" },
     agency:      { label: "Agency",      className: "bg-primary/10 text-primary border-primary/20" },
@@ -76,7 +76,7 @@ export function AvatarInitials({ user }: { user: AdminUser }) {
   const role = userRole(user);
   const colorMap: Record<PlatformRole, string> = {
     super_admin: "bg-red-100 text-red-700",
-    admin:       "bg-amber-100 text-amber-700",
+    admin:       "bg-warning text-warning-foreground",
     finance:     "bg-emerald-100 text-emerald-700",
     support:     "bg-violet-100 text-violet-700",
     agency:      "bg-primary/10 text-primary",
@@ -215,7 +215,7 @@ export function UserDetailDialog({
                 <ShieldCheck className="h-4 w-4 mr-2" /> Unsuspend
               </Button>
             ) : (
-              <Button variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-50"
+              <Button variant="outline" className="border-warning-foreground/30 text-warning-foreground hover:bg-warning"
                 onClick={() => { onSuspend(user); onOpenChange(false); }}>
                 <ShieldOff className="h-4 w-4 mr-2" /> Suspend
               </Button>

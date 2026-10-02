@@ -33,8 +33,6 @@ import { logError } from "../_shared/guards.ts";
 import { fail, getRequestId, handleOptions, HttpError, ok, parseJson, userClient, withIdempotency, withRequestLog } from "../_shared/http.ts";
 import { adminUsersSchema } from "../_shared/schemas.ts";
 
-const ALL_ROLES: PlatformRole[] = ["traveler", "agency", "admin", "super_admin", "support", "finance"];
-
 // Privilege ceiling: a plain admin can grant/revoke the "operational" roles,
 // but only a super_admin can create or demote another admin/super_admin.
 // Prevents an ordinary admin account (a much more common, more exposed
@@ -43,8 +41,7 @@ const ALL_ROLES: PlatformRole[] = ["traveler", "agency", "admin", "super_admin",
 const SUPER_ADMIN_ONLY_GRANTABLE: PlatformRole[] = ["admin", "super_admin"];
 const PROTECTED_TARGET_ROLES: PlatformRole[] = ["admin", "super_admin"];
 
-// deno-lint-ignore no-explicit-any
-type AuthUser = { id: string; app_metadata?: Record<string, unknown> | null; banned_until?: string | null; [k: string]: any };
+type AuthUser = { id: string; app_metadata?: Record<string, unknown> | null; banned_until?: string | null };
 
 function roleOf(u: AuthUser): PlatformRole {
   return (u.app_metadata?.role as PlatformRole | undefined) ?? "traveler";

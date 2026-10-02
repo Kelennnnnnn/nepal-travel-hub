@@ -29,7 +29,7 @@ const SEASON_TEMPLATES = [
 
 const statusBadge: Record<DepartureStatus, { label: string; className: string }> = {
   scheduled: { label: "Scheduled", className: "bg-primary/10 text-primary" },
-  closed: { label: "Closed", className: "bg-amber-100 text-amber-700" },
+  closed: { label: "Closed", className: "bg-warning text-warning-foreground" },
   cancelled: { label: "Cancelled", className: "bg-destructive/10 text-destructive" },
 };
 

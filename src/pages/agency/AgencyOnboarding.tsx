@@ -205,7 +205,7 @@ export default function AgencyOnboarding() {
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div>
                         <Label>Company Name *</Label>
-                        <Input placeholder="e.g. Himalayan Expeditions Pvt. Ltd." {...register("companyName")} />
+                        <Input placeholder="e.g. Everest Trail Guides Pvt. Ltd." {...register("companyName")} />
                         {errors.companyName && <p className="text-xs text-destructive mt-1">{errors.companyName.message}</p>}
                       </div>
                       <div>

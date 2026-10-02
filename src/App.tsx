@@ -99,7 +99,7 @@ function MaintenanceBanner() {
   if (!show) return null;
 
   return (
-    <div className="bg-yellow-400 text-yellow-900 text-sm font-medium text-center px-4 py-2 flex items-center justify-between">
+    <div className="bg-warning text-warning-foreground text-sm font-medium text-center px-4 py-2 flex items-center justify-between">
       <span>The platform is currently under maintenance. Some features may be unavailable.</span>
       <button onClick={() => setShow(false)} className="ml-4 underline text-xs">Dismiss</button>
     </div>

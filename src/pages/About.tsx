@@ -35,7 +35,7 @@ const TEAM = [
 export default function About() {
   return (
     <Layout>
-      <SEO title="About Us" description="Learn about Yatra Nepal — our mission to connect travelers with authentic Nepal experiences through verified local agencies." />
+      <SEO title="About Us" description="Learn about Into Nepal — our mission to connect travelers with authentic Nepal experiences through verified local agencies." />
       <div className="pt-32 pb-16 min-h-screen">
         {/* Hero */}
         <div className="bg-muted/30 py-16 mb-16">
@@ -43,14 +43,14 @@ export default function About() {
             <div className="flex items-center justify-center gap-2 mb-6">
               <Mountain className="h-8 w-8 text-primary" />
               <span className="text-2xl font-bold">
-                Yatra<span className="text-primary">Nepal</span>
+                Into<span className="text-primary">Nepal</span>
               </span>
             </div>
             <h1 className="text-4xl font-bold mb-4">
               Connecting Travelers with Nepal's Best Local Agencies
             </h1>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto leading-relaxed">
-              Yatra Nepal was built to make authentic Himalayan adventures accessible — and to
+              Into Nepal was built to make authentic Himalayan adventures accessible — and to
               ensure that the agencies and guides who make them possible are fairly represented
               and fairly paid.
             </p>
@@ -69,7 +69,7 @@ export default function About() {
                   across travel forums, WhatsApp groups, and word-of-mouth recommendations.
                 </p>
                 <p>
-                  We built Yatra Nepal to fix that. A single, trusted platform where travelers can
+                  We built Into Nepal to fix that. A single, trusted platform where travelers can
                   discover, compare, and book verified local agencies — and where agencies can manage
                   their listings, bookings, and earnings without the friction of outdated tools.
                 </p>

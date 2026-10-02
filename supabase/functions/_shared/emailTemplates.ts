@@ -1,14 +1,13 @@
 import { escapeHtml } from "./html.ts";
-import { renderEmail, btnStyle, HR, row, detailsTable, alertBanner } from "./emailBase.ts";
+import { renderEmail, btnStyle, HR, alertBanner } from "./emailBase.ts";
+import { PLATFORM_NAME, SITE_URL } from "./branding.ts";
 
-// Centralized site URL (target §34/§35: "centralize brand name, domain,
-// support email..."). Introduced in Phase 4 for the templates it touches
-// (agency application/approval/rejection); the old booking-confirmation/
-// cancellation/payout templates that also hardcoded "yatranepal.com" were
-// removed along with the Stripe-based payment model, not migrated to this
-// constant — new booking/payment emails, when that model exists, should
-// use it from the start.
-const SITE_URL = Deno.env.get("SITE_URL") ?? "https://intonepal.com";
+// SITE_URL/PLATFORM_NAME (target §34/§35: "centralize brand name, domain,
+// support email...") now come from ./branding.ts — the old booking-
+// confirmation/cancellation/payout templates that hardcoded the old
+// domain directly were removed along with the old payment model, not
+// migrated to this constant; new booking/payment emails, when that
+// model exists, should use it from the start.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -28,11 +27,11 @@ export function welcomeEmail(data: {
   name: string;
 }): EmailTemplate {
   const name = escapeHtml(data.name);
-  const subject = `Welcome to Yatra Nepal, ${name}!`;
+  const subject = `Welcome to ${PLATFORM_NAME}, ${name}!`;
 
   const html = renderEmail(`
     <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#111827;">Welcome aboard, ${name}! &#127968;</h1>
-    <p style="margin:0 0 20px;color:#374151;">Your email has been confirmed and your Yatra Nepal account is ready. Here's what you can do next:</p>
+    <p style="margin:0 0 20px;color:#374151;">Your email has been confirmed and your ${PLATFORM_NAME} account is ready. Here's what you can do next:</p>
 
     ${alertBanner("Your account is verified and active.", "success")}
 
@@ -45,31 +44,31 @@ export function welcomeEmail(data: {
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
       <tr>
         <td>
-          <a href="https://yatranepal.com/explore" style="${btnStyle()}">Explore Activities</a>
+          <a href="${SITE_URL}/explore" style="${btnStyle()}">Explore Activities</a>
         </td>
       </tr>
     </table>
 
     ${HR}
-    <p style="margin:0;font-size:13px;color:#6b7280;">Questions? Reply to this email or visit our <a href="https://yatranepal.com/contact" style="color:#16a34a;">help centre</a>. We reply within one business day.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">Safe travels,<br><strong style="color:#111827;">The Yatra Nepal Team</strong></p>
+    <p style="margin:0;font-size:13px;color:#6b7280;">Questions? Reply to this email or visit our <a href="${SITE_URL}/contact" style="color:#16a34a;">help centre</a>. We reply within one business day.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">Safe travels,<br><strong style="color:#111827;">The ${PLATFORM_NAME} Team</strong></p>
   `);
 
-  const text = `Welcome to Yatra Nepal, ${data.name}!
+  const text = `Welcome to ${PLATFORM_NAME}, ${data.name}!
 
 Your email has been confirmed and your account is ready.
 
 What you can do now:
 - Explore Activities: Browse trekking, tours, and adventures across Nepal.
-  https://yatranepal.com/explore
+  ${SITE_URL}/explore
 - Book Instantly: Secure your spot with real-time availability.
 - Leave Reviews: Help other travellers after your trip.
 
-Questions? Reply to this email or visit https://yatranepal.com/contact
+Questions? Reply to this email or visit ${SITE_URL}/contact
 
 Safe travels,
-The Yatra Nepal Team
-https://yatranepal.com`;
+The ${PLATFORM_NAME} Team
+${SITE_URL}`;
 
   return { subject, html, text };
 }

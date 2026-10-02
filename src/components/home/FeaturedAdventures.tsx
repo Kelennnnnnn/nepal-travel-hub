@@ -91,7 +91,7 @@ export function FeaturedAdventures({ listings }: FeaturedAdventuresProps) {
                       <Badge className="absolute top-3 right-3 bg-primary text-primary-foreground">Best Seller</Badge>
                     )}
                     <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/55 backdrop-blur-sm rounded-md px-2 py-1">
-                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                      <Star className="h-3 w-3 fill-rating text-rating" />
                       <span className="text-xs font-bold text-white">{Number(listing.rating).toFixed(1)}</span>
                       <span className="text-[10px] text-white/65">({listing.review_count})</span>
                     </div>

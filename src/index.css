@@ -4,7 +4,28 @@
 
 @layer base {
   :root {
-    /* Base — white, not warm ivory */
+    /* Brand book p2 — the eight brand colours, as their own tokens.
+     * Everything else below is built from these. */
+    --brand-summit-blue: 212 55% 47%; /* #3775BB */
+    --brand-glacier-mist: 211 100% 95%; /* #E6F2FF */
+    --brand-rhododendron-red: 358 72% 44%; /* #C22026 */
+    --brand-dawn-blush: 358 100% 90%; /* #FFCDCF */
+    --brand-monks-robe: 23 91% 54%; /* #F47321 */
+    --brand-lokta-peach: 33 100% 91%; /* #FFEBD2 */
+    --brand-terai-forest: 140 61% 30%; /* #1E7B3D */
+    --brand-sage-blush: 140 100% 92%; /* #D6FFE4 */
+
+    /* Not a brand-book colour: a dedicated gold for star ratings, kept
+     * separate from the eight brand colours and from --accent/--warning
+     * on purpose. Star ratings are a near-universal, purely decorative
+     * UI convention (every activity/listing card shows one) -- routing
+     * them through --accent would break "orange = the one main CTA per
+     * screen," and --warning (pale Lokta Peach) has none of the visual
+     * weight a rating star needs. */
+    --rating: 45 93% 51%;
+    --rating-foreground: 211 33% 14%;
+
+    /* Base — white */
     --background: 0 0% 100%;
     --foreground: 211 33% 14%;
     --card: 0 0% 100%;
@@ -12,29 +33,39 @@
     --popover: 0 0% 100%;
     --popover-foreground: 211 33% 14%;
 
-    /* Primary = amber #E8890C (CTAs, prices) */
-    --primary: 34 90% 48%;
+    /* Primary = Summit Blue, white text */
+    --primary: var(--brand-summit-blue);
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary = cream surface #FBF8F3 */
-    --secondary: 39 49% 97%;
-    --secondary-foreground: 211 33% 14%;
+    /* Secondary = Glacier Mist, dark-blue text. Also the "alternate
+     * section" surface referenced on p3/p5 (bg-secondary). */
+    --secondary: var(--brand-glacier-mist);
+    --secondary-foreground: 212 55% 30%;
 
-    /* Muted = light slate */
+    /* Muted = neutral light slate (unchanged -- distinct from the
+     * brand-blue-tinted --secondary, for plain neutral surfaces). */
     --muted: 214 22% 94%;
     --muted-foreground: 210 16% 42%;
 
-    /* Accent = deep blue #1E4B8F (links, review chips, secondary actions) */
-    --accent: 216 65% 34%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent = Monk's Robe, dark ink text (never white-on-orange). */
+    --accent: var(--brand-monks-robe);
+    --accent-foreground: 211 33% 10%;
 
-    --destructive: 3 63% 48%;
+    --destructive: var(--brand-rhododendron-red);
     --destructive-foreground: 0 0% 100%;
+
+    /* success = confirmed/verified states; warning = pending/attention
+     * states. Warning keeps dark-orange text on its own pale swatch,
+     * never white (same WCAG AA rule as accent). */
+    --success: var(--brand-terai-forest);
+    --success-foreground: 0 0% 100%;
+    --warning: var(--brand-lokta-peach);
+    --warning-foreground: 23 85% 26%;
 
     /* Borders — cool light grey #ECEFF3 */
     --border: 214 22% 94%;
     --input: 214 22% 94%;
-    --ring: 216 65% 34%;
+    --ring: var(--brand-summit-blue);
 
     --radius: 0.7rem;
 
@@ -50,54 +81,63 @@
     --gradient-accent: none;
     --gradient-glass: none;
 
-    /* Sidebar — deep navy instead of espresso */
-    --sidebar-background: 213 46% 15%;
-    --sidebar-foreground: 210 20% 82%;
-    --sidebar-primary: 34 90% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 213 40% 20%;
-    --sidebar-accent-foreground: 34 90% 48%;
-    --sidebar-border: 213 35% 24%;
-    --sidebar-ring: 34 90% 48%;
+    /* Sidebar — deep Summit Blue, light text. Dark even while the rest
+     * of the app is in light mode (agency/admin chrome, p1-style). */
+    --sidebar-background: 212 55% 22%;
+    --sidebar-foreground: 212 30% 92%;
+    --sidebar-primary: 212 70% 68%;
+    --sidebar-primary-foreground: 212 55% 15%;
+    --sidebar-accent: 212 50% 28%;
+    --sidebar-accent-foreground: 212 30% 92%;
+    --sidebar-border: 212 45% 30%;
+    --sidebar-ring: 212 70% 68%;
   }
 
   .dark {
-    --background: 31 54% 8%;
-    --foreground: 36 50% 92%;
+    /* Navy background, lifted Summit Blue primary with dark text. */
+    --background: 212 45% 9%;
+    --foreground: 210 30% 92%;
 
-    --card: 31 45% 11%;
-    --card-foreground: 36 50% 92%;
+    --card: 212 42% 12%;
+    --card-foreground: 210 30% 92%;
 
-    --popover: 31 45% 11%;
-    --popover-foreground: 36 50% 92%;
+    --popover: 212 42% 12%;
+    --popover-foreground: 210 30% 92%;
 
-    --primary: 18 78% 50%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 212 70% 64%;
+    --primary-foreground: 212 55% 15%;
 
-    --secondary: 31 35% 18%;
-    --secondary-foreground: 36 50% 92%;
+    /* A lighter navy surface, not literal pale Glacier Mist (which
+     * would look jarring floating on a dark page). */
+    --secondary: 212 40% 16%;
+    --secondary-foreground: 210 30% 92%;
 
-    --muted: 31 30% 20%;
-    --muted-foreground: 32 16% 57%;
+    --muted: 212 30% 18%;
+    --muted-foreground: 212 16% 62%;
 
-    --accent: 18 78% 50%;
-    --accent-foreground: 0 0% 100%;
+    --accent: var(--brand-monks-robe);
+    --accent-foreground: 211 33% 10%;
 
-    --destructive: 0 70% 50%;
+    --destructive: 358 75% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 31 30% 22%;
-    --input: 31 30% 22%;
-    --ring: 18 78% 50%;
+    --success: 140 55% 42%;
+    --success-foreground: 0 0% 100%;
+    --warning: var(--brand-lokta-peach);
+    --warning-foreground: 23 85% 26%;
 
-    --sidebar-background: 31 65% 5%;
-    --sidebar-foreground: 36 40% 78%;
-    --sidebar-primary: 18 78% 50%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 31 45% 10%;
-    --sidebar-accent-foreground: 18 78% 50%;
-    --sidebar-border: 31 40% 12%;
-    --sidebar-ring: 18 78% 50%;
+    --border: 212 30% 20%;
+    --input: 212 30% 20%;
+    --ring: 212 70% 64%;
+
+    --sidebar-background: 212 55% 22%;
+    --sidebar-foreground: 212 30% 92%;
+    --sidebar-primary: 212 70% 68%;
+    --sidebar-primary-foreground: 212 55% 15%;
+    --sidebar-accent: 212 50% 28%;
+    --sidebar-accent-foreground: 212 30% 92%;
+    --sidebar-border: 212 45% 30%;
+    --sidebar-ring: 212 70% 68%;
   }
 }
 
@@ -143,17 +183,36 @@
 
   .text-gradient {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(34 80% 60%));
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(212 70% 64%));
   }
 
   .text-gradient-accent {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(var(--accent)), hsl(216 55% 48%));
+    background-image: linear-gradient(135deg, hsl(var(--accent)), hsl(23 91% 40%));
   }
 
   .font-display {
-    font-family: 'Fraunces', Georgia, serif;
+    font-family: 'Lora', Georgia, serif;
     font-style: italic;
+  }
+
+  /* p1's textured Summit Blue background: a subtle noise grain, CSS/SVG
+   * only (inline feTurbulence data URI, no image download). Use on
+   * Summit Blue sections only (hero, footer, side panels) -- not a
+   * general-purpose texture. ~5% opacity, layered over the section's own
+   * background colour so it still needs `bg-primary` (or equivalent)
+   * alongside this class. */
+  .brand-texture {
+    position: relative;
+  }
+  .brand-texture::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
   .animate-float {

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Mountain, Mail, ArrowLeft, CheckCircle } from "lucide-react";
+import { Mail, ArrowLeft, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -33,20 +34,10 @@ export default function ForgotPassword() {
   return (
     <div className="min-h-screen flex">
       {/* Left Panel */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-primary">
-        <div className="absolute inset-0">
-          <img
-            src="https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=1200"
-            alt="Nepal mountains"
-            className="w-full h-full object-cover opacity-40"
-          />
-        </div>
+      <div className="hidden lg:flex lg:w-1/2 relative bg-primary brand-texture">
         <div className="relative z-10 flex flex-col justify-between p-12 text-primary-foreground">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-primary-foreground/20">
-              <Mountain className="h-6 w-6" />
-            </div>
-            <span className="text-xl font-bold">Into Nepal</span>
+          <Link to="/" className="flex items-center">
+            <BrandLogo variant="full" colour="primary" animate="intro" height={120} />
           </Link>
           <div>
             <h1 className="text-4xl font-bold mb-4">Reset Your Password</h1>
@@ -66,11 +57,8 @@ export default function ForgotPassword() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex justify-center mb-8">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-primary">
-                <Mountain className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold">Into Nepal</span>
+            <Link to="/">
+              <BrandLogo variant="full" colour="blue" height={96} />
             </Link>
           </div>
 

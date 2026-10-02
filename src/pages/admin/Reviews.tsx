@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Star,
   Search,
   Flag,
   Award,
@@ -236,7 +235,7 @@ export default function AdminReviews() {
         <div className="grid sm:grid-cols-4 gap-4">
           {[
             { label: "Total Reviews",  value: totalCount,      color: "" },
-            { label: "Flagged",        value: flaggedCount,    color: "text-amber-600" },
+            { label: "Flagged",        value: flaggedCount,    color: "text-warning-foreground" },
             { label: "Low Rating (≤2)", value: lowRatingCount, color: "text-destructive" },
             { label: "Featured",       value: featuredCount,   color: "text-primary" },
           ].map((s) => (
@@ -333,7 +332,7 @@ export default function AdminReviews() {
                       <TableCell>
                         <div className="flex gap-1 flex-wrap">
                           {review.is_flagged && (
-                            <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-xs">
+                            <Badge className="bg-warning text-warning-foreground border-warning text-xs">
                               <Flag className="h-3 w-3 mr-1" />
                               Flagged
                             </Badge>

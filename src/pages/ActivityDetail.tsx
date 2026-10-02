@@ -219,7 +219,7 @@ export default function ActivityDetail() {
               </h1>
               <div className="flex flex-wrap items-center gap-4 text-sm">
                 <div className="flex items-center gap-1.5">
-                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                  <Star className="h-4 w-4 fill-rating text-rating" />
                   <span className="font-bold text-foreground">{rating.toFixed(1)}</span>
                   <span className="text-muted-foreground">({listing.review_count} reviews)</span>
                 </div>
@@ -572,7 +572,7 @@ export default function ActivityDetail() {
 
                   {/* CTA — reservations aren't open yet; we're rolling out a
                       new reservation-fee payment flow (replaces the old
-                      Stripe-based checkout this button used to call). */}
+                      checkout this button used to call). */}
                   <Button
                     size="lg"
                     className="w-full h-14 text-base font-bold rounded-xl"
@@ -632,7 +632,7 @@ export default function ActivityDetail() {
                         </span>
                       </div>
                       <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/30 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full font-bold">
-                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                        <Star className="h-3 w-3 fill-rating text-rating" />
                         {Number(rel.rating).toFixed(1)}
                       </div>
                     </div>

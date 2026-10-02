@@ -26,7 +26,7 @@ export function StarRating({ rating }: { rating: number }) {
       {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}
-          className={`h-3.5 w-3.5 ${i < rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`}
+          className={`h-3.5 w-3.5 ${i < rating ? "fill-rating text-rating" : "text-muted-foreground/30"}`}
         />
       ))}
       <span className="ml-1 text-xs text-muted-foreground">{rating}/5</span>
@@ -94,7 +94,7 @@ export function ReviewDetailDialog({ review, onClose, onFlag, onFeature, onHide,
             )}
             <div className="flex gap-2 flex-wrap">
               {review.is_flagged && (
-                <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+                <Badge className="bg-warning text-warning-foreground border-warning">
                   <Flag className="h-3 w-3 mr-1" /> Flagged
                 </Badge>
               )}

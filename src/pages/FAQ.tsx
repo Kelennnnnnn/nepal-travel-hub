@@ -1,5 +1,6 @@
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/SEO";
+import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 import {
   Accordion,
   AccordionContent,
@@ -9,8 +10,8 @@ import {
 
 const FAQS = [
   {
-    q: "What is Yatra Nepal?",
-    a: "Yatra Nepal is a marketplace that connects travelers with verified local travel agencies across Nepal. We make it easy to discover, compare, and book trekking, tours, and cultural experiences — all through one trusted platform.",
+    q: "What is Into Nepal?",
+    a: "Into Nepal is a marketplace that connects travelers with verified local travel agencies across Nepal. We make it easy to discover, compare, and book trekking, tours, and cultural experiences — all through one trusted platform.",
   },
   {
     q: "How do I book an activity?",
@@ -42,11 +43,12 @@ const FAQS = [
   },
   {
     q: "How do I contact support?",
-    a: "You can reach our support team by emailing hello@yatranepal.com or by using the contact form on our Contact page. We're available Sunday–Friday, 9am–6pm NPT and typically respond within one business day.",
+    a: "You can reach our support team by emailing support@intonepal.com or by using the contact form on our Contact page. We're available Sunday–Friday, 9am–6pm NPT and typically respond within one business day.",
   },
 ];
 
 export default function FAQ() {
+  const { platformName } = usePlatformSettings();
   return (
     <Layout>
       <SEO title="Frequently Asked Questions" description="Find answers to common questions about booking Nepal travel experiences, cancellations, payments and more." />
@@ -55,7 +57,7 @@ export default function FAQ() {
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold mb-3">Frequently Asked Questions</h1>
             <p className="text-muted-foreground">
-              Everything you need to know about booking with Yatra Nepal.
+              Everything you need to know about booking with {platformName}.
             </p>
           </div>
 

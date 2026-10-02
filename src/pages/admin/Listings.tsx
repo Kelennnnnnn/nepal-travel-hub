@@ -178,7 +178,7 @@ export default function AdminListings() {
       case "approved":
         return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Approved</Badge>;
       case "pending_review":
-        return <Badge className="bg-amber-100 text-amber-800 border-amber-200">Pending Review</Badge>;
+        return <Badge className="bg-warning text-warning-foreground border-warning">Pending Review</Badge>;
       case "draft":
         return <Badge variant="secondary">Draft</Badge>;
       case "paused":
@@ -250,7 +250,7 @@ export default function AdminListings() {
           <Card>
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">Pending Review</p>
-              {showTableSkeleton ? <Skeleton className="h-8 w-16 mt-1" /> : <p className="text-2xl font-bold text-amber-600">{pendingReviewCount}</p>}
+              {showTableSkeleton ? <Skeleton className="h-8 w-16 mt-1" /> : <p className="text-2xl font-bold text-warning-foreground">{pendingReviewCount}</p>}
             </CardContent>
           </Card>
           <Card>

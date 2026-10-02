@@ -10,6 +10,8 @@
 // sandbox in production is a boot-time failure, not a silent behavior
 // change.
 
+import { PLATFORM_NAME } from "./branding.ts";
+
 const ENVIRONMENT = (Deno.env.get("ENVIRONMENT") ?? "").toLowerCase();
 const IS_PRODUCTION = ENVIRONMENT === "production";
 
@@ -23,7 +25,6 @@ if (EMAIL_MODE === "mailtrap" && IS_PRODUCTION) {
 
 const RESEND_API_KEY  = Deno.env.get("RESEND_API_KEY")  ?? "";
 const REPLY_TO_EMAIL  = Deno.env.get("REPLY_TO_EMAIL")  ?? "hello@intonepal.com";
-const PLATFORM_NAME   = "Into Nepal";
 
 // No onboarding@resend.dev fallback in production — that address is
 // Resend's own shared test sender, rate-limited and not actually

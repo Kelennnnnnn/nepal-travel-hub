@@ -13,9 +13,9 @@ import { AgencyTeamCard } from "@/components/agency/AgencyTeamCard";
 import { useAgencyStore } from "@/stores/agencyStore";
 
 // The "Verified Business Information" / "Agency Profile" / "Bank Account" /
-// "Stripe Connect" sections that used to live here all queried the old
+// "Payout Provider" sections that used to live here all queried the old
 // flat `agency_applications` table (company_name, pan_number, license_url,
-// stripe_account_id, ...) and `agency_bank_details` — neither exists in the
+// payout_account_id, ...) and `agency_bank_details` — neither exists in the
 // current schema (agencies/agency_verification/agency_documents, Phase 4;
 // bank details never had a Phase 4 replacement at all). Rather than leave
 // them silently broken (every field blank, Save failing), they're replaced

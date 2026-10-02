@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import { Facebook, Instagram, Twitter } from "lucide-react";
+import { usePlatformSettings } from "@/hooks/usePlatformSettings";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 const footerLinks = {
   explore: [
@@ -25,17 +27,15 @@ const footerLinks = {
 };
 
 export function Footer() {
+  const { platformName } = usePlatformSettings();
   return (
-    <footer className="bg-brand-navy text-white/80">
+    <footer className="bg-primary brand-texture text-white/80">
       <div className="container mx-auto px-4 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
           {/* Brand Section */}
           <div className="lg:col-span-2">
-            <Link to="/" className="inline-flex flex-col mb-4">
-              <span className="font-serif italic text-2xl font-bold text-white">Into Nepal</span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50 mt-0.5">
-                Himalayan Expeditions
-              </span>
+            <Link to="/" className="inline-flex mb-4">
+              <BrandLogo variant="full" colour="primary" height={140} />
             </Link>
             <p className="text-white/60 max-w-sm">
               The curated expedition marketplace for genuine Himalayan journeys. Powered by certified local guides, respectful environmental stewardship, and unequaled adventure booking.
@@ -85,7 +85,7 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="font-semibold text-white mb-4 text-sm uppercase tracking-wide">About Into Nepal</h4>
+            <h4 className="font-semibold text-white mb-4 text-sm uppercase tracking-wide">About {platformName}</h4>
             <ul className="space-y-3">
               {footerLinks.about.map((link) => (
                 <li key={link.name}>
@@ -114,7 +114,7 @@ export function Footer() {
         {/* Bottom Section */}
         <div className="mt-16 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-3">
           <p className="text-sm text-white/50 text-center md:text-left">
-            © {new Date().getFullYear()} Into Nepal. All rights reserved. Built for the modern explorer.
+            © {new Date().getFullYear()} {platformName}. All rights reserved. Built for the modern explorer.
           </p>
           <div className="flex items-center gap-4 text-xs text-white/50">
             <span>Kathmandu, Nepal</span>

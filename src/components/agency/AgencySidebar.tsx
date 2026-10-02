@@ -5,14 +5,14 @@ import {
   BookOpen,
   DollarSign,
   Settings,
-  Mountain,
   LogOut,
   MessageSquare,
   BarChart2,
 } from "lucide-react";
 import { useUnreadCount } from "@/hooks/useMessages";
 import { NavLink } from "@/components/NavLink";
-import { useLocation, useNavigate } from "react-router-dom";
+import { BrandLogo } from "@/components/brand/BrandLogo";
+import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "sonner";
 import {
@@ -44,11 +44,9 @@ const mainItems = [
 export function AgencySidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuthStore();
   const { data: unreadCount = 0 } = useUnreadCount();
-  const isActive = (path: string) => location.pathname.startsWith(path);
 
   const handleLogout = async () => {
     await logout();
@@ -58,13 +56,12 @@ export function AgencySidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-border p-4">
-        <NavLink to="/agency/dashboard" className="flex items-center gap-2">
-          <Mountain className="h-6 w-6 text-primary" />
-          {!collapsed && (
-            <span className="text-lg font-bold text-foreground">
-              Nepal<span className="text-primary">Trails</span>
-            </span>
+      <SidebarHeader className="border-b border-sidebar-border p-4">
+        <NavLink to="/agency/dashboard" className="flex items-center">
+          {collapsed ? (
+            <BrandLogo variant="mark" colour="reversed" height={28} />
+          ) : (
+            <BrandLogo variant="horizontal" colour="reversed" height={28} />
           )}
         </NavLink>
       </SidebarHeader>
@@ -80,8 +77,8 @@ export function AgencySidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/agency/dashboard"}
-                      className="hover:bg-muted/50"
-                      activeClassName="bg-primary/10 text-primary font-medium"
+                      className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      activeClassName="bg-sidebar-primary text-sidebar-primary-foreground font-medium"
                     >
                       <item.icon className="mr-2 h-4 w-4" />
                       {!collapsed && (
@@ -103,8 +100,8 @@ export function AgencySidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-border p-3">
-        <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground" onClick={handleLogout}>
+      <SidebarFooter className="border-t border-sidebar-border p-3">
+        <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" onClick={handleLogout}>
           <LogOut className="h-4 w-4" />
           {!collapsed && <span>Sign Out</span>}
         </Button>

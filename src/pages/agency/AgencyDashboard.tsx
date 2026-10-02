@@ -13,7 +13,7 @@ import {
 // Booking/earnings widgets (net earnings, active bookings, weekly bookings
 // trend, monthly revenue, recent bookings, top listings by booking count,
 // "View Payouts" quick action) were removed here along with the rest of the
-// Stripe-based payment model they were computed from. Listing-only widgets
+// old payment model they were computed from. Listing-only widgets
 // (below) are unaffected and kept.
 export default function AgencyDashboard() {
   const navigate = useNavigate();
@@ -115,13 +115,13 @@ export default function AgencyDashboard() {
                       <p className="text-sm font-medium truncate">{l.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div className="h-full bg-amber-400 rounded-full" style={{ width: `${(l.rating / 5) * 100}%` }} />
+                          <div className="h-full bg-rating rounded-full" style={{ width: `${(l.rating / 5) * 100}%` }} />
                         </div>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="text-sm font-bold text-foreground flex items-center gap-1">
-                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-rating text-rating" />
                         {l.rating.toFixed(1)}
                       </div>
                       <div className="text-[10px] text-muted-foreground">{l.reviews} review{l.reviews !== 1 ? "s" : ""}</div>

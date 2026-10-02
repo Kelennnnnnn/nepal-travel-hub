@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Local Supabase Edge Function secrets (supabase start reads these for
+# the bundled function server) -- never commit real secrets here, even
+# though the test suite's own value (Cloudflare's published Turnstile
+# test key) isn't actually sensitive.
+supabase/functions/.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

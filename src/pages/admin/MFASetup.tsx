@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mountain, Shield, Loader2, CheckCircle } from "lucide-react";
+import { Shield, Loader2, CheckCircle } from "lucide-react";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,12 +70,7 @@ export default function MFASetup() {
     <div className="min-h-screen flex items-center justify-center p-8 bg-zinc-950">
       <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 p-8 rounded-2xl shadow-xl">
         <div className="flex justify-center mb-6">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-primary">
-              <Mountain className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold text-zinc-100">Into Nepal</span>
-          </div>
+          <BrandLogo variant="full" colour="blue" height={96} />
         </div>
 
         <div className="text-center mb-8">

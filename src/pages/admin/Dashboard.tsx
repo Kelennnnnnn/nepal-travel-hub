@@ -25,7 +25,7 @@ import { toast } from "sonner";
 // (fed by admin_booking_stats/admin_revenue_by_month/admin_agency_signups/
 // admin_bookings_by_category — none of which exist in the current schema;
 // they were old-system RPCs never carried over) and Recent Bookings were
-// all removed along with the Stripe-based payment model. The pending-
+// all removed along with the old payment model. The pending-
 // agency-approvals panel below was ALSO broken independently of payments —
 // it called a pre-Phase-4 agencyStore API (allApplications/
 // fetchAllApplications/updateApplicationStatus/.status === "verified") that

@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Layout } from "@/components/layout/Layout";
 import { usePublishedListings } from "@/lib/queries";
-import { categories } from "@/data/activities";
+import { categories } from "@/lib/catalog";
 import type { PublishedListingRow } from "@/lib/queries";
 import heroImage from "@/assets/hero-nepal.jpg";
 

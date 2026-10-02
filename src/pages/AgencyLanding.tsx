@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import {
-  Mountain,
   Check,
   Globe,
   CreditCard,
@@ -11,7 +10,7 @@ import {
   Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/SEO";
 
@@ -86,7 +85,7 @@ const testimonials = [
     quote:
       "Into Nepal has transformed our business. We now reach customers we never could before.",
     author: "Ram Thapa",
-    role: "Owner, Himalayan Expeditions",
+    role: "Owner, Everest Trail Guides",
     image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
   },
   {
@@ -101,7 +100,7 @@ const testimonials = [
 export default function AgencyLanding() {
   return (
     <Layout>
-      <SEO title="Partner With Us" description="Join Yatra Nepal as a verified travel agency partner and reach travelers looking for authentic Nepal experiences." />
+      <SEO title="Partner With Us" description="Join Into Nepal as a verified travel agency partner and reach travelers looking for authentic Nepal experiences." />
       {/* Hero */}
       <section className="relative pt-32 pb-20 md:pt-40 md:pb-32 bg-primary text-primary-foreground overflow-hidden">
         <div className="absolute inset-0 opacity-10">

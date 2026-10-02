@@ -1,12 +1,14 @@
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/SEO";
+import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 
 const LAST_UPDATED = "April 8, 2026";
 
 export default function TermsOfService() {
+  const { platformName } = usePlatformSettings();
   return (
     <Layout>
-      <SEO title="Terms of Service" description="Review the terms for using Yatra Nepal to discover, book, and manage Nepal travel experiences." />
+      <SEO title="Terms of Service" description={`Review the terms for using ${platformName} to discover, book, and manage Nepal travel experiences.`} />
       <div className="max-w-3xl mx-auto px-6 py-16">
         <div className="mb-10">
           <h1 className="text-4xl font-bold mb-3">Terms of Service</h1>
@@ -64,8 +66,7 @@ export default function TermsOfService() {
                 Payment is processed securely through our payment provider.
                 Into Nepal does not store your full card details.
                 {/* TODO: update once the new NPR reservation-fee payment
-                    model and provider are finalized — this platform no
-                    longer uses Stripe. */}
+                    model and provider are finalized. */}
               </li>
               <li>
                 A booking is confirmed only once payment is successfully
@@ -205,10 +206,10 @@ export default function TermsOfService() {
             <p className="text-muted-foreground">
               If you have any questions about these Terms, please contact us at{" "}
               <a
-                href="mailto:legal@nepaltrails.com"
+                href="mailto:legal@intonepal.com"
                 className="text-primary hover:underline"
               >
-                legal@nepaltrails.com
+                legal@intonepal.com
               </a>
               .
             </p>
