@@ -1,6 +1,7 @@
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/SEO";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
+import { useSiteContent } from "@/hooks/useSiteContent";
 import {
   Accordion,
   AccordionContent,
@@ -8,26 +9,27 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 
-const FAQS = [
+interface FaqItem {
+  q: string;
+  a: string;
+}
+
+const DEFAULT_FAQS: FaqItem[] = [
   {
-    q: "What is Into Nepal?",
-    a: "Into Nepal is a marketplace that connects travelers with verified local travel agencies across Nepal. We make it easy to discover, compare, and book trekking, tours, and cultural experiences — all through one trusted platform.",
+    q: "What is {platform_name}?",
+    a: "{platform_name} is a marketplace that connects travelers with verified local travel agencies across Nepal. We make it easy to discover, compare, and book trekking, tours, and cultural experiences — all through one trusted platform.",
   },
   {
     q: "How do I book an activity?",
-    // TODO: update once the new NPR reservation-fee payment flow is live.
-    a: "Browse activities on our Activities page, select the one you want, choose your trip date and number of guests, then proceed to checkout. Payment is processed securely through our payment provider. You'll receive a booking confirmation email once your payment is complete.",
+    a: "Browse activities on our Activities page, select the one you want, choose your trip date and number of guests, then pay a {reservation_fee_percent}% reservation fee to secure your spot. The remaining balance is paid according to the listing's own payment terms. You'll receive a booking confirmation email once your reservation fee is paid.",
   },
   {
     q: "What is the cancellation policy?",
-    a: "Cancellation terms depend on how far in advance you cancel. More than 14 days before departure: full refund (minus processing fees). Between 7–14 days: 50% refund at the agency's discretion. Less than 7 days: no refund, unless the agency cancels. If an agency cancels, you receive a full refund within 5–10 business days.",
+    a: "The reservation fee is fully refundable if you cancel more than {fee_free_cancel_hours_day} hours before a single-day activity's start time, or {fee_free_cancel_hours_multiday} hours before a multi-day trip's start time. After that window, the reservation fee is non-refundable. Any balance paid in advance follows the agency's own cancellation policy, shown on the listing before you book. If the agency cancels, you receive a full refund.",
   },
   {
     q: "Is my payment secure?",
-    // TODO: restate the specific security/compliance certification once the
-    // new payment provider is chosen — do not claim PCI DSS or any other
-    // certification on its behalf without confirming it holds one.
-    a: "Yes. All payments are processed through our payment provider. Into Nepal never stores your full card details. You can pay using any major credit or debit card.",
+    a: "Yes. All payments are processed through our payment provider. We never store your full card details. You can pay using any major credit or debit card.",
   },
   {
     q: "How are agencies verified?",
@@ -43,12 +45,20 @@ const FAQS = [
   },
   {
     q: "How do I contact support?",
-    a: "You can reach our support team by emailing support@intonepal.com or by using the contact form on our Contact page. We're available Sunday–Friday, 9am–6pm NPT and typically respond within one business day.",
+    a: "You can reach our support team by emailing {support_email} or by using the contact form on our Contact page. We're available {support_hours} and typically respond within one business day.",
   },
 ];
 
 export default function FAQ() {
-  const { platformName } = usePlatformSettings();
+  const settings = usePlatformSettings();
+  const faqs = useSiteContent<FaqItem[]>("faq", DEFAULT_FAQS);
+
+  const interpolate = (text: string) =>
+    text.replace(/\{(\w+)\}/g, (match, key) => {
+      const value = (settings as unknown as Record<string, unknown>)[key];
+      return value != null ? String(value) : match;
+    });
+
   return (
     <Layout>
       <SEO title="Frequently Asked Questions" description="Find answers to common questions about booking Nepal travel experiences, cancellations, payments and more." />
@@ -57,22 +67,22 @@ export default function FAQ() {
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold mb-3">Frequently Asked Questions</h1>
             <p className="text-muted-foreground">
-              Everything you need to know about booking with {platformName}.
+              Everything you need to know about booking with {settings.platform_name}.
             </p>
           </div>
 
           <Accordion type="single" collapsible className="space-y-2">
-            {FAQS.map((faq, i) => (
+            {faqs.map((faq, i) => (
               <AccordionItem
                 key={i}
                 value={`item-${i}`}
                 className="bg-background border border-border rounded-xl px-6"
               >
                 <AccordionTrigger className="text-left font-medium hover:no-underline py-5">
-                  {faq.q}
+                  {interpolate(faq.q)}
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground pb-5 leading-relaxed">
-                  {faq.a}
+                  {interpolate(faq.a)}
                 </AccordionContent>
               </AccordionItem>
             ))}

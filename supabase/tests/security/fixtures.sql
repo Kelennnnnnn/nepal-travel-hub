@@ -103,8 +103,8 @@ insert into public.inventory_reservations (id, inventory_id, quantity, status, e
 values ('5ec70000-0000-0000-0000-000000000001', '5ec60000-0000-0000-0000-000000000001', 2, 'confirmed', now() + interval '1 hour', now());
 
 -- ── Booking chain (T1 books Listing A, already completed+paid) ─────────
-insert into public.booking_quotes (id, listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at)
-values ('5ec80000-0000-0000-0000-000000000001', '5ec40000-0000-0000-0000-000000000001', '5ec50000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', '5ec10000-0000-0000-0000-000000000001', 2, 1000.00, 10.00, 100.00, 900.00, 'NPR', '{}'::jsonb, '5ec70000-0000-0000-0000-000000000001', 'consumed', now() + interval '1 hour');
+insert into public.booking_quotes (id, listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at, confirmation_mode, payment_requirement, amount_due_now, start_at, end_at, no_show_grace_minutes, fee_refund_rule)
+values ('5ec80000-0000-0000-0000-000000000001', '5ec40000-0000-0000-0000-000000000001', '5ec50000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', '5ec10000-0000-0000-0000-000000000001', 2, 1000.00, 10.00, 100.00, 900.00, 'NPR', '{}'::jsonb, '5ec70000-0000-0000-0000-000000000001', 'consumed', now() + interval '1 hour', 'instant', 'fee_only', 100.00, now() + interval '30 days', now() + interval '31 days', 30, '{"free_cancel_hours": 24}'::jsonb);
 
 insert into public.bookings (id, quote_id, listing_id, departure_id, agency_id, traveler_id, participant_count, booking_status, payment_status, completed_at)
 values ('5ec90000-0000-0000-0000-000000000001', '5ec80000-0000-0000-0000-000000000001', '5ec40000-0000-0000-0000-000000000001', '5ec50000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', '5ec10000-0000-0000-0000-000000000001', 2, 'completed', 'paid', now());
@@ -186,8 +186,8 @@ values ('5edf0000-0000-0000-0000-000000000001', 'Fixture Contact', 'contact@test
 insert into public.audit_logs (id, actor_id, action, resource_type, resource_id, before_state, after_state)
 values ('5ee00000-0000-0000-0000-000000000001', '5ec30000-0000-0000-0000-000000000001', 'fixture_action', 'listing', '5ec40000-0000-0000-0000-000000000001', null, '{}'::jsonb);
 
-insert into public.platform_settings (key, value, description)
-values ('sec_fixture_setting', '"fixture"'::jsonb, 'fixture-only setting, not read by the app')
+insert into public.platform_settings (key, value, description, value_type)
+values ('sec_fixture_setting', '"fixture"'::jsonb, 'fixture-only setting, not read by the app', 'string')
 on conflict (key) do nothing;
 
 insert into public.platform_settings_history (id, key, old_value, new_value, changed_by)
@@ -201,6 +201,42 @@ values ('fixture-bucket', now(), 1);
 
 insert into public.welcome_emails (user_id)
 values ('5ec10000-0000-0000-0000-000000000001');
+
+insert into public.payment_events (id, booking_id, provider, provider_ref, kind, amount, currency)
+values ('5ee40000-0000-0000-0000-000000000001', '5ec90000-0000-0000-0000-000000000001', 'fixture_provider', 'fixture-ref-1', 'reservation_fee', 100.00, 'NPR');
+
+insert into public.refund_records (id, booking_id, kind, payer_side, amount, currency, reason_code)
+values ('5ee50000-0000-0000-0000-000000000001', '5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'fixture_reason');
+
+insert into public.agency_strikes (id, agency_id, booking_id, kind)
+values ('5ee60000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response');
+
+insert into public.booking_action_tokens (id, booking_id, token_hash, purpose, expires_at)
+values ('5ee70000-0000-0000-0000-000000000001', '5ec90000-0000-0000-0000-000000000001', 'fixture-token-hash', 'agency_accept_decline', now() + interval '1 day');
+
+insert into public.agency_penalties (id, agency_id, booking_id, kind, amount)
+values ('5ee80000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00);
+
+insert into public.booking_disruptions (id, booking_id, reason_code, choice_deadline)
+values ('5ee90000-0000-0000-0000-000000000001', '5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day');
+
+insert into public.booking_disputes (id, booking_id, opened_by, kind, statement)
+values ('5eea0000-0000-0000-0000-000000000001', '5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Fixture dispute statement, long enough to pass the length check.');
+
+insert into public.destinations (id, name, district, province)
+values ('5eeb0000-0000-0000-0000-000000000001', 'Fixture Destination', 'Kathmandu', 'Bagmati');
+
+insert into public.season_templates (id, label, start_mmdd, end_mmdd)
+values ('5eec0000-0000-0000-0000-000000000001', 'Fixture Season', '09-01', '09-30');
+
+insert into public.agency_commitments (id, agency_id, commitment_key)
+values ('5eed0000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', 'fixture_commitment');
+
+insert into public.agency_blackout_periods (id, agency_id, start_date, end_date, reason, created_by)
+values ('5ee20000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', current_date + 150, current_date + 152, 'Fixture agency blackout', '5ec20000-0000-0000-0000-000000000001');
+
+insert into public.platform_blackout_presets (id, name, start_date, end_date, year, description, active, created_by)
+values ('5ee30000-0000-0000-0000-000000000001', 'Fixture Festival', current_date + 160, current_date + 162, extract(year from current_date)::int, 'fixture-only preset', true, '5ec30000-0000-0000-0000-000000000001');
 
 select pass('fixture dataset loads without error');
 select * from finish();

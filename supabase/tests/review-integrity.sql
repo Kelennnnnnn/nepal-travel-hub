@@ -47,8 +47,8 @@ values ('d3300000-0000-0000-0000-000000000001', 'd3200000-0000-0000-0000-0000000
 insert into public.inventory_reservations (id, inventory_id, quantity, status, expires_at, confirmed_at)
 values ('d3400000-0000-0000-0000-000000000001', 'd3300000-0000-0000-0000-000000000001', 1, 'confirmed', now() + interval '1 hour', now());
 
-insert into public.booking_quotes (id, listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at)
-values ('d3500000-0000-0000-0000-000000000001', 'd3100000-0000-0000-0000-000000000001', 'd3200000-0000-0000-0000-000000000001', 'd3a00000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000001', 1, 500.00, 10.00, 50.00, 450.00, 'NPR', '{}'::jsonb, 'd3400000-0000-0000-0000-000000000001', 'consumed', now() + interval '1 hour');
+insert into public.booking_quotes (id, listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at, confirmation_mode, payment_requirement, amount_due_now, start_at, end_at, no_show_grace_minutes, fee_refund_rule)
+values ('d3500000-0000-0000-0000-000000000001', 'd3100000-0000-0000-0000-000000000001', 'd3200000-0000-0000-0000-000000000001', 'd3a00000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000001', 1, 500.00, 10.00, 50.00, 450.00, 'NPR', '{}'::jsonb, 'd3400000-0000-0000-0000-000000000001', 'consumed', now() + interval '1 hour', 'instant', 'fee_only', 50.00, now() + interval '30 days', now() + interval '31 days', 30, '{"free_cancel_hours": 24}'::jsonb);
 
 -- Completed booking, eligible to review.
 insert into public.bookings (id, quote_id, listing_id, departure_id, agency_id, traveler_id, participant_count, booking_status, payment_status)

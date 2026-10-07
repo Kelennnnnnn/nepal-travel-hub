@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { ComingSoon } from "@/components/ComingSoon";
-import { Eye, EyeOff, Lock, ShieldCheck, Building2 } from "lucide-react";
+import { Eye, EyeOff, Lock, ShieldCheck, Building2, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { NotificationsCard, type NotifKey } from "@/components/agency/NotificationsCard";
@@ -99,6 +100,8 @@ export default function AgencySettings() {
           <AgencyTeamCard agencyId={myAgency.id} currentUserId={currentUserId} />
         )}
 
+        {myAgency && <AgencyAlertsCard agencyId={myAgency.id} />}
+
         {!profileLoading && (
           <NotificationsCard
             notifications={notifications}
@@ -110,6 +113,83 @@ export default function AgencySettings() {
         <ChangePasswordCard />
       </div>
     </AgencyLayout>
+  );
+}
+
+function AgencyAlertsCard({ agencyId }: { agencyId: string }) {
+  const [loading, setLoading] = useState(true);
+  const [phone, setPhone] = useState("");
+  const [whatsappOptIn, setWhatsappOptIn] = useState(false);
+  const [smsOptIn, setSmsOptIn] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("agencies")
+      .select("alert_phone_e164, alert_whatsapp_opt_in, alert_sms_opt_in")
+      .eq("id", agencyId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        if (data) {
+          setPhone(data.alert_phone_e164 ?? "");
+          setWhatsappOptIn(data.alert_whatsapp_opt_in ?? false);
+          setSmsOptIn(data.alert_sms_opt_in ?? false);
+        }
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [agencyId]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase
+      .from("agencies")
+      .update({
+        alert_phone_e164: phone.trim() || null,
+        alert_whatsapp_opt_in: whatsappOptIn,
+        alert_sms_opt_in: smsOptIn,
+      })
+      .eq("id", agencyId);
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Alert preferences saved.");
+  };
+
+  if (loading) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Bell className="h-4 w-4 text-primary" />
+          Booking Alerts
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 max-w-sm">
+        <div className="space-y-2">
+          <Label>Alert phone number</Label>
+          <Input
+            placeholder="+9779800000000"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">Include the country code, e.g. +977 for Nepal.</p>
+        </div>
+        <div className="flex items-center justify-between">
+          <Label className="font-normal">WhatsApp alerts</Label>
+          <Switch checked={whatsappOptIn} onCheckedChange={setWhatsappOptIn} />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label className="font-normal">SMS alerts</Label>
+          <Switch checked={smsOptIn} onCheckedChange={setSmsOptIn} />
+        </div>
+        <Button onClick={handleSave} disabled={saving} size="sm">
+          {saving ? "Saving…" : "Save Alert Preferences"}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

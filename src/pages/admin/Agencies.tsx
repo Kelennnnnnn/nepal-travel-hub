@@ -13,6 +13,7 @@ import {
   ShieldOff,
   ShieldCheck,
   HelpCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -77,11 +78,37 @@ export default function AdminAgencies() {
   const [documents, setDocuments] = useState<AgencyDocument[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
 
+  // Strikes (Phase 21 agency_strikes — "no_response" to an awaiting-
+  // confirmation booking). Shown as a 30d/90d count with a warning at 3+
+  // in 90 days; deliberately no auto-suspend wired to this yet.
+  const [strikesByAgency, setStrikesByAgency] = useState<Record<string, { d30: number; d90: number }>>({});
+
   useEffect(() => {
     fetchAllAgencies();
     const unsubscribe = subscribeToAllAgencies();
     return unsubscribe;
   }, [fetchAllAgencies, subscribeToAllAgencies]);
+
+  useEffect(() => {
+    const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    supabase
+      .from("agency_strikes")
+      .select("agency_id, created_at")
+      .gte("created_at", since90)
+      .then(({ data }) => {
+        const counts: Record<string, { d30: number; d90: number }> = {};
+        for (const row of data ?? []) {
+          const agencyId = row.agency_id as string;
+          const createdAt = row.created_at as string;
+          const entry = counts[agencyId] ?? { d30: 0, d90: 0 };
+          entry.d90 += 1;
+          if (createdAt >= since30) entry.d30 += 1;
+          counts[agencyId] = entry;
+        }
+        setStrikesByAgency(counts);
+      });
+  }, []);
 
   const filteredAgencies = allAgencies.filter((item) => {
     const matchesSearch =
@@ -301,6 +328,7 @@ export default function AdminAgencies() {
                     <TableHead>Agency</TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Strikes</TableHead>
                     <TableHead>Submitted</TableHead>
                     <TableHead />
                   </TableRow>
@@ -326,6 +354,18 @@ export default function AdminAgencies() {
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(item.verification.status)}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const strikes = strikesByAgency[item.agency.id];
+                          if (!strikes || strikes.d90 === 0) return <span className="text-sm text-muted-foreground">—</span>;
+                          return (
+                            <span className={`flex items-center gap-1.5 text-sm ${strikes.d90 >= 3 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                              {strikes.d90 >= 3 && <AlertTriangle className="h-3.5 w-3.5" />}
+                              {strikes.d30} (30d) · {strikes.d90} (90d)
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {item.verification.submitted_at ? formatDate(item.verification.submitted_at) : "—"}
                       </TableCell>

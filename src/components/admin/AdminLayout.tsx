@@ -14,6 +14,10 @@ import {
   Bell,
   ClipboardList,
   MessageSquare,
+  PartyPopper,
+  ShieldAlert,
+  Tags,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,9 +33,13 @@ const adminNavItems = [
   { name: "Agencies", href: "/admin/agencies", icon: Building2 },
   { name: "Listings", href: "/admin/listings", icon: MapPin },
   { name: "Bookings", href: "/admin/bookings", icon: Calendar },
+  { name: "Disputes", href: "/admin/disputes", icon: ShieldAlert },
   { name: "Payments", href: "/admin/payments", icon: CreditCard },
   { name: "Users", href: "/admin/users", icon: Users },
   { name: "Reviews", href: "/admin/reviews", icon: MessageSquare },
+  { name: "Categories", href: "/admin/categories", icon: Tags },
+  { name: "Destinations", href: "/admin/destinations", icon: Globe },
+  { name: "Festival Presets", href: "/admin/blackout-presets", icon: PartyPopper },
   { name: "Settings", href: "/admin/settings", icon: Settings },
   { name: "Audit Log", href: "/admin/audit", icon: ClipboardList },
 ];
@@ -157,7 +165,14 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 </div>
                 {sidebarOpen && (
                   <div className="hidden md:block">
-                    <p className="text-sm font-medium">{user?.name || "Admin User"}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium">{user?.name || "Admin User"}</p>
+                      {user?.role && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 capitalize">
+                          {user.role.replace("_", " ")}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">{user?.email}</p>
                   </div>
                 )}

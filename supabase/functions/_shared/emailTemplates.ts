@@ -1,5 +1,5 @@
 import { escapeHtml } from "./html.ts";
-import { renderEmail, btnStyle, HR, alertBanner } from "./emailBase.ts";
+import { renderEmail, btnStyle, HR, alertBanner, row, detailsTable } from "./emailBase.ts";
 import { PLATFORM_NAME, SITE_URL } from "./branding.ts";
 
 // SITE_URL/PLATFORM_NAME (target §34/§35: "centralize brand name, domain,
@@ -499,6 +499,387 @@ ${jobsLine ?? ""}
 ${notificationsLine ?? ""}
 
 Check cron.job_run_details and the notifications table directly for full details.`;
+
+  return { subject, html, text };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 13. Post-payment flow (Phase 21) — agency confirmation request/reminder,
+//     booking confirmed, declined/timed-out.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function agencyBookingAwaitingConfirmationEmail(data: {
+  activityTitle: string;
+  departureDateNpt: string;
+  participantCount: number;
+  travelerFirstName: string;
+  deadlineNpt: string;
+  actionUrl: string;
+  reminder?: boolean;
+}): EmailTemplate {
+  const activityTitle = escapeHtml(data.activityTitle);
+  const travelerFirstName = escapeHtml(data.travelerFirstName);
+  const subject = data.reminder
+    ? `12 hours left to confirm: ${data.activityTitle}`
+    : `New booking needs your confirmation: ${data.activityTitle}`;
+
+  const html = renderEmail(`
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">${data.reminder ? "12 Hours Left to Respond" : "A Traveler Is Waiting On You"}</h1>
+    <p style="margin:0 0 20px;color:#374151;">${travelerFirstName} has paid the reservation fee for <strong>${activityTitle}</strong> and is waiting for your confirmation.</p>
+
+    ${detailsTable(
+      row("Activity", activityTitle) +
+      row("Date", escapeHtml(data.departureDateNpt) + " (Nepal time)") +
+      row("Group size", String(data.participantCount)) +
+      row("Respond by", escapeHtml(data.deadlineNpt) + " (Nepal time)")
+    )}
+
+    ${data.reminder ? alertBanner("If you don't respond in time, this booking is automatically cancelled and counts as a missed response.", "warning") : ""}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 28px;">
+      <tr><td><a href="${data.actionUrl}" style="${btnStyle()}">Review &amp; Respond</a></td></tr>
+    </table>
+
+    <p style="margin:0 0 20px;font-size:13px;color:#6b7280;">This link lets you accept or decline directly — no login needed. You can also respond from your Into Nepal dashboard.</p>
+
+    ${HR}
+    <p style="margin:0;font-size:13px;color:#6b7280;">— The Into Nepal Team</p>
+  `);
+
+  const text = `${data.reminder ? "12 Hours Left to Respond" : "A Traveler Is Waiting On You"}
+
+${data.travelerFirstName} has paid the reservation fee for ${data.activityTitle} and is waiting for your confirmation.
+
+Activity: ${data.activityTitle}
+Date: ${data.departureDateNpt} (Nepal time)
+Group size: ${data.participantCount}
+Respond by: ${data.deadlineNpt} (Nepal time)
+
+${data.reminder ? "If you don't respond in time, this booking is automatically cancelled and counts as a missed response.\n\n" : ""}Review & respond: ${data.actionUrl}
+
+— The Into Nepal Team`;
+
+  return { subject, html, text };
+}
+
+export function agencyBookingReminderEmail(data: {
+  activityTitle: string;
+  departureDateNpt: string;
+  participantCount: number;
+  travelerFirstName: string;
+  deadlineNpt: string;
+  actionUrl: string;
+}): EmailTemplate {
+  return agencyBookingAwaitingConfirmationEmail({ ...data, reminder: true });
+}
+
+export function bookingConfirmedTravelerEmail(data: {
+  activityTitle: string;
+  departureDateNpt: string;
+  bookingRef: string;
+  myBookingsUrl: string;
+}): EmailTemplate {
+  const activityTitle = escapeHtml(data.activityTitle);
+  const subject = `Confirmed: ${data.activityTitle}`;
+
+  const html = renderEmail(`
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">Your Booking Is Confirmed! &#127881;</h1>
+    ${alertBanner(`${data.activityTitle} is booked for ${data.departureDateNpt} (Nepal time).`, "success")}
+    ${detailsTable(row("Booking reference", escapeHtml(data.bookingRef)) + row("Date", escapeHtml(data.departureDateNpt) + " (Nepal time)"))}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 28px;">
+      <tr><td><a href="${data.myBookingsUrl}" style="${btnStyle()}">View My Bookings</a></td></tr>
+    </table>
+    ${HR}
+    <p style="margin:0;font-size:13px;color:#6b7280;">Safe travels,<br><strong style="color:#111827;">The Into Nepal Team</strong></p>
+  `);
+
+  const text = `Your Booking Is Confirmed!
+
+${data.activityTitle} is booked for ${data.departureDateNpt} (Nepal time).
+Booking reference: ${data.bookingRef}
+
+View it: ${data.myBookingsUrl}
+
+Safe travels,
+The Into Nepal Team`;
+
+  return { subject, html, text };
+}
+
+export function bookingConfirmedAgencyEmail(data: {
+  activityTitle: string;
+  departureDateNpt: string;
+  travelerFirstName: string;
+  bookingRef: string;
+  dashboardUrl: string;
+}): EmailTemplate {
+  const activityTitle = escapeHtml(data.activityTitle);
+  const travelerFirstName = escapeHtml(data.travelerFirstName);
+  const subject = `Booking confirmed: ${data.activityTitle}`;
+
+  const html = renderEmail(`
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">New Confirmed Booking</h1>
+    <p style="margin:0 0 20px;color:#374151;">${travelerFirstName}'s booking for <strong>${activityTitle}</strong> is confirmed.</p>
+    ${detailsTable(row("Booking reference", escapeHtml(data.bookingRef)) + row("Date", escapeHtml(data.departureDateNpt) + " (Nepal time)"))}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 28px;">
+      <tr><td><a href="${data.dashboardUrl}" style="${btnStyle()}">View Booking</a></td></tr>
+    </table>
+    ${HR}
+    <p style="margin:0;font-size:13px;color:#6b7280;">— The Into Nepal Team</p>
+  `);
+
+  const text = `New Confirmed Booking
+
+${data.travelerFirstName}'s booking for ${data.activityTitle} is confirmed.
+Booking reference: ${data.bookingRef}
+Date: ${data.departureDateNpt} (Nepal time)
+
+View it: ${data.dashboardUrl}
+
+— The Into Nepal Team`;
+
+  return { subject, html, text };
+}
+
+export function bookingDeclinedOrTimeoutTravelerEmail(data: {
+  activityTitle: string;
+  reason?: string;
+  timedOut: boolean;
+  alternativesUrl: string;
+}): EmailTemplate {
+  const activityTitle = escapeHtml(data.activityTitle);
+  const subject = `Update on your booking: ${data.activityTitle}`;
+  const reasonLine = data.timedOut
+    ? "The agency didn't respond in time, so we've cancelled this reservation."
+    : `The agency wasn't able to confirm this booking${data.reason ? `: "${escapeHtml(data.reason)}"` : "."}`;
+
+  const html = renderEmail(`
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">We Couldn't Confirm This Booking</h1>
+    <p style="margin:0 0 16px;color:#374151;">${reasonLine}</p>
+    ${alertBanner(`Your reservation fee for ${data.activityTitle} is being refunded in full.`, "warning")}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 28px;">
+      <tr><td><a href="${data.alternativesUrl}" style="${btnStyle()}">See Similar Activities</a></td></tr>
+    </table>
+    ${HR}
+    <p style="margin:0;font-size:13px;color:#6b7280;">Sorry for the inconvenience — we're here to help you find another great trip.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">— The Into Nepal Team</p>
+  `);
+
+  const text = `We Couldn't Confirm This Booking
+
+${reasonLine}
+
+Your reservation fee for ${data.activityTitle} is being refunded in full.
+
+See similar activities: ${data.alternativesUrl}
+
+— The Into Nepal Team`;
+
+  return { subject, html, text };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 22: cancellation / no-show / dispute lifecycle
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function bookingCancelledTravelerEmail(data: {
+  activityTitle: string;
+  cancelledBy: "traveler" | "agency" | "admin" | "system";
+  feeRefundAmount: number;
+  balanceRefundAmount: number;
+  currency: string;
+  myBookingsUrl: string;
+}): EmailTemplate {
+  const activityTitle = escapeHtml(data.activityTitle);
+  const subject = `Cancelled: ${data.activityTitle}`;
+  const byLine = data.cancelledBy === "traveler" ? "You cancelled this booking." : "This booking has been cancelled.";
+  const totalRefund = data.feeRefundAmount + data.balanceRefundAmount;
+
+  const refundLine = totalRefund > 0
+    ? `${data.currency} ${totalRefund.toFixed(2)} is being refunded.`
+    : "No refund applies to this cancellation.";
+
+  const html = renderEmail(`
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">Booking Cancelled</h1>
+    <p style="margin:0 0 16px;color:#374151;">${byLine}</p>
+    ${alertBanner(`${activityTitle}: ${refundLine}`, totalRefund > 0 ? "warning" : "danger")}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 28px;">
+      <tr><td><a href="${data.myBookingsUrl}" style="${btnStyle()}">View My Bookings</a></td></tr>
+    </table>
+    ${HR}
+    <p style="margin:0;font-size:13px;color:#6b7280;">— The Into Nepal Team</p>
+  `);
+
+  const text = `Booking Cancelled
+
+${byLine}
+${activityTitle}: ${refundLine}
+
+View it: ${data.myBookingsUrl}
+
+— The Into Nepal Team`;
+
+  return { subject, html, text };
+}
+
+export function bookingDisruptedTravelerEmail(data: {
+  activityTitle: string;
+  reasonCode: string;
+  note?: string;
+  choiceDeadlineNpt: string;
+  myBookingsUrl: string;
+}): EmailTemplate {
+  const activityTitle = escapeHtml(data.activityTitle);
+  const subject = `Action needed: ${data.activityTitle}`;
+  const reasonLabel = data.reasonCode === "conditions_weather" ? "weather" : data.reasonCode === "conditions_flight" ? "flight disruption" : "safety conditions";
+
+  const html = renderEmail(`
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">Your Trip Needs a New Plan</h1>
+    <p style="margin:0 0 16px;color:#374151;">Your operator can't run <strong>${activityTitle}</strong> as planned due to ${reasonLabel}${data.note ? `: "${escapeHtml(data.note)}"` : "."}</p>
+    ${alertBanner(`Choose a free date change or a full refund by ${data.choiceDeadlineNpt} (Nepal time).`, "warning")}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 28px;">
+      <tr><td><a href="${data.myBookingsUrl}" style="${btnStyle()}">Choose Now</a></td></tr>
+    </table>
+    ${HR}
+    <p style="margin:0;font-size:13px;color:#6b7280;">If you don't choose by the deadline, we'll refund you in full automatically.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">— The Into Nepal Team</p>
+  `);
+
+  const text = `Your Trip Needs a New Plan
+
+Your operator can't run ${activityTitle} as planned due to ${reasonLabel}.
+Choose a free date change or a full refund by ${data.choiceDeadlineNpt} (Nepal time).
+
+Choose now: ${data.myBookingsUrl}
+
+If you don't choose by the deadline, we'll refund you in full automatically.
+— The Into Nepal Team`;
+
+  return { subject, html, text };
+}
+
+export function bookingRescheduledEmail(data: {
+  activityTitle: string;
+  newDateNpt: string;
+  recipientIsAgency: boolean;
+  bookingRef: string;
+  linkUrl: string;
+}): EmailTemplate {
+  const activityTitle = escapeHtml(data.activityTitle);
+  const subject = `Rescheduled: ${data.activityTitle}`;
+  const intro = data.recipientIsAgency
+    ? "A traveler's disrupted booking has been rescheduled."
+    : "Your booking has been rescheduled to a new date, at the same price.";
+
+  const html = renderEmail(`
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">Booking Rescheduled</h1>
+    <p style="margin:0 0 16px;color:#374151;">${intro}</p>
+    ${detailsTable(row("Booking reference", escapeHtml(data.bookingRef)) + row("New date", escapeHtml(data.newDateNpt) + " (Nepal time)"))}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 28px;">
+      <tr><td><a href="${data.linkUrl}" style="${btnStyle()}">View Booking</a></td></tr>
+    </table>
+    ${HR}
+    <p style="margin:0;font-size:13px;color:#6b7280;">— The Into Nepal Team</p>
+  `);
+
+  const text = `Booking Rescheduled
+
+${intro}
+Booking reference: ${data.bookingRef}
+New date: ${data.newDateNpt} (Nepal time)
+
+View it: ${data.linkUrl}
+
+— The Into Nepal Team`;
+
+  return { subject, html, text };
+}
+
+export function bookingNoShowTravelerEmail(data: {
+  activityTitle: string;
+  disputeUrl: string;
+}): EmailTemplate {
+  const activityTitle = escapeHtml(data.activityTitle);
+  const subject = `Marked as no-show: ${data.activityTitle}`;
+
+  const html = renderEmail(`
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">You Were Marked as a No-Show</h1>
+    <p style="margin:0 0 16px;color:#374151;">The agency reported that you didn't show up for <strong>${activityTitle}</strong>. Your reservation fee is non-refundable for a no-show.</p>
+    ${alertBanner("If this is wrong, you have 48 hours to dispute it.", "danger")}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 28px;">
+      <tr><td><a href="${data.disputeUrl}" style="${btnStyle()}">This Is Wrong — Dispute It</a></td></tr>
+    </table>
+    ${HR}
+    <p style="margin:0;font-size:13px;color:#6b7280;">— The Into Nepal Team</p>
+  `);
+
+  const text = `You Were Marked as a No-Show
+
+The agency reported that you didn't show up for ${activityTitle}. Your reservation fee is non-refundable for a no-show.
+If this is wrong, you have 48 hours to dispute it.
+
+Dispute it: ${data.disputeUrl}
+
+— The Into Nepal Team`;
+
+  return { subject, html, text };
+}
+
+export function bookingDisputeOpenedAdminEmail(data: {
+  activityTitle: string;
+  kind: "no_show" | "agency_no_show";
+  bookingRef: string;
+  disputesUrl: string;
+}): EmailTemplate {
+  const activityTitle = escapeHtml(data.activityTitle);
+  const subject = `New dispute: ${data.activityTitle}`;
+  const kindLabel = data.kind === "no_show" ? "traveler disputing a no-show" : "traveler reporting the agency never showed up";
+
+  const html = renderEmail(`
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">New Dispute Opened</h1>
+    <p style="margin:0 0 16px;color:#374151;">${kindLabel} for <strong>${activityTitle}</strong> (${escapeHtml(data.bookingRef)}).</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 28px;">
+      <tr><td><a href="${data.disputesUrl}" style="${btnStyle()}">Review Dispute</a></td></tr>
+    </table>
+    ${HR}
+    <p style="margin:0;font-size:13px;color:#6b7280;">— Into Nepal Ops</p>
+  `);
+
+  const text = `New Dispute Opened
+
+${kindLabel} for ${activityTitle} (${data.bookingRef}).
+
+Review it: ${data.disputesUrl}
+
+— Into Nepal Ops`;
+
+  return { subject, html, text };
+}
+
+export function bookingCompletedTravelerEmail(data: {
+  activityTitle: string;
+  reviewUrl: string;
+}): EmailTemplate {
+  const activityTitle = escapeHtml(data.activityTitle);
+  const subject = `How was ${data.activityTitle}?`;
+
+  const html = renderEmail(`
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">Trip Complete! &#127794;</h1>
+    <p style="margin:0 0 20px;color:#374151;">We hope you had a great time on <strong>${activityTitle}</strong>. Got a minute to leave a review?</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 28px;">
+      <tr><td><a href="${data.reviewUrl}" style="${btnStyle()}">Leave a Review</a></td></tr>
+    </table>
+    ${HR}
+    <p style="margin:0;font-size:13px;color:#6b7280;">— The Into Nepal Team</p>
+  `);
+
+  const text = `Trip Complete!
+
+We hope you had a great time on ${activityTitle}. Got a minute to leave a review?
+
+Leave a review: ${data.reviewUrl}
+
+— The Into Nepal Team`;
 
   return { subject, html, text };
 }

@@ -37,6 +37,10 @@ export type Database = {
       agencies: {
         Row: {
           address: string | null
+          alert_phone_e164: string | null
+          alert_sms_opt_in: boolean
+          alert_whatsapp_opt_in: boolean
+          bookings_paused: boolean
           city: string | null
           created_at: string
           description: string
@@ -53,6 +57,10 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          alert_phone_e164?: string | null
+          alert_sms_opt_in?: boolean
+          alert_whatsapp_opt_in?: boolean
+          bookings_paused?: boolean
           city?: string | null
           created_at?: string
           description?: string
@@ -69,6 +77,10 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          alert_phone_e164?: string | null
+          alert_sms_opt_in?: boolean
+          alert_whatsapp_opt_in?: boolean
+          bookings_paused?: boolean
           city?: string | null
           created_at?: string
           description?: string
@@ -84,6 +96,79 @@ export type Database = {
           website?: string | null
         }
         Relationships: []
+      }
+      agency_blackout_periods: {
+        Row: {
+          agency_id: string
+          created_at: string
+          created_by: string | null
+          end_date: string
+          id: string
+          listing_ids: string[] | null
+          reason: string | null
+          start_date: string
+        }
+        Insert: {
+          agency_id: string
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          id?: string
+          listing_ids?: string[] | null
+          reason?: string | null
+          start_date: string
+        }
+        Update: {
+          agency_id?: string
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          listing_ids?: string[] | null
+          reason?: string | null
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_blackout_periods_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_commitments: {
+        Row: {
+          agency_id: string
+          commitment_key: string
+          committed_at: string
+          committed_by: string | null
+          id: string
+        }
+        Insert: {
+          agency_id: string
+          commitment_key: string
+          committed_at?: string
+          committed_by?: string | null
+          id?: string
+        }
+        Update: {
+          agency_id?: string
+          commitment_key?: string
+          committed_at?: string
+          committed_by?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_commitments_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       agency_documents: {
         Row: {
@@ -188,6 +273,51 @@ export type Database = {
           },
         ]
       }
+      agency_penalties: {
+        Row: {
+          agency_id: string
+          amount: number
+          booking_id: string | null
+          created_at: string
+          id: string
+          kind: string
+          status: string
+        }
+        Insert: {
+          agency_id: string
+          amount: number
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          status?: string
+        }
+        Update: {
+          agency_id?: string
+          amount?: number
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_penalties_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_penalties_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agency_status_history: {
         Row: {
           agency_id: string
@@ -222,6 +352,45 @@ export type Database = {
             columns: ["agency_id"]
             isOneToOne: false
             referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_strikes: {
+        Row: {
+          agency_id: string
+          booking_id: string | null
+          created_at: string
+          id: string
+          kind: string
+        }
+        Insert: {
+          agency_id: string
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+        }
+        Update: {
+          agency_id?: string
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_strikes_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_strikes_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
         ]
@@ -385,6 +554,135 @@ export type Database = {
           },
         ]
       }
+      booking_action_tokens: {
+        Row: {
+          booking_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          purpose: string
+          token_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          purpose: string
+          token_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          purpose?: string
+          token_hash?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_action_tokens_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_disputes: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          kind: string
+          opened_by: string
+          resolution: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          statement: string
+          status: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          opened_by: string
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          statement: string
+          status?: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          opened_by?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          statement?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_disputes_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_disruptions: {
+        Row: {
+          booking_id: string
+          choice_deadline: string
+          created_by: string | null
+          id: string
+          note: string | null
+          offered_at: string
+          reason_code: string
+          resolved_at: string | null
+          traveler_choice: string | null
+        }
+        Insert: {
+          booking_id: string
+          choice_deadline: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          offered_at?: string
+          reason_code: string
+          resolved_at?: string | null
+          traveler_choice?: string | null
+        }
+        Update: {
+          booking_id?: string
+          choice_deadline?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          offered_at?: string
+          reason_code?: string
+          resolved_at?: string | null
+          traveler_choice?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_disruptions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_guests: {
         Row: {
           booking_id: string
@@ -478,60 +776,81 @@ export type Database = {
         Row: {
           agency_balance: number
           agency_id: string
+          amount_due_now: number
           balance_payment_terms_snapshot: Json
           cancellation_policy_snapshot: Json
+          confirmation_mode: string
           created_at: string
           currency: string
           departure_id: string
+          end_at: string
           expires_at: string
+          fee_refund_rule: Json
           id: string
           inventory_reservation_id: string
           listing_id: string
+          no_show_grace_minutes: number
           participant_count: number
+          payment_requirement: string
           platform_fee: number
           platform_fee_percent: number
           pricing_version: Json
           product_value: number
+          start_at: string
           status: string
           traveler_id: string
         }
         Insert: {
           agency_balance: number
           agency_id: string
+          amount_due_now: number
           balance_payment_terms_snapshot?: Json
           cancellation_policy_snapshot: Json
+          confirmation_mode: string
           created_at?: string
           currency: string
           departure_id: string
+          end_at: string
           expires_at: string
+          fee_refund_rule: Json
           id?: string
           inventory_reservation_id: string
           listing_id: string
+          no_show_grace_minutes: number
           participant_count: number
+          payment_requirement: string
           platform_fee: number
           platform_fee_percent: number
           pricing_version?: Json
           product_value: number
+          start_at: string
           status?: string
           traveler_id: string
         }
         Update: {
           agency_balance?: number
           agency_id?: string
+          amount_due_now?: number
           balance_payment_terms_snapshot?: Json
           cancellation_policy_snapshot?: Json
+          confirmation_mode?: string
           created_at?: string
           currency?: string
           departure_id?: string
+          end_at?: string
           expires_at?: string
+          fee_refund_rule?: Json
           id?: string
           inventory_reservation_id?: string
           listing_id?: string
+          no_show_grace_minutes?: number
           participant_count?: number
+          payment_requirement?: string
           platform_fee?: number
           platform_fee_percent?: number
           pricing_version?: Json
           product_value?: number
+          start_at?: string
           status?: string
           traveler_id?: string
         }
@@ -600,18 +919,24 @@ export type Database = {
       }
       bookings: {
         Row: {
+          agency_confirm_deadline: string | null
           agency_id: string
+          agency_reminder_sent_at: string | null
           balance_method: string | null
           balance_status: string
           booking_ref: string
           booking_status: string
           cancellation_reason: string | null
+          cancellation_reason_code: string | null
           cancelled_at: string | null
+          cancelled_by: string | null
           completed_at: string | null
           created_at: string
           departure_id: string
+          fee_collection_mode: string
           id: string
           listing_id: string
+          no_show_dispute_deadline: string | null
           participant_count: number
           payment_status: string
           quote_id: string
@@ -621,18 +946,24 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          agency_confirm_deadline?: string | null
           agency_id: string
+          agency_reminder_sent_at?: string | null
           balance_method?: string | null
           balance_status?: string
           booking_ref?: string
           booking_status?: string
           cancellation_reason?: string | null
+          cancellation_reason_code?: string | null
           cancelled_at?: string | null
+          cancelled_by?: string | null
           completed_at?: string | null
           created_at?: string
           departure_id: string
+          fee_collection_mode?: string
           id?: string
           listing_id: string
+          no_show_dispute_deadline?: string | null
           participant_count: number
           payment_status?: string
           quote_id: string
@@ -642,18 +973,24 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          agency_confirm_deadline?: string | null
           agency_id?: string
+          agency_reminder_sent_at?: string | null
           balance_method?: string | null
           balance_status?: string
           booking_ref?: string
           booking_status?: string
           cancellation_reason?: string | null
+          cancellation_reason_code?: string | null
           cancelled_at?: string | null
+          cancelled_by?: string | null
           completed_at?: string | null
           created_at?: string
           departure_id?: string
+          fee_collection_mode?: string
           id?: string
           listing_id?: string
+          no_show_dispute_deadline?: string | null
           participant_count?: number
           payment_status?: string
           quote_id?: string
@@ -692,6 +1029,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      categories: {
+        Row: {
+          active: boolean
+          created_at: string
+          default_confirmation_mode: string
+          description: string
+          icon: string
+          is_multi_day_default: boolean
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          default_confirmation_mode?: string
+          description?: string
+          icon?: string
+          is_multi_day_default?: boolean
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          default_confirmation_mode?: string
+          description?: string
+          icon?: string
+          is_multi_day_default?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       contact_submissions: {
         Row: {
@@ -861,6 +1237,42 @@ export type Database = {
           },
         ]
       }
+      destinations: {
+        Row: {
+          active: boolean
+          created_at: string
+          district: string | null
+          id: string
+          name: string
+          province: string | null
+          region: string | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          district?: string | null
+          id?: string
+          name: string
+          province?: string | null
+          region?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          district?: string | null
+          id?: string
+          name?: string
+          province?: string | null
+          region?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       domain_events: {
         Row: {
           aggregate_id: string
@@ -925,7 +1337,7 @@ export type Database = {
         Row: {
           capacity_confirmed: number
           capacity_held: number
-          capacity_total: number
+          capacity_total: number | null
           created_at: string
           departure_id: string
           id: string
@@ -935,7 +1347,7 @@ export type Database = {
         Insert: {
           capacity_confirmed?: number
           capacity_held?: number
-          capacity_total: number
+          capacity_total?: number | null
           created_at?: string
           departure_id: string
           id?: string
@@ -945,7 +1357,7 @@ export type Database = {
         Update: {
           capacity_confirmed?: number
           capacity_held?: number
-          capacity_total?: number
+          capacity_total?: number | null
           created_at?: string
           departure_id?: string
           id?: string
@@ -1067,11 +1479,16 @@ export type Database = {
         Row: {
           agency_id: string
           base_price: number
+          bookings_paused: boolean
           cancellation_policy: Json
           category: string
+          confirmation_mode: string | null
           created_at: string
           currency: string
+          daily_booking_limit: number | null
+          default_start_time: string
           description: string
+          destination_id: string | null
           difficulty: string | null
           duration_days: number
           duration_label: string
@@ -1082,9 +1499,17 @@ export type Database = {
           includes: string[]
           itinerary: Json
           location: string
+          max_advance_days: number
           max_participants: number
+          min_advance_hours: number | null
+          min_participants: number
+          no_show_grace_minutes: number
+          operating_days: number[] | null
+          payment_requirement: string
           rating: number
+          restricted_area: boolean
           review_count: number
+          search_vector: unknown
           slug: string
           status: string
           title: string
@@ -1093,11 +1518,16 @@ export type Database = {
         Insert: {
           agency_id: string
           base_price: number
+          bookings_paused?: boolean
           cancellation_policy?: Json
           category: string
+          confirmation_mode?: string | null
           created_at?: string
           currency?: string
+          daily_booking_limit?: number | null
+          default_start_time?: string
           description?: string
+          destination_id?: string | null
           difficulty?: string | null
           duration_days: number
           duration_label: string
@@ -1108,9 +1538,17 @@ export type Database = {
           includes?: string[]
           itinerary?: Json
           location: string
+          max_advance_days?: number
           max_participants?: number
+          min_advance_hours?: number | null
+          min_participants?: number
+          no_show_grace_minutes?: number
+          operating_days?: number[] | null
+          payment_requirement?: string
           rating?: number
+          restricted_area?: boolean
           review_count?: number
+          search_vector?: unknown
           slug: string
           status?: string
           title: string
@@ -1119,11 +1557,16 @@ export type Database = {
         Update: {
           agency_id?: string
           base_price?: number
+          bookings_paused?: boolean
           cancellation_policy?: Json
           category?: string
+          confirmation_mode?: string | null
           created_at?: string
           currency?: string
+          daily_booking_limit?: number | null
+          default_start_time?: string
           description?: string
+          destination_id?: string | null
           difficulty?: string | null
           duration_days?: number
           duration_label?: string
@@ -1134,9 +1577,17 @@ export type Database = {
           includes?: string[]
           itinerary?: Json
           location?: string
+          max_advance_days?: number
           max_participants?: number
+          min_advance_hours?: number | null
+          min_participants?: number
+          no_show_grace_minutes?: number
+          operating_days?: number[] | null
+          payment_requirement?: string
           rating?: number
+          restricted_area?: boolean
           review_count?: number
+          search_vector?: unknown
           slug?: string
           status?: string
           title?: string
@@ -1148,6 +1599,20 @@ export type Database = {
             columns: ["agency_id"]
             isOneToOne: false
             referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listings_category_fkey"
+            columns: ["category"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["slug"]
+          },
+          {
+            foreignKeyName: "listings_destination_id_fkey"
+            columns: ["destination_id"]
+            isOneToOne: false
+            referencedRelation: "destinations"
             referencedColumns: ["id"]
           },
         ]
@@ -1314,27 +1779,122 @@ export type Database = {
           },
         ]
       }
+      payment_events: {
+        Row: {
+          amount: number
+          booking_id: string
+          created_at: string
+          currency: string
+          id: string
+          kind: string
+          provider: string
+          provider_ref: string
+          raw: Json | null
+          received_at: string
+        }
+        Insert: {
+          amount: number
+          booking_id: string
+          created_at?: string
+          currency: string
+          id?: string
+          kind: string
+          provider: string
+          provider_ref: string
+          raw?: Json | null
+          received_at?: string
+        }
+        Update: {
+          amount?: number
+          booking_id?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          kind?: string
+          provider?: string
+          provider_ref?: string
+          raw?: Json | null
+          received_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_blackout_presets: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          description: string | null
+          end_date: string
+          id: string
+          name: string
+          start_date: string
+          year: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_date: string
+          id?: string
+          name: string
+          start_date: string
+          year: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_date?: string
+          id?: string
+          name?: string
+          start_date?: string
+          year?: number
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           description: string | null
           key: string
+          max_value: number | null
+          min_value: number | null
+          sensitivity: string
           updated_at: string
           updated_by: string | null
           value: Json
+          value_type: string
         }
         Insert: {
           description?: string | null
           key: string
+          max_value?: number | null
+          min_value?: number | null
+          sensitivity?: string
           updated_at?: string
           updated_by?: string | null
           value: Json
+          value_type: string
         }
         Update: {
           description?: string | null
           key?: string
+          max_value?: number | null
+          min_value?: number | null
+          sensitivity?: string
           updated_at?: string
           updated_by?: string | null
           value?: Json
+          value_type?: string
         }
         Relationships: []
       }
@@ -1508,6 +2068,59 @@ export type Database = {
         }
         Relationships: []
       }
+      refund_records: {
+        Row: {
+          amount: number
+          booking_id: string
+          created_at: string
+          currency: string
+          due_by: string | null
+          id: string
+          kind: string
+          payer_side: string
+          provider_ref: string | null
+          reason_code: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          booking_id: string
+          created_at?: string
+          currency: string
+          due_by?: string | null
+          id?: string
+          kind: string
+          payer_side: string
+          provider_ref?: string | null
+          reason_code: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          booking_id?: string
+          created_at?: string
+          currency?: string
+          due_by?: string | null
+          id?: string
+          kind?: string
+          payer_side?: string
+          provider_ref?: string | null
+          reason_code?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refund_records_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       review_photos: {
         Row: {
           created_at: string
@@ -1660,6 +2273,42 @@ export type Database = {
           },
         ]
       }
+      season_templates: {
+        Row: {
+          active: boolean
+          created_at: string
+          end_mmdd: string
+          id: string
+          label: string
+          sort_order: number
+          start_mmdd: string
+          suggested_multiplier: number | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          end_mmdd: string
+          id?: string
+          label: string
+          sort_order?: number
+          start_mmdd: string
+          suggested_multiplier?: number | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          end_mmdd?: string
+          id?: string
+          label?: string
+          sort_order?: number
+          start_mmdd?: string
+          suggested_multiplier?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       seasonal_pricing: {
         Row: {
           created_at: string
@@ -1700,6 +2349,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      site_content: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
       }
       welcome_emails: {
         Row: {
@@ -1754,8 +2424,28 @@ export type Database = {
         Args: { p_conversation_id: string; p_user_id: string }
         Returns: undefined
       }
+      admin_audit_entity_types: { Args: never; Returns: string[] }
+      admin_booking_timeline: {
+        Args: { p_booking_id: string }
+        Returns: {
+          event_type: string
+          metadata: Json
+          occurred_at: string
+          source: string
+          summary: string
+        }[]
+      }
       admin_reinstate_agency: {
         Args: { p_agency_id: string; p_request_id?: string }
+        Returns: undefined
+      }
+      admin_resolve_dispute: {
+        Args: {
+          p_dispute_id: string
+          p_fee_refund_percent?: number
+          p_note?: string
+          p_resolution: string
+        }
         Returns: undefined
       }
       admin_suspend_agency: {
@@ -1792,7 +2482,23 @@ export type Database = {
           travelers: number
         }[]
       }
+      agency_cancel_booking: {
+        Args: { p_booking_id: string; p_reason?: string; p_reason_code: string }
+        Returns: undefined
+      }
+      agency_close_date: {
+        Args: { p_date: string; p_listing_id: string; p_reason?: string }
+        Returns: string
+      }
       agency_is_active: { Args: { target_agency_id: string }; Returns: boolean }
+      agency_mark_no_show: {
+        Args: { p_booking_id: string; p_note?: string }
+        Returns: undefined
+      }
+      agency_respond_to_booking: {
+        Args: { p_accept: boolean; p_booking_id: string; p_reason?: string }
+        Returns: undefined
+      }
       agency_set_trip_status: {
         Args: { p_booking_id: string; p_status: string }
         Returns: undefined
@@ -1808,6 +2514,10 @@ export type Database = {
           membership_id: string
           user_id: string
         }[]
+      }
+      apply_blackout_preset: {
+        Args: { p_listing_ids?: string[]; p_preset_id: string }
+        Returns: string
       }
       assert_valid_transition: {
         Args: {
@@ -1825,6 +2535,30 @@ export type Database = {
           executable_by: string[]
           function_name: string
         }[]
+      }
+      booking_policy_summary: {
+        Args: { p_booking_id: string }
+        Returns: string[]
+      }
+      booking_summary_for_token: {
+        Args: { p_token: string }
+        Returns: {
+          activity_title: string
+          agency_confirm_deadline: string
+          departure_date: string
+          participant_count: number
+          traveler_first_name: string
+        }[]
+      }
+      cancel_booking_internal: {
+        Args: {
+          p_balance_refund_percent: number
+          p_booking_id: string
+          p_cancelled_by: string
+          p_fee_refund_percent: number
+          p_reason_code: string
+        }
+        Returns: undefined
       }
       capacity_available: {
         Args: { inv: Database["public"]["Tables"]["inventory"]["Row"] }
@@ -1878,6 +2612,25 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      complete_finished_bookings: { Args: never; Returns: number }
+      compute_cancellation_refund_internal: {
+        Args: { p_booking_id: string }
+        Returns: {
+          balance_refund_percent: number
+          explanation: string
+          fee_refund_percent: number
+          free_until: string
+        }[]
+      }
+      compute_traveler_cancellation: {
+        Args: { p_booking_id: string }
+        Returns: {
+          balance_refund_percent: number
+          explanation: string
+          fee_refund_percent: number
+          free_until: string
+        }[]
+      }
       confirm_reservation: {
         Args: { p_booking_id: string; p_reservation_id: string }
         Returns: undefined
@@ -1888,6 +2641,26 @@ export type Database = {
           display_name: string
           participant_role: string
           user_id: string
+        }[]
+      }
+      create_booking_hold: {
+        Args: {
+          p_date: string
+          p_listing_id: string
+          p_pax: number
+          p_primary_guest: Json
+        }
+        Returns: {
+          agency_balance: number
+          amount_due_now: number
+          booking_id: string
+          booking_ref: string
+          confirmation_mode: string
+          currency: string
+          hold_expires_at: string
+          payment_requirement: string
+          platform_fee: number
+          product_value: number
         }[]
       }
       cron_health: {
@@ -1906,12 +2679,57 @@ export type Database = {
       current_platform_role: { Args: never; Returns: string }
       current_platform_role_unverified: { Args: never; Returns: string }
       delete_my_account: { Args: { p_request_id?: string }; Returns: undefined }
+      ensure_departure: {
+        Args: { p_date: string; p_listing_id: string }
+        Returns: string
+      }
+      expire_agency_confirmations: { Args: never; Returns: number }
+      expire_disruption_choices: { Args: never; Returns: number }
+      expire_stale_booking_holds: { Args: never; Returns: number }
       expire_stale_quotes: { Args: never; Returns: number }
       expire_stale_reservations: { Args: never; Returns: number }
       finalize_domain_event: {
         Args: { p_domain_event_id: string }
         Returns: undefined
       }
+      format_policy_sentences: {
+        Args: {
+          p_cancellation_policy: Json
+          p_free_cancel_hours: number
+          p_no_show_grace_minutes: number
+          p_payment_requirement: string
+          p_start_at: string
+        }
+        Returns: string[]
+      }
+      get_bookable_dates: {
+        Args: {
+          p_from: string
+          p_listing_id: string
+          p_now?: string
+          p_pax?: number
+          p_to: string
+        }
+        Returns: {
+          day: string
+          reason: string
+          status: string
+        }[]
+      }
+      get_booking_hold_status: {
+        Args: { p_booking_id: string }
+        Returns: {
+          agency_balance: number
+          amount_due_now: number
+          booking_status: string
+          currency: string
+          hold_expires_at: string
+          platform_fee: number
+          product_value: number
+          seconds_remaining: number
+        }[]
+      }
+      get_setting_numeric: { Args: { p_key: string }; Returns: number }
       has_agency_access: {
         Args: { min_role?: string; target_agency_id: string }
         Returns: boolean
@@ -1928,6 +2746,7 @@ export type Database = {
         }
         Returns: string
       }
+      home_sections: { Args: never; Returns: Json }
       is_admin: { Args: never; Returns: boolean }
       is_agency_publicly_approved: {
         Args: { target_agency_id: string }
@@ -1938,11 +2757,46 @@ export type Database = {
         Args: { target_conversation_id: string }
         Returns: boolean
       }
+      is_date_bookable: {
+        Args: {
+          p_date: string
+          p_listing_id: string
+          p_now?: string
+          p_pax?: number
+        }
+        Returns: string
+      }
       is_finance_or_admin: { Args: never; Returns: boolean }
       is_own_review: { Args: { p_review_id: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       is_support_or_admin: { Args: never; Returns: boolean }
+      listing_policy_preview: {
+        Args: { p_date: string; p_listing_id: string; p_pax?: number }
+        Returns: string[]
+      }
       lookup_user_id_by_email: { Args: { p_email: string }; Returns: string }
+      mark_reservation_fee_paid: {
+        Args: {
+          p_amount: number
+          p_booking_id: string
+          p_currency: string
+          p_provider: string
+          p_provider_ref: string
+        }
+        Returns: string
+      }
+      price_preview: {
+        Args: { p_date: string; p_listing_id: string; p_pax?: number }
+        Returns: {
+          amount_due_now: number
+          balance: number
+          currency: string
+          payment_requirement: string
+          product_value: number
+          reservation_fee: number
+          unit_price: number
+        }[]
+      }
       record_audit_log: {
         Args: {
           p_action: string
@@ -1957,6 +2811,10 @@ export type Database = {
       }
       record_booking_event: {
         Args: { p_booking_id: string; p_event_type: string; p_metadata?: Json }
+        Returns: undefined
+      }
+      release_booking_hold: {
+        Args: { p_booking_id: string }
         Returns: undefined
       }
       release_reservation: {
@@ -1981,12 +2839,35 @@ export type Database = {
         Args: { p_booking_id: string; p_reason: string }
         Returns: undefined
       }
+      resolve_unit_price: {
+        Args: { p_date: string; p_listing_id: string }
+        Returns: number
+      }
       respond_to_review: {
         Args: { p_review_id: string; p_text: string }
         Returns: undefined
       }
+      respond_via_token: {
+        Args: { p_accept: boolean; p_reason?: string; p_token: string }
+        Returns: undefined
+      }
       revoke_user_sessions: { Args: { p_user_id: string }; Returns: undefined }
       save_agency_draft: { Args: { p_fields: Json }; Returns: string }
+      search_listings: {
+        Args: {
+          p_category?: string
+          p_difficulties?: string[]
+          p_duration_range?: string
+          p_limit?: number
+          p_location?: string
+          p_offset?: number
+          p_price_max?: number
+          p_price_min?: number
+          p_query?: string
+          p_sort?: string
+        }
+        Returns: Json
+      }
       set_departure_capacity: {
         Args: { p_capacity_total: number; p_departure_id: string }
         Returns: undefined
@@ -2003,6 +2884,39 @@ export type Database = {
         Returns: string
       }
       submit_agency_application: { Args: never; Returns: string }
+      suggest_alternatives: {
+        Args: { p_booking_id: string }
+        Returns: {
+          agency_id: string
+          agency_name: string
+          base_price: number
+          images: Json
+          listing_id: string
+          rating: number
+          review_count: number
+          title: string
+        }[]
+      }
+      traveler_cancel_booking: {
+        Args: { p_booking_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      traveler_choose_refund: {
+        Args: { p_booking_id: string }
+        Returns: undefined
+      }
+      traveler_dispute_no_show: {
+        Args: { p_booking_id: string; p_statement: string }
+        Returns: undefined
+      }
+      traveler_report_agency_no_show: {
+        Args: { p_booking_id: string; p_statement: string }
+        Returns: undefined
+      }
+      traveler_reschedule: {
+        Args: { p_booking_id: string; p_new_date: string }
+        Returns: undefined
+      }
       trigger_dispatch_notifications: { Args: never; Returns: undefined }
     }
     Enums: {

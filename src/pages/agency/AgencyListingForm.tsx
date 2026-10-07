@@ -19,10 +19,9 @@ import { useListingsStore } from "@/stores/listingsStore";
 import { useAuthStore } from "@/stores/authStore";
 import type { ListingStatus } from "@/stores/listingsStore";
 import { listingFormSchema, type ListingFormData } from "@/lib/validations";
-
-const categories = ["Trekking", "Adventure", "Cultural", "Wildlife", "Rafting", "Mountaineering", "Wellness", "Photography"];
-const difficulties = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
-const locations = ["Kathmandu", "Pokhara", "Solukhumbu", "Annapurna Region", "Chitwan", "Langtang", "Mustang", "Sindhupalchok"];
+import { useCategories } from "@/hooks/useCategories";
+import { useDestinations } from "@/hooks/useDestinations";
+import { DIFFICULTIES as difficulties } from "@/lib/catalog";
 
 const INCLUDE_PRESETS = [
   "Accommodation", "Breakfast", "Lunch", "Dinner", "Meals",
@@ -54,6 +53,12 @@ export default function AgencyListingForm() {
 
   const { createListing, updateListing, uploadListingImage, fetchMyListings, myListings } = useListingsStore();
   const { user } = useAuthStore();
+
+  // activeOnly: false — editing a listing whose category/location was since
+  // deactivated must still show its current value; the filter below hides
+  // inactive options from NEW selection while keeping the current one visible.
+  const { data: allCategories = [] } = useCategories({ activeOnly: false });
+  const { data: allDestinations = [] } = useDestinations({ activeOnly: false });
 
   const [itinerary, setItinerary] = useState<ItineraryDay[]>([]);
   const [newInclude, setNewInclude] = useState("");
@@ -308,12 +313,19 @@ export default function AgencyListingForm() {
                 <Controller
                   name="category"
                   control={control}
-                  render={({ field }) => (
-                    <Select value={field.value ?? ""} onValueChange={field.onChange} disabled={isLoading}>
-                      <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                      <SelectContent>{categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                    </Select>
-                  )}
+                  render={({ field }) => {
+                    const visible = allCategories.filter((c) => c.active || c.slug === field.value);
+                    return (
+                      <Select value={field.value ?? ""} onValueChange={field.onChange} disabled={isLoading}>
+                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                        <SelectContent>
+                          {visible.map((c) => (
+                            <SelectItem key={c.slug} value={c.slug}>{c.icon} {c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  }}
                 />
                 {errors.category && <p className="text-xs text-destructive">{errors.category.message}</p>}
               </div>
@@ -322,12 +334,19 @@ export default function AgencyListingForm() {
                 <Controller
                   name="location"
                   control={control}
-                  render={({ field }) => (
-                    <Select value={field.value ?? ""} onValueChange={field.onChange} disabled={isLoading}>
-                      <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
-                      <SelectContent>{locations.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
-                    </Select>
-                  )}
+                  render={({ field }) => {
+                    const visible = allDestinations.filter((d) => d.active || d.name === field.value);
+                    return (
+                      <Select value={field.value ?? ""} onValueChange={field.onChange} disabled={isLoading}>
+                        <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
+                        <SelectContent>
+                          {visible.map((d) => (
+                            <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  }}
                 />
                 {errors.location && <p className="text-xs text-destructive">{errors.location.message}</p>}
               </div>

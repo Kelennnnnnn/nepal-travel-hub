@@ -5,7 +5,7 @@ import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 const LAST_UPDATED = "April 9, 2026";
 
 export default function CookiePolicy() {
-  const { platformName, supportEmail } = usePlatformSettings();
+  const { platform_name: platformName, support_email: supportEmail } = usePlatformSettings();
   return (
     <Layout>
       <SEO title="Cookie Policy" description={`Learn how ${platformName} uses cookies and similar technologies to operate and improve the marketplace.`} />

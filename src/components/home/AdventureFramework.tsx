@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { ListingDifficulty } from "@/stores/listingsStore";
-import type { PublishedListingRow } from "@/lib/queries";
+import type { HomeSections } from "@/hooks/useHomeSections";
 
 interface Level {
   levels: string;
@@ -41,10 +41,10 @@ const LEVELS: Level[] = [
 ];
 
 interface AdventureFrameworkProps {
-  listings: PublishedListingRow[];
+  difficultyCounts: HomeSections["difficulty_counts"];
 }
 
-export function AdventureFramework({ listings }: AdventureFrameworkProps) {
+export function AdventureFramework({ difficultyCounts }: AdventureFrameworkProps) {
   return (
     <section className="py-16 md:py-20 bg-muted/30">
       <div className="container mx-auto px-4">
@@ -71,8 +71,8 @@ export function AdventureFramework({ listings }: AdventureFrameworkProps) {
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {LEVELS.map((level) => {
-            const matches = listings.filter((l) => level.difficulties.includes(l.difficulty));
-            const example = matches[0];
+            const count = level.difficulties.reduce((sum, d) => sum + (difficultyCounts[d]?.count ?? 0), 0);
+            const example = level.difficulties.map((d) => difficultyCounts[d]?.example_location).find(Boolean);
             return (
               <Link
                 key={level.levels}
@@ -88,10 +88,10 @@ export function AdventureFramework({ listings }: AdventureFrameworkProps) {
                 <h3 className="font-bold text-lg mb-2">{level.title}</h3>
                 <p className="text-sm text-muted-foreground mb-4 flex-1">{level.description}</p>
                 <div className="text-xs text-muted-foreground border-t border-border pt-3">
-                  {matches.length > 0 ? (
+                  {count > 0 ? (
                     <>
-                      {matches.length} {matches.length === 1 ? "expedition" : "expeditions"} available
-                      {example ? <span className="block truncate mt-0.5 font-medium text-foreground/80">{example.location}</span> : null}
+                      {count} {count === 1 ? "expedition" : "expeditions"} available
+                      {example ? <span className="block truncate mt-0.5 font-medium text-foreground/80">{example}</span> : null}
                     </>
                   ) : (
                     "View eligible expeditions"

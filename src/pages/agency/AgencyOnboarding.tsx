@@ -23,6 +23,9 @@ import { useAgencyStore, type AgencyDocumentType } from "@/stores/agencyStore";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "sonner";
 import { onboardingSchema, type OnboardingFormData } from "@/lib/validations";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import { supabase } from "@/lib/supabase";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const STEPS = [
   { id: 1, title: "Company Details", icon: Building2 },
@@ -57,6 +60,27 @@ export default function AgencyOnboarding() {
   const [agencyId, setAgencyId] = useState<string | null>(null);
   const [files, setFiles] = useState({ licenseFile: "", panFile: "", insuranceFile: "" });
   const [uploading, setUploading] = useState({ licenseFile: false, panFile: false, insuranceFile: false });
+  const { commitments: commitmentDefs } = useSiteContent("community_impact", {
+    heading: "", body: "",
+    commitments: [] as { key: string; title: string; description: string }[],
+  });
+  const [committedKeys, setCommittedKeys] = useState<Set<string>>(new Set());
+
+  const toggleCommitment = async (key: string, checked: boolean) => {
+    if (!agencyId) return;
+    setCommittedKeys((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(key); else next.delete(key);
+      return next;
+    });
+    if (checked) {
+      const { error } = await supabase.from("agency_commitments").insert({ agency_id: agencyId, commitment_key: key });
+      if (error) toast.error("Could not save that commitment — please try again.");
+    } else {
+      const { error } = await supabase.from("agency_commitments").delete().eq("agency_id", agencyId).eq("commitment_key", key);
+      if (error) toast.error("Could not update that commitment — please try again.");
+    }
+  };
 
   const {
     register,
@@ -222,7 +246,7 @@ export default function AgencyOnboarding() {
                       </div>
                       <div>
                         <Label>Phone Number *</Label>
-                        <Input placeholder="+977-1-XXXXXXX" {...register("phone")} />
+                        <Input placeholder="+977-1-4123456" {...register("phone")} />
                         {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone.message}</p>}
                       </div>
                     </div>
@@ -268,7 +292,7 @@ export default function AgencyOnboarding() {
                       </div>
                       <div>
                         <Label>Contact Phone *</Label>
-                        <Input placeholder="+977-98XXXXXXXX" {...register("ownerPhone")} />
+                        <Input placeholder="+977-9812345678" {...register("ownerPhone")} />
                         {errors.ownerPhone && <p className="text-xs text-destructive mt-1">{errors.ownerPhone.message}</p>}
                       </div>
                     </div>
@@ -374,6 +398,29 @@ export default function AgencyOnboarding() {
                         </div>
                       </div>
                     </div>
+                    {commitmentDefs.length > 0 && (
+                      <div className="p-4 bg-muted/50 rounded-xl space-y-3">
+                        <h3 className="font-semibold flex items-center gap-2"><Shield className="h-4 w-4 text-primary" />Partner Commitments (optional)</h3>
+                        <p className="text-xs text-muted-foreground">
+                          These are standards you choose to commit to — not requirements. Committing shows a matching badge on your public profile.
+                        </p>
+                        <div className="space-y-3">
+                          {commitmentDefs.map((c) => (
+                            <label key={c.key} className="flex items-start gap-3 cursor-pointer">
+                              <Checkbox
+                                checked={committedKeys.has(c.key)}
+                                onCheckedChange={(checked) => toggleCommitment(c.key, checked === true)}
+                                disabled={!agencyId}
+                              />
+                              <div className="text-sm">
+                                <p className="font-medium">{c.title}</p>
+                                <p className="text-muted-foreground">{c.description}</p>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-start gap-3 p-4 bg-primary/5 border border-primary/20 rounded-xl">
                       <Shield className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
                       <div className="text-sm">

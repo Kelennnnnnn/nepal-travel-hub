@@ -192,10 +192,118 @@ tables:
     row: { id: "5ec50000-0000-0000-0000-000000000001" }
     select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
     insert_values: { listing_id: "'5ec40000-0000-0000-0000-000000000001'", agency_id: "'5ec00000-0000-0000-0000-00000000000a'", departure_date: "current_date + 200" }
-    insert: [OA, MA, admin, super_admin]
+    insert: [admin, super_admin]   # Phase 19: departures are system-managed now (ensure_departure() only) — agencies lost the direct INSERT grant entirely.
     update: { set: "status = 'closed'" }
-    update_allow: [OA, MA, admin, super_admin]
+    update_allow: [admin, super_admin]   # Phase 19: no more staff UPDATE policy either — departures_staff_select is read-only.
     delete: []   # guard_departure_delete + dependent booking fixture row makes a live delete probe unreliable; covered by H7's exploit test instead.
+
+  agency_blackout_periods:
+    row: { id: "5ee20000-0000-0000-0000-000000000001" }
+    select: [OA, MA, SA, admin, super_admin]
+    insert_values: { agency_id: "'5ec00000-0000-0000-0000-00000000000a'", start_date: "current_date + 250", end_date: "current_date + 251", reason: "'Probe blackout'" }
+    insert: [OA, MA, admin, super_admin]
+    update: { set: "reason = 'Updated reason'" }
+    update_allow: [OA, MA, admin, super_admin]
+    delete: [OA, MA, admin, super_admin]
+
+  platform_blackout_presets:
+    row: { id: "5ee30000-0000-0000-0000-000000000001" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { name: "'Probe Preset'", start_date: "current_date + 260", end_date: "current_date + 261", year: "2026" }
+    insert: [admin, super_admin]
+    update: { set: "description = 'Updated'" }
+    update_allow: [admin, super_admin]
+    delete: [admin, super_admin]
+
+  categories:
+    row: { id_column: "slug", id: "Wellness" }   # not referenced by any fixture listing -- safe for the delete probe (the FK from listings.category would otherwise block it)
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { slug: "'ProbeCategory'", name: "'Probe Category'" }
+    insert: [admin, super_admin]
+    update: { set: "description = 'Updated'" }
+    update_allow: [admin, super_admin]
+    delete: [admin, super_admin]
+
+  destinations:
+    row: { id: "5eeb0000-0000-0000-0000-000000000001" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { name: "'Probe Destination'" }
+    insert: [admin, super_admin]
+    update: { set: "active = false" }
+    update_allow: [admin, super_admin]
+    delete: [admin, super_admin]
+
+  site_content:
+    row: { id_column: "key", id: "home_hero" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { key: "'probe_key'", value: "'{}'::jsonb" }
+    insert: [admin, super_admin]
+    update: { set: "value = '{\"heading\": \"Updated\"}'::jsonb" }
+    update_allow: [admin, super_admin]
+    delete: [admin, super_admin]
+
+  payment_events:
+    row: { id: "5ee40000-0000-0000-0000-000000000001" }
+    select: [admin, super_admin, finance]
+    insert_values: { booking_id: "'5ec90000-0000-0000-0000-000000000001'", provider: "'probe_provider'", provider_ref: "'probe-ref'", kind: "'reservation_fee'", amount: "100.00", currency: "'NPR'" }
+    insert: []
+    update: { set: "raw = '{}'::jsonb" }
+    update_allow: []
+    delete: []
+
+  refund_records:
+    row: { id: "5ee50000-0000-0000-0000-000000000001" }
+    select: [T1, OA, MA, SA, admin, super_admin, finance]
+    insert_values: { booking_id: "'5ec90000-0000-0000-0000-000000000001'", kind: "'reservation_fee'", payer_side: "'platform'", amount: "100.00", currency: "'NPR'", reason_code: "'probe_reason'" }
+    insert: []
+    update: { set: "status = 'processing'" }
+    update_allow: []
+    delete: []
+
+  agency_penalties:
+    row: { id: "5ee80000-0000-0000-0000-000000000001" }
+    select: [OA, MA, SA, admin, super_admin]
+    insert_values: { agency_id: "'5ec00000-0000-0000-0000-00000000000a'", booking_id: "'5ec90000-0000-0000-0000-000000000001'", kind: "'no_response'", amount: "15.00" }
+    insert: [admin, super_admin]
+    update: { set: "amount = 20.00" }
+    update_allow: [admin, super_admin]
+    delete: [admin, super_admin]
+
+  booking_disruptions:
+    row: { id: "5ee90000-0000-0000-0000-000000000001" }
+    select: [T1, OA, MA, SA, admin, super_admin]
+    insert_values: { booking_id: "'5ec90000-0000-0000-0000-000000000001'", reason_code: "'conditions_weather'", choice_deadline: "now() + interval '1 day'" }
+    insert: [admin, super_admin]
+    update: { set: "note = 'probe'" }
+    update_allow: [admin, super_admin]
+    delete: [admin, super_admin]
+
+  booking_disputes:
+    row: { id: "5eea0000-0000-0000-0000-000000000001" }
+    select: [T1, OA, MA, SA, admin, super_admin, support]
+    insert_values: { booking_id: "'5ec90000-0000-0000-0000-000000000001'", opened_by: "'5ec10000-0000-0000-0000-000000000001'", kind: "'no_show'", statement: "'Probe statement long enough to pass validation.'" }
+    insert: [admin, super_admin]
+    update: { set: "status = 'resolved'" }
+    update_allow: [admin, super_admin]
+    delete: [admin, super_admin]
+
+  agency_strikes:
+    row: { id: "5ee60000-0000-0000-0000-000000000001" }
+    select: [OA, MA, SA, admin, super_admin]
+    insert_values: { agency_id: "'5ec00000-0000-0000-0000-00000000000a'", booking_id: "'5ec90000-0000-0000-0000-000000000001'", kind: "'no_response'" }
+    insert: [admin, super_admin]
+    update: { set: "kind = 'no_response'" }
+    update_allow: [admin, super_admin]
+    delete: [admin, super_admin]
+
+  booking_action_tokens:
+    row: { id: "5ee70000-0000-0000-0000-000000000001" }
+    select: []
+    insert_values: { booking_id: "'5ec90000-0000-0000-0000-000000000001'", token_hash: "'probe-token-hash'", purpose: "'agency_accept_decline'", expires_at: "now() + interval '1 day'" }
+    insert: []
+    update: { set: "used_at = now()" }
+    update_allow: []
+    delete: []
 
   domain_events:
     row: { id: "5edc0000-0000-0000-0000-000000000001" }
@@ -290,10 +398,10 @@ tables:
   platform_settings:
     row: { id_column: "key", id: "sec_fixture_setting" }
     select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
-    insert_values: { key: "'probe_setting'", value: "'1'::jsonb" }
+    insert_values: { key: "'probe_setting'", value: "'1'::jsonb", value_type: "'number'" }
     insert: []
     update: { set: "description = 'probe'" }
-    update_allow: [admin, super_admin]   # platform_settings_admin_write: is_admin() -- true for both admin and super_admin.
+    update_allow: [admin, super_admin]   # platform_settings_admin_write: sensitivity='normal' for this fixture row -- is_admin() true for both admin and super_admin.
     delete: []
 
   platform_settings_history:
@@ -368,6 +476,24 @@ tables:
     update_allow: [T1, admin, super_admin]
     delete: [super_admin]   # reviews_admin_delete uses is_super_admin() specifically, not is_admin() -- a plain admin cannot hard-delete a review.
 
+  season_templates:
+    row: { id: "5eec0000-0000-0000-0000-000000000001" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { label: "'Probe Season'", start_mmdd: "'01-01'", end_mmdd: "'01-31'" }
+    insert: [admin, super_admin]
+    update: { set: "active = false" }
+    update_allow: [admin, super_admin]
+    delete: [admin, super_admin]
+
+  agency_commitments:
+    row: { id: "5eed0000-0000-0000-0000-000000000001" }
+    select: [anon, T1, T2, OA, MA, SA, OB, OS, admin, admin_aal1, super_admin, support, finance]
+    insert_values: { agency_id: "'5ec00000-0000-0000-0000-00000000000a'", commitment_key: "'probe_commitment'" }
+    insert: [OA, MA, admin, super_admin]
+    update: { set: "commitment_key = 'probe_commitment_2'" }
+    update_allow: [OA, MA, admin, super_admin]
+    delete: [OA, MA, admin, super_admin]
+
   seasonal_pricing:
     row: { id: "5edb0000-0000-0000-0000-000000000001" }
     select: [OA, MA, admin, super_admin]
@@ -407,35 +533,60 @@ tables:
 # ============================================================================
 functions:
   add_agency_member_to_conversation(p_conversation_id uuid, p_user_id uuid): { security_definer: true,  execute: [authenticated] }
+  admin_booking_timeline(p_booking_id uuid): { security_definer: true,  execute: [authenticated] }
   admin_reinstate_agency(p_agency_id uuid, p_request_id text): { security_definer: true,  execute: [authenticated] }
   admin_suspend_agency(p_agency_id uuid, p_reason text, p_request_id text): { security_definer: true,  execute: [authenticated] }
   admin_user_directory(p_search text, p_role text, p_limit integer, p_offset integer): { security_definer: true,  execute: [authenticated] }
+  admin_resolve_dispute(p_dispute_id uuid, p_resolution text, p_fee_refund_percent numeric, p_note text): { security_definer: true,  execute: [authenticated] }
+  admin_audit_entity_types(): { security_definer: true,  execute: [authenticated] }
   admin_user_stats(): { security_definer: true,  execute: [authenticated] }
+  agency_cancel_booking(p_booking_id uuid, p_reason_code text, p_reason text): { security_definer: true,  execute: [authenticated] }
+  agency_close_date(p_listing_id uuid, p_date date, p_reason text): { security_definer: true,  execute: [authenticated] }
   agency_is_active(target_agency_id uuid): { security_definer: true,  execute: [anon, authenticated] }
+  agency_mark_no_show(p_booking_id uuid, p_note text): { security_definer: true,  execute: [authenticated] }
+  agency_respond_to_booking(p_booking_id uuid, p_accept boolean, p_reason text): { security_definer: true,  execute: [authenticated] }
   agency_set_trip_status(p_booking_id uuid, p_status text): { security_definer: true,  execute: [authenticated] }
   agency_team_roster(p_agency_id uuid): { security_definer: true,  execute: [authenticated] }
+  apply_blackout_preset(p_preset_id uuid, p_listing_ids uuid[]): { security_definer: true,  execute: [authenticated] }
   assert_valid_transition(p_column text, p_old text, p_new text, p_allowed jsonb): { security_definer: false, execute: [anon, authenticated] }
   audit_definer_exposure(): { security_definer: false, execute: [] }
   audit_financial_change(): { security_definer: true,  execute: [anon, authenticated] }
+  booking_policy_summary(p_booking_id uuid): { security_definer: true,  execute: [authenticated] }
+  booking_summary_for_token(p_token text): { security_definer: true,  execute: [anon, authenticated] }
+  cancel_booking_internal(p_booking_id uuid, p_cancelled_by text, p_reason_code text, p_fee_refund_percent numeric, p_balance_refund_percent numeric): { security_definer: true,  execute: [], no_service_role: true }   # internal only, same pattern as ensure_departure()
   capacity_available(inv inventory): { security_definer: false, execute: [anon, authenticated] }
   change_agency_member_role(p_agency_id uuid, p_user_id uuid, p_role text): { security_definer: true,  execute: [authenticated] }
   check_ops_daily_health(): { security_definer: true,  execute: [] }
   claim_domain_events(p_limit integer): { security_definer: true,  execute: [] }
   claim_pending_notifications(p_limit integer): { security_definer: true,  execute: [] }
+  complete_finished_bookings(): { security_definer: true,  execute: [], no_service_role: true }   # pg_cron-only, every 15 minutes
+  compute_cancellation_refund_internal(p_booking_id uuid): { security_definer: true,  execute: [], no_service_role: true }   # internal only, same pattern as ensure_departure()
+  compute_traveler_cancellation(p_booking_id uuid): { security_definer: true,  execute: [authenticated] }
   confirm_reservation(p_reservation_id uuid, p_booking_id uuid): { security_definer: true,  execute: [] }
   conversation_display_names(p_conversation_id uuid): { security_definer: true,  execute: [authenticated] }
+  create_booking_hold(p_listing_id uuid, p_date date, p_pax integer, p_primary_guest jsonb): { security_definer: true,  execute: [authenticated] }
   cron_health(): { security_definer: true,  execute: [authenticated] }
   current_platform_role(): { security_definer: true,  execute: [anon, authenticated] }
   current_platform_role_unverified(): { security_definer: false, execute: [anon, authenticated] }
   delete_my_account(p_request_id text): { security_definer: true,  execute: [authenticated] }
   emit_new_message_domain_event(): { security_definer: true,  execute: [anon, authenticated] }
   enforce_message_rate_limit(): { security_definer: true,  execute: [] }
-  expire_stale_quotes(): { security_definer: true,  execute: [], no_service_role: true }   # pg_cron-only: invoked directly as the scheduling superuser, never granted to service_role
+  ensure_departure(p_listing_id uuid, p_date date): { security_definer: true,  execute: [], no_service_role: true }   # internal only: reached by another SECURITY DEFINER function's owner privilege, never granted to anon/authenticated/service_role
+  expire_agency_confirmations(): { security_definer: true,  execute: [], no_service_role: true }   # pg_cron-only, every 5 minutes
+  expire_stale_booking_holds(): { security_definer: true,  execute: [], no_service_role: true }   # pg_cron-only, replaces expire-stale-inventory-reservations/expire-stale-booking-quotes as the single scheduled job
+  expire_stale_quotes(): { security_definer: true,  execute: [], no_service_role: true }   # no longer independently scheduled (Phase 20) — called internally by expire_stale_booking_holds() via owner privilege; function itself unchanged
+  expire_disruption_choices(): { security_definer: true,  execute: [], no_service_role: true }   # pg_cron-only, every 15 minutes
   expire_stale_reservations(): { security_definer: true,  execute: [], no_service_role: true }
   finalize_domain_event(p_domain_event_id uuid): { security_definer: true,  execute: [] }
+  format_policy_sentences(p_free_cancel_hours integer, p_start_at timestamp with time zone, p_no_show_grace_minutes integer, p_payment_requirement text, p_cancellation_policy jsonb): { security_definer: false, execute: [], no_service_role: true }   # internal only, same pattern as ensure_departure()
+  get_bookable_dates(p_listing_id uuid, p_from date, p_to date, p_pax integer, p_now timestamp with time zone): { security_definer: true,  execute: [anon, authenticated] }
+  get_booking_hold_status(p_booking_id uuid): { security_definer: true,  execute: [authenticated] }
+  get_setting_numeric(p_key text): { security_definer: true,  execute: [], no_service_role: true }   # internal only, same pattern as ensure_departure()
+  guard_agency_commitment_insert(): { security_definer: true,  execute: [anon, authenticated] }
   guard_agency_document_insert(): { security_definer: true,  execute: [anon, authenticated] }
   guard_agency_protected_fields(): { security_definer: true,  execute: [anon, authenticated] }
   guard_agency_verification_transition(): { security_definer: false, execute: [anon, authenticated] }
+  guard_blackout_period_listing_ids(): { security_definer: false, execute: [anon, authenticated] }
   guard_booking_immutable_fields(): { security_definer: true,  execute: [anon, authenticated] }
   guard_booking_status_transition(): { security_definer: false, execute: [anon, authenticated] }
   guard_cancellation_policy(): { security_definer: false, execute: [anon, authenticated] }
@@ -443,8 +594,10 @@ functions:
   guard_departure_delete(): { security_definer: true,  execute: [anon, authenticated] }
   guard_departure_past_date(): { security_definer: false, execute: [anon, authenticated] }
   guard_listing_protected_fields(): { security_definer: false, execute: [anon, authenticated] }
+  guard_listing_rules(): { security_definer: true,  execute: [anon, authenticated] }
   guard_listing_status_transition(): { security_definer: false, execute: [anon, authenticated] }
   guard_payment_status_transition(): { security_definer: false, execute: [anon, authenticated] }
+  guard_platform_settings_value(): { security_definer: false, execute: [anon, authenticated] }
   guard_price_override_date(): { security_definer: false, execute: [anon, authenticated] }
   guard_refund_status_transition(): { security_definer: false, execute: [anon, authenticated] }
   guard_review_fields(): { security_definer: true,  execute: [anon, authenticated] }
@@ -457,32 +610,47 @@ functions:
   is_agency_publicly_approved(target_agency_id uuid): { security_definer: true,  execute: [anon, authenticated] }
   is_authenticated_aal2(): { security_definer: false, execute: [anon, authenticated] }
   is_conversation_participant(target_conversation_id uuid): { security_definer: true,  execute: [anon, authenticated] }
+  is_date_bookable(p_listing_id uuid, p_date date, p_pax integer, p_now timestamp with time zone): { security_definer: true,  execute: [], no_service_role: true }   # internal only, same pattern as ensure_departure()
   is_finance_or_admin(): { security_definer: false, execute: [anon, authenticated] }
   is_own_review(p_review_id uuid): { security_definer: true,  execute: [anon, authenticated] }
   is_super_admin(): { security_definer: false, execute: [anon, authenticated] }
   is_support_or_admin(): { security_definer: false, execute: [anon, authenticated] }
+  listing_policy_preview(p_listing_id uuid, p_date date, p_pax integer): { security_definer: true,  execute: [anon, authenticated] }
   lock_message_content(): { security_definer: true,  execute: [anon, authenticated] }
   lock_notification_fields(): { security_definer: false, execute: [anon, authenticated] }
   lookup_user_id_by_email(p_email text): { security_definer: true,  execute: [] }
+  home_sections(): { security_definer: true,  execute: [anon, authenticated] }
+  mark_reservation_fee_paid(p_booking_id uuid, p_provider text, p_provider_ref text, p_amount numeric, p_currency text): { security_definer: true,  execute: [] }
+  price_preview(p_listing_id uuid, p_date date, p_pax integer): { security_definer: true,  execute: [anon, authenticated] }
   recalc_listing_rating(): { security_definer: true,  execute: [anon, authenticated] }
   recalc_review_helpful_count(): { security_definer: true,  execute: [anon, authenticated] }
   record_agency_status_change(): { security_definer: true,  execute: [anon, authenticated] }
   record_audit_log(p_actor_id uuid, p_action text, p_resource_type text, p_resource_id text, p_before jsonb, p_after jsonb, p_request_id text): { security_definer: true,  execute: [] }
   record_booking_event(p_booking_id uuid, p_event_type text, p_metadata jsonb): { security_definer: true,  execute: [] }
   record_settings_change(): { security_definer: true,  execute: [anon, authenticated] }
+  release_booking_hold(p_booking_id uuid): { security_definer: true,  execute: [authenticated] }
   release_reservation(p_reservation_id uuid, p_reason text): { security_definer: true,  execute: [] }
   remove_agency_member(p_agency_id uuid, p_user_id uuid): { security_definer: true,  execute: [authenticated] }
   replace_agency_document(p_agency_id uuid, p_document_type text, p_storage_path text, p_mime_type text, p_size_bytes bigint): { security_definer: true,  execute: [authenticated] }
   request_booking_cancellation(p_booking_id uuid, p_reason text): { security_definer: true,  execute: [authenticated] }
+  resolve_unit_price(p_listing_id uuid, p_date date): { security_definer: true,  execute: [], no_service_role: true }   # internal only, same pattern as ensure_departure()
   respond_to_review(p_review_id uuid, p_text text): { security_definer: true,  execute: [authenticated] }
+  respond_via_token(p_token text, p_accept boolean, p_reason text): { security_definer: true,  execute: [anon, authenticated] }
   revoke_user_sessions(p_user_id uuid): { security_definer: true,  execute: [] }
   save_agency_draft(p_fields jsonb): { security_definer: true,  execute: [authenticated] }
+  search_listings(p_query text, p_category text, p_location text, p_price_min numeric, p_price_max numeric, p_difficulties text[], p_duration_range text, p_sort text, p_limit integer, p_offset integer): { security_definer: true,  execute: [anon, authenticated] }
   set_default_role_on_signup(): { security_definer: true,  execute: [anon, authenticated] }
   set_departure_capacity(p_departure_id uuid, p_capacity_total integer): { security_definer: true,  execute: [authenticated] }
   set_updated_at(): { security_definer: false, execute: [anon, authenticated] }
   start_conversation(p_agency_id uuid, p_listing_id uuid, p_booking_id uuid, p_subject text): { security_definer: true,  execute: [authenticated] }
   submit_agency_application(): { security_definer: true,  execute: [authenticated] }
+  suggest_alternatives(p_booking_id uuid): { security_definer: true,  execute: [authenticated] }
   sync_departure_agency(): { security_definer: true,  execute: [anon, authenticated] }
   sync_profile_email(): { security_definer: true,  execute: [anon, authenticated] }
   touch_conversation_last_message(): { security_definer: true,  execute: [] }
+  traveler_cancel_booking(p_booking_id uuid, p_reason text): { security_definer: true,  execute: [authenticated] }
+  traveler_choose_refund(p_booking_id uuid): { security_definer: true,  execute: [authenticated] }
+  traveler_dispute_no_show(p_booking_id uuid, p_statement text): { security_definer: true,  execute: [authenticated] }
+  traveler_report_agency_no_show(p_booking_id uuid, p_statement text): { security_definer: true,  execute: [authenticated] }
+  traveler_reschedule(p_booking_id uuid, p_new_date date): { security_definer: true,  execute: [authenticated] }
   trigger_dispatch_notifications(): { security_definer: true,  execute: [] }

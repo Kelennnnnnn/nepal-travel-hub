@@ -2,6 +2,7 @@ import { Mountain, Shield, Users, Globe } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/SEO";
 import { Card, CardContent } from "@/components/ui/card";
+import { useSiteContent } from "@/hooks/useSiteContent";
 
 const VALUES = [
   {
@@ -26,13 +27,23 @@ const VALUES = [
   },
 ];
 
-const TEAM = [
+interface TeamMember {
+  name: string;
+  role: string;
+  initials: string;
+}
+
+const DEFAULT_TEAM: TeamMember[] = [
   { name: "Kelen Dahal", role: "Founder & CEO", initials: "KD" },
-  { name: "Team Member", role: "Head of Operations", initials: "TM" },
-  { name: "Team Member", role: "Lead Engineer", initials: "TM" },
 ];
 
 export default function About() {
+  const team = useSiteContent<TeamMember[]>("about_team", DEFAULT_TEAM)
+    // Defensive filter: a generic "Team Member" placeholder should never be
+    // displayed as if it were a real person, even if one somehow ends up in
+    // this admin-managed row.
+    .filter((m) => m.name.trim().toLowerCase() !== "team member");
+
   return (
     <Layout>
       <SEO title="About Us" description="Learn about Into Nepal — our mission to connect travelers with authentic Nepal experiences through verified local agencies." />
@@ -106,26 +117,29 @@ export default function About() {
             </div>
           </section>
 
-          {/* Team */}
-          <section>
-            <h2 className="text-2xl font-bold mb-2 text-center">The Team</h2>
-            <p className="text-muted-foreground text-center mb-8">
-              A small, focused team passionate about Nepal and technology.
-            </p>
-            <div className="grid sm:grid-cols-3 gap-6">
-              {TEAM.map((member) => (
-                <Card key={member.name + member.role}>
-                  <CardContent className="p-6 text-center">
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                      <span className="text-primary font-bold text-lg">{member.initials}</span>
-                    </div>
-                    <p className="font-semibold">{member.name}</p>
-                    <p className="text-sm text-muted-foreground">{member.role}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
+          {/* Team — hidden entirely if there's no real member to show,
+              rather than padding it out with placeholder entries. */}
+          {team.length > 0 && (
+            <section>
+              <h2 className="text-2xl font-bold mb-2 text-center">The Team</h2>
+              <p className="text-muted-foreground text-center mb-8">
+                A small, focused team passionate about Nepal and technology.
+              </p>
+              <div className="grid sm:grid-cols-3 gap-6">
+                {team.map((member) => (
+                  <Card key={member.name + member.role}>
+                    <CardContent className="p-6 text-center">
+                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                        <span className="text-primary font-bold text-lg">{member.initials}</span>
+                      </div>
+                      <p className="font-semibold">{member.name}</p>
+                      <p className="text-sm text-muted-foreground">{member.role}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Nepal Context */}
           <section className="p-8 bg-primary/5 border border-primary/20 rounded-2xl">

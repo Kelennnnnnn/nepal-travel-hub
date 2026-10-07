@@ -234,7 +234,118 @@ Add a rewrite rule for SPA routing. For Vercel, create `vercel.json`:
 
 ---
 
-## 9. Project Structure
+## 9. Booking Lifecycle and Scheduled Jobs
+
+### Status diagram
+
+Every edge below is enforced server-side by `guard_booking_status_transition()`
+(a `BEFORE UPDATE` trigger on `bookings.booking_status`) — this is a data-integrity
+invariant, not just documentation; an attempt to jump a booking between two
+states with no edge between them raises `INVALID_TRANSITION` regardless of
+caller (including admin and `service_role`). `draft` exists in the graph for
+completeness but is never actually used in practice — `create_booking_hold()`
+inserts a booking directly at `pending_payment`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending_payment
+    pending_payment --> payment_processing
+    pending_payment --> expired
+    pending_payment --> cancelled
+
+    payment_processing --> confirmed
+    payment_processing --> awaiting_agency_confirmation
+    payment_processing --> pending_payment
+    payment_processing --> expired
+
+    awaiting_agency_confirmation --> confirmed
+    awaiting_agency_confirmation --> cancelled
+
+    expired --> cancelled
+    expired --> payment_processing
+
+    confirmed --> in_progress
+    confirmed --> completed
+    confirmed --> cancelled
+    confirmed --> no_show
+    confirmed --> disputed
+    confirmed --> cancel_requested
+
+    cancel_requested --> cancelled
+    cancel_requested --> confirmed
+
+    in_progress --> completed
+    in_progress --> no_show
+    in_progress --> disputed
+
+    no_show --> disputed
+    no_show --> completed
+
+    disputed --> confirmed
+    disputed --> cancelled
+    disputed --> completed
+    disputed --> no_show
+
+    completed --> disputed
+
+    cancelled --> [*]
+```
+
+### Who can trigger each transition
+
+| Transition | Trigger | Who |
+|---|---|---|
+| `pending_payment → payment_processing` | `mark_reservation_fee_paid()` | the NIC Asia webhook (`service_role` only — never exposed to any client) |
+| `pending_payment → expired` | `expire_stale_booking_holds()` (cron, every minute) | system |
+| `pending_payment → cancelled` | `release_booking_hold()` | the traveler (abandoning checkout) |
+| `payment_processing → confirmed` | `mark_reservation_fee_paid()` | webhook, when the listing is `confirmation_mode='instant'` |
+| `payment_processing → awaiting_agency_confirmation` | `mark_reservation_fee_paid()` | webhook, when `confirmation_mode='agency_confirm'` |
+| `payment_processing → expired` | `expire_stale_booking_holds()` | system (the rare case the hold expires mid-payment) |
+| `expired → payment_processing` | `mark_reservation_fee_paid()` | webhook, late payment arrives and capacity is still available |
+| `expired → cancelled` | `mark_reservation_fee_paid()` → `cancel_booking_internal()` | system, late payment arrives but the date has since filled up (full refund) |
+| `awaiting_agency_confirmation → confirmed` | `agency_respond_to_booking()` / `respond_via_token()` | the agency's manager/owner, accepting (web dashboard or the one-tap email/SMS link) |
+| `awaiting_agency_confirmation → cancelled` | `agency_respond_to_booking()` / `respond_via_token()` (decline), or `expire_agency_confirmations()` (cron, every 5 min, on timeout) | agency manager/owner, or system (timeout — also records an `agency_strikes`/`agency_penalties` row) |
+| `confirmed → in_progress` / `→ completed` | `agency_set_trip_status()` | the agency's manager/owner |
+| `confirmed → completed` | `complete_finished_bookings()` (cron, every 15 min) | system, 24h after the quote's `end_at` with no open dispute |
+| `confirmed → cancelled` | `traveler_cancel_booking()` / `agency_cancel_booking('agency_unavailable', …)` | the traveler, or the agency's manager/owner (fault-based — full refund + strike + penalty) |
+| `confirmed → no_show` | `agency_mark_no_show()` | the agency's manager/owner, only between `start_at + grace` and `end_at + 24h` |
+| `confirmed → disputed` | `traveler_report_agency_no_show()` | the traveler, reporting the agency never showed up |
+| `confirmed → cancel_requested` | `agency_cancel_booking('conditions_weather'\|'conditions_flight'\|'conditions_safety', …)` (opens a disruption, not fault-based), or `request_booking_cancellation()` (legacy/special-request path, see below) | agency manager/owner, or the traveler via support |
+| `cancel_requested → confirmed` | `traveler_reschedule()` | the traveler, picking a new open date at the same price |
+| `cancel_requested → cancelled` | `traveler_choose_refund()`, or `expire_disruption_choices()` (cron, every 15 min, on timeout) | the traveler, or system (defaults to a full refund if unanswered) |
+| `in_progress → completed` | `complete_finished_bookings()` (cron) / `agency_set_trip_status()` | system, or the agency's manager/owner |
+| `in_progress → no_show` | `agency_mark_no_show()` | the agency's manager/owner |
+| `in_progress → disputed` | `traveler_report_agency_no_show()` | the traveler |
+| `no_show → disputed` | `traveler_dispute_no_show()` | the traveler, within 48h of being marked no-show |
+| `disputed → confirmed` / `→ cancelled` / `→ no_show` | `admin_resolve_dispute()` | support/admin staff (`uphold_no_show`, `traveler_was_present_agency_failed`, or `partial`) |
+
+`request_booking_cancellation()` (Prompt 4) predates the real refund engine and
+only ever moves `confirmed → cancel_requested` with no refund logic of its own
+— it remains as the "special request to support" path for cases
+`traveler_cancel_booking()` itself rejects (e.g. after the trip has already
+started), not as a second normal-cancellation path.
+
+### Scheduled jobs (pg_cron)
+
+| Job | Schedule | Function | Purpose |
+|---|---|---|---|
+| `dispatch-notifications-cron` | every minute | `trigger_dispatch_notifications()` | drains `domain_events` into emails/SMS/WhatsApp/in-app notifications |
+| `expire-stale-booking-holds` | every minute | `expire_stale_booking_holds()` | releases unpaid holds past their TTL and reopens the date |
+| `expire-agency-confirmations` | every 5 minutes | `expire_agency_confirmations()` | sends the 12h-left reminder once, then times out unanswered agency confirmations (full refund + strike + penalty) |
+| `expire-disruption-choices` | every 15 minutes | `expire_disruption_choices()` | defaults an unanswered weather/flight/safety disruption to a full refund |
+| `complete-finished-bookings` | every 15 minutes | `complete_finished_bookings()` | auto-completes trips 24h past their `end_at` with no open dispute, making them reviewable |
+| `cleanup-rate-limits` | hourly (`0 * * * *`) | raw SQL | purges `rate_limits` rows older than 24h |
+| `cleanup-idempotency-keys` | hourly (`0 * * * *`) | raw SQL | purges `idempotency_keys` rows older than 24h |
+| `ops-daily-health-check` | daily, 18:45 UTC (00:30 NPT) | `check_ops_daily_health()` | emails `OPS_ALERT_EMAIL` only when a cron job failed or a notification permanently failed in the last 24h |
+
+Two now-superseded jobs (`expire-stale-inventory-reservations`,
+`expire-stale-booking-quotes`) were unscheduled when `expire-stale-booking-holds`
+replaced both with one job that chains them in the correct order — see
+`supabase/migrations/20260919000001_booking_holds.sql`.
+
+---
+
+## 10. Project Structure
 
 ```
 nepal-travel-hub/

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Search, MapPin, SlidersHorizontal, X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,9 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { usePublishedListings, usePublicAgencies, type PublishedListingRow } from "@/lib/queries";
 import { SEO } from "@/components/SEO";
-import { categories, locations, DURATION_RANGES } from "@/lib/catalog";
+import { DURATION_RANGES } from "@/lib/catalog";
+import { useCategories } from "@/hooks/useCategories";
+import { useDestinations } from "@/hooks/useDestinations";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import { FilterPanel } from "@/components/activities/FilterPanel";
 import type { Activity } from "@/components/activities/ActivityCard";
@@ -52,6 +54,14 @@ function listingToActivity(listing: PublishedListingRow, agencyName?: string): A
 
 export default function Activities() {
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const { data: categoryRows = [] } = useCategories();
+  const categories = useMemo(
+    () => [{ id: "all", name: "All Activities", icon: "🌍" }, ...categoryRows.map((c) => ({ id: c.slug, name: c.name, icon: c.icon }))],
+    [categoryRows],
+  );
+  const { data: destinationRows = [] } = useDestinations();
+  const locations = useMemo(() => ["All Locations", ...destinationRows.map((d) => d.name)], [destinationRows]);
 
   // Derive filter state from URL
   const search = searchParams.get("search") || "";

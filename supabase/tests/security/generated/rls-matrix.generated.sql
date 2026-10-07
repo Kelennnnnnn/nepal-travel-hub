@@ -86,8 +86,8 @@ insert into public.inventory_reservations (id, inventory_id, quantity, status, e
 values ('5ec70000-0000-0000-0000-000000000001', '5ec60000-0000-0000-0000-000000000001', 2, 'confirmed', now() + interval '1 hour', now());
 
 -- ── Booking chain (T1 books Listing A, already completed+paid) ─────────
-insert into public.booking_quotes (id, listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at)
-values ('5ec80000-0000-0000-0000-000000000001', '5ec40000-0000-0000-0000-000000000001', '5ec50000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', '5ec10000-0000-0000-0000-000000000001', 2, 1000.00, 10.00, 100.00, 900.00, 'NPR', '{}'::jsonb, '5ec70000-0000-0000-0000-000000000001', 'consumed', now() + interval '1 hour');
+insert into public.booking_quotes (id, listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at, confirmation_mode, payment_requirement, amount_due_now, start_at, end_at, no_show_grace_minutes, fee_refund_rule)
+values ('5ec80000-0000-0000-0000-000000000001', '5ec40000-0000-0000-0000-000000000001', '5ec50000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', '5ec10000-0000-0000-0000-000000000001', 2, 1000.00, 10.00, 100.00, 900.00, 'NPR', '{}'::jsonb, '5ec70000-0000-0000-0000-000000000001', 'consumed', now() + interval '1 hour', 'instant', 'fee_only', 100.00, now() + interval '30 days', now() + interval '31 days', 30, '{"free_cancel_hours": 24}'::jsonb);
 
 insert into public.bookings (id, quote_id, listing_id, departure_id, agency_id, traveler_id, participant_count, booking_status, payment_status, completed_at)
 values ('5ec90000-0000-0000-0000-000000000001', '5ec80000-0000-0000-0000-000000000001', '5ec40000-0000-0000-0000-000000000001', '5ec50000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', '5ec10000-0000-0000-0000-000000000001', 2, 'completed', 'paid', now());
@@ -169,8 +169,8 @@ values ('5edf0000-0000-0000-0000-000000000001', 'Fixture Contact', 'contact@test
 insert into public.audit_logs (id, actor_id, action, resource_type, resource_id, before_state, after_state)
 values ('5ee00000-0000-0000-0000-000000000001', '5ec30000-0000-0000-0000-000000000001', 'fixture_action', 'listing', '5ec40000-0000-0000-0000-000000000001', null, '{}'::jsonb);
 
-insert into public.platform_settings (key, value, description)
-values ('sec_fixture_setting', '"fixture"'::jsonb, 'fixture-only setting, not read by the app')
+insert into public.platform_settings (key, value, description, value_type)
+values ('sec_fixture_setting', '"fixture"'::jsonb, 'fixture-only setting, not read by the app', 'string')
 on conflict (key) do nothing;
 
 insert into public.platform_settings_history (id, key, old_value, new_value, changed_by)
@@ -185,6 +185,42 @@ values ('fixture-bucket', now(), 1);
 insert into public.welcome_emails (user_id)
 values ('5ec10000-0000-0000-0000-000000000001');
 
+insert into public.payment_events (id, booking_id, provider, provider_ref, kind, amount, currency)
+values ('5ee40000-0000-0000-0000-000000000001', '5ec90000-0000-0000-0000-000000000001', 'fixture_provider', 'fixture-ref-1', 'reservation_fee', 100.00, 'NPR');
+
+insert into public.refund_records (id, booking_id, kind, payer_side, amount, currency, reason_code)
+values ('5ee50000-0000-0000-0000-000000000001', '5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'fixture_reason');
+
+insert into public.agency_strikes (id, agency_id, booking_id, kind)
+values ('5ee60000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response');
+
+insert into public.booking_action_tokens (id, booking_id, token_hash, purpose, expires_at)
+values ('5ee70000-0000-0000-0000-000000000001', '5ec90000-0000-0000-0000-000000000001', 'fixture-token-hash', 'agency_accept_decline', now() + interval '1 day');
+
+insert into public.agency_penalties (id, agency_id, booking_id, kind, amount)
+values ('5ee80000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00);
+
+insert into public.booking_disruptions (id, booking_id, reason_code, choice_deadline)
+values ('5ee90000-0000-0000-0000-000000000001', '5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day');
+
+insert into public.booking_disputes (id, booking_id, opened_by, kind, statement)
+values ('5eea0000-0000-0000-0000-000000000001', '5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Fixture dispute statement, long enough to pass the length check.');
+
+insert into public.destinations (id, name, district, province)
+values ('5eeb0000-0000-0000-0000-000000000001', 'Fixture Destination', 'Kathmandu', 'Bagmati');
+
+insert into public.season_templates (id, label, start_mmdd, end_mmdd)
+values ('5eec0000-0000-0000-0000-000000000001', 'Fixture Season', '09-01', '09-30');
+
+insert into public.agency_commitments (id, agency_id, commitment_key)
+values ('5eed0000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', 'fixture_commitment');
+
+insert into public.agency_blackout_periods (id, agency_id, start_date, end_date, reason, created_by)
+values ('5ee20000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', current_date + 150, current_date + 152, 'Fixture agency blackout', '5ec20000-0000-0000-0000-000000000001');
+
+insert into public.platform_blackout_presets (id, name, start_date, end_date, year, description, active, created_by)
+values ('5ee30000-0000-0000-0000-000000000001', 'Fixture Festival', current_date + 160, current_date + 162, extract(year from current_date)::int, 'fixture-only preset', true, '5ec30000-0000-0000-0000-000000000001');
+
 create or replace function pg_temp.probe_affected_rows(p_sql text) returns integer language plpgsql as $f$
 declare v_count integer;
 begin
@@ -196,7 +232,7 @@ exception when others then
 end;
 $f$;
 
-select plan(1989);
+select plan(2717);
 
 set local role anon;
 select set_config('request.jwt.claims', '', true);
@@ -6439,7 +6475,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select lives_ok($sql$ insert into public.departures (listing_id, agency_id, departure_date) values ('5ec40000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', current_date + 200) $sql$, 'departures: OA insert -> allow');
+select throws_ok($sql$ insert into public.departures (listing_id, agency_id, departure_date) values ('5ec40000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', current_date + 200) $sql$, null, null, 'departures: OA insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -6447,7 +6483,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select lives_ok($sql$ insert into public.departures (listing_id, agency_id, departure_date) values ('5ec40000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', current_date + 200) $sql$, 'departures: MA insert -> allow');
+select throws_ok($sql$ insert into public.departures (listing_id, agency_id, departure_date) values ('5ec40000-0000-0000-0000-000000000001', '5ec00000-0000-0000-0000-00000000000a', current_date + 200) $sql$, null, null, 'departures: MA insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -6543,7 +6579,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select ok(pg_temp.probe_affected_rows($sql$ update public.departures set status = 'closed' where id = '5ec50000-0000-0000-0000-000000000001' $sql$) = 1, 'departures: OA update -> allow');
+select ok(pg_temp.probe_affected_rows($sql$ update public.departures set status = 'closed' where id = '5ec50000-0000-0000-0000-000000000001' $sql$) <= 0, 'departures: OA update -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -6551,7 +6587,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select ok(pg_temp.probe_affected_rows($sql$ update public.departures set status = 'closed' where id = '5ec50000-0000-0000-0000-000000000001' $sql$) = 1, 'departures: MA update -> allow');
+select ok(pg_temp.probe_affected_rows($sql$ update public.departures set status = 'closed' where id = '5ec50000-0000-0000-0000-000000000001' $sql$) <= 0, 'departures: MA update -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -6720,6 +6756,4686 @@ savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 select ok(pg_temp.probe_affected_rows($sql$ delete from public.departures where id = '5ec50000-0000-0000-0000-000000000001' $sql$) <= 0, 'departures: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 0, 'agency_blackout_periods: anon select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 0, 'agency_blackout_periods: T1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 0, 'agency_blackout_periods: T2 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 1, 'agency_blackout_periods: OA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 1, 'agency_blackout_periods: MA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 1, 'agency_blackout_periods: SA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 0, 'agency_blackout_periods: OB select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 0, 'agency_blackout_periods: OS select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 1, 'agency_blackout_periods: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 0, 'agency_blackout_periods: admin_aal1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 1, 'agency_blackout_periods: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 0, 'agency_blackout_periods: support select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001'), 0, 'agency_blackout_periods: finance select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, null, null, 'agency_blackout_periods: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, null, null, 'agency_blackout_periods: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, null, null, 'agency_blackout_periods: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, 'agency_blackout_periods: OA insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, 'agency_blackout_periods: MA insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, null, null, 'agency_blackout_periods: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, null, null, 'agency_blackout_periods: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, null, null, 'agency_blackout_periods: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, 'agency_blackout_periods: admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, null, null, 'agency_blackout_periods: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, 'agency_blackout_periods: super_admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, null, null, 'agency_blackout_periods: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_blackout_periods (agency_id, start_date, end_date, reason) values ('5ec00000-0000-0000-0000-00000000000a', current_date + 250, current_date + 251, 'Probe blackout') $sql$, null, null, 'agency_blackout_periods: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_blackout_periods: OA update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_blackout_periods: MA update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_blackout_periods: admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_blackout_periods: super_admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_blackout_periods set reason = 'Updated reason' where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_blackout_periods: OA delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_blackout_periods: MA delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_blackout_periods: admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_blackout_periods: super_admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_blackout_periods where id = '5ee20000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_blackout_periods: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: anon select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: T1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: T2 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: OA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: MA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: SA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: OB select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: OS select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: admin_aal1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: support select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001'), 1, 'platform_blackout_presets: finance select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, null, null, 'platform_blackout_presets: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, null, null, 'platform_blackout_presets: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, null, null, 'platform_blackout_presets: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, null, null, 'platform_blackout_presets: OA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, null, null, 'platform_blackout_presets: MA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, null, null, 'platform_blackout_presets: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, null, null, 'platform_blackout_presets: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, null, null, 'platform_blackout_presets: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, 'platform_blackout_presets: admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, null, null, 'platform_blackout_presets: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, 'platform_blackout_presets: super_admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, null, null, 'platform_blackout_presets: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.platform_blackout_presets (name, start_date, end_date, year) values ('Probe Preset', current_date + 260, current_date + 261, 2026) $sql$, null, null, 'platform_blackout_presets: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: OA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: MA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) = 1, 'platform_blackout_presets: admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) = 1, 'platform_blackout_presets: super_admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.platform_blackout_presets set description = 'Updated' where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: OA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: MA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) = 1, 'platform_blackout_presets: admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) = 1, 'platform_blackout_presets: super_admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.platform_blackout_presets where id = '5ee30000-0000-0000-0000-000000000001' $sql$) <= 0, 'platform_blackout_presets: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: anon select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: T1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: T2 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: OA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: MA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: SA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: OB select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: OS select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: admin_aal1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: support select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.categories where slug = 'Wellness'), 1, 'categories: finance select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, null, null, 'categories: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, null, null, 'categories: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, null, null, 'categories: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, null, null, 'categories: OA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, null, null, 'categories: MA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, null, null, 'categories: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, null, null, 'categories: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, null, null, 'categories: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, 'categories: admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, null, null, 'categories: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, 'categories: super_admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, null, null, 'categories: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.categories (slug, name) values ('ProbeCategory', 'Probe Category') $sql$, null, null, 'categories: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) <= 0, 'categories: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) <= 0, 'categories: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) <= 0, 'categories: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) <= 0, 'categories: OA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) <= 0, 'categories: MA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) <= 0, 'categories: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) <= 0, 'categories: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) <= 0, 'categories: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) = 1, 'categories: admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) <= 0, 'categories: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) = 1, 'categories: super_admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) <= 0, 'categories: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.categories set description = 'Updated' where slug = 'Wellness' $sql$) <= 0, 'categories: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) <= 0, 'categories: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) <= 0, 'categories: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) <= 0, 'categories: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) <= 0, 'categories: OA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) <= 0, 'categories: MA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) <= 0, 'categories: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) <= 0, 'categories: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) <= 0, 'categories: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) = 1, 'categories: admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) <= 0, 'categories: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) = 1, 'categories: super_admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) <= 0, 'categories: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.categories where slug = 'Wellness' $sql$) <= 0, 'categories: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: anon select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: T1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: T2 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: OA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: MA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: SA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: OB select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: OS select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: admin_aal1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: support select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001'), 1, 'destinations: finance select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, null, null, 'destinations: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, null, null, 'destinations: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, null, null, 'destinations: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, null, null, 'destinations: OA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, null, null, 'destinations: MA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, null, null, 'destinations: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, null, null, 'destinations: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, null, null, 'destinations: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, 'destinations: admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, null, null, 'destinations: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, 'destinations: super_admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, null, null, 'destinations: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.destinations (name) values ('Probe Destination') $sql$, null, null, 'destinations: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: OA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: MA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) = 1, 'destinations: admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) = 1, 'destinations: super_admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.destinations set active = false where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: OA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: MA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) = 1, 'destinations: admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) = 1, 'destinations: super_admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.destinations where id = '5eeb0000-0000-0000-0000-000000000001' $sql$) <= 0, 'destinations: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: anon select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: T1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: T2 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: OA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: MA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: SA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: OB select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: OS select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: admin_aal1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: support select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.site_content where key = 'home_hero'), 1, 'site_content: finance select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, null, null, 'site_content: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, null, null, 'site_content: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, null, null, 'site_content: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, null, null, 'site_content: OA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, null, null, 'site_content: MA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, null, null, 'site_content: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, null, null, 'site_content: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, null, null, 'site_content: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, 'site_content: admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, null, null, 'site_content: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, 'site_content: super_admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, null, null, 'site_content: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.site_content (key, value) values ('probe_key', '{}'::jsonb) $sql$, null, null, 'site_content: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) <= 0, 'site_content: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) <= 0, 'site_content: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) <= 0, 'site_content: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) <= 0, 'site_content: OA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) <= 0, 'site_content: MA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) <= 0, 'site_content: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) <= 0, 'site_content: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) <= 0, 'site_content: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) = 1, 'site_content: admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) <= 0, 'site_content: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) = 1, 'site_content: super_admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) <= 0, 'site_content: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.site_content set value = '{"heading": "Updated"}'::jsonb where key = 'home_hero' $sql$) <= 0, 'site_content: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) <= 0, 'site_content: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) <= 0, 'site_content: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) <= 0, 'site_content: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) <= 0, 'site_content: OA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) <= 0, 'site_content: MA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) <= 0, 'site_content: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) <= 0, 'site_content: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) <= 0, 'site_content: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) = 1, 'site_content: admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) <= 0, 'site_content: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) = 1, 'site_content: super_admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) <= 0, 'site_content: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.site_content where key = 'home_hero' $sql$) <= 0, 'site_content: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 0, 'payment_events: anon select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 0, 'payment_events: T1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 0, 'payment_events: T2 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 0, 'payment_events: OA select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 0, 'payment_events: MA select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 0, 'payment_events: SA select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 0, 'payment_events: OB select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 0, 'payment_events: OS select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 1, 'payment_events: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 0, 'payment_events: admin_aal1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 1, 'payment_events: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 0, 'payment_events: support select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001'), 1, 'payment_events: finance select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: OA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: MA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: admin insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: super_admin insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.payment_events (booking_id, provider, provider_ref, kind, amount, currency) values ('5ec90000-0000-0000-0000-000000000001', 'probe_provider', 'probe-ref', 'reservation_fee', 100.00, 'NPR') $sql$, null, null, 'payment_events: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: OA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: MA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: admin update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: super_admin update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.payment_events set raw = '{}'::jsonb where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: OA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: MA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: admin delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: super_admin delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.payment_events where id = '5ee40000-0000-0000-0000-000000000001' $sql$) <= 0, 'payment_events: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 0, 'refund_records: anon select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 1, 'refund_records: T1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 0, 'refund_records: T2 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 1, 'refund_records: OA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 1, 'refund_records: MA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 1, 'refund_records: SA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 0, 'refund_records: OB select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 0, 'refund_records: OS select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 1, 'refund_records: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 0, 'refund_records: admin_aal1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 1, 'refund_records: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 0, 'refund_records: support select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001'), 1, 'refund_records: finance select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: OA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: MA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: admin insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: super_admin insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.refund_records (booking_id, kind, payer_side, amount, currency, reason_code) values ('5ec90000-0000-0000-0000-000000000001', 'reservation_fee', 'platform', 100.00, 'NPR', 'probe_reason') $sql$, null, null, 'refund_records: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: OA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: MA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: admin update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: super_admin update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.refund_records set status = 'processing' where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: OA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: MA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: admin delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: super_admin delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.refund_records where id = '5ee50000-0000-0000-0000-000000000001' $sql$) <= 0, 'refund_records: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 0, 'agency_penalties: anon select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 0, 'agency_penalties: T1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 0, 'agency_penalties: T2 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 1, 'agency_penalties: OA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 1, 'agency_penalties: MA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 1, 'agency_penalties: SA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 0, 'agency_penalties: OB select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 0, 'agency_penalties: OS select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 1, 'agency_penalties: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 0, 'agency_penalties: admin_aal1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 1, 'agency_penalties: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 0, 'agency_penalties: support select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001'), 0, 'agency_penalties: finance select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, null, null, 'agency_penalties: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, null, null, 'agency_penalties: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, null, null, 'agency_penalties: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, null, null, 'agency_penalties: OA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, null, null, 'agency_penalties: MA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, null, null, 'agency_penalties: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, null, null, 'agency_penalties: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, null, null, 'agency_penalties: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, 'agency_penalties: admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, null, null, 'agency_penalties: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, 'agency_penalties: super_admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, null, null, 'agency_penalties: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_penalties (agency_id, booking_id, kind, amount) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response', 15.00) $sql$, null, null, 'agency_penalties: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: OA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: MA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_penalties: admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_penalties: super_admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_penalties set amount = 20.00 where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: OA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: MA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_penalties: admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_penalties: super_admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_penalties where id = '5ee80000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_penalties: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 0, 'booking_disruptions: anon select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 1, 'booking_disruptions: T1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 0, 'booking_disruptions: T2 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 1, 'booking_disruptions: OA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 1, 'booking_disruptions: MA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 1, 'booking_disruptions: SA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 0, 'booking_disruptions: OB select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 0, 'booking_disruptions: OS select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 1, 'booking_disruptions: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 0, 'booking_disruptions: admin_aal1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 1, 'booking_disruptions: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 0, 'booking_disruptions: support select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001'), 0, 'booking_disruptions: finance select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, null, null, 'booking_disruptions: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, null, null, 'booking_disruptions: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, null, null, 'booking_disruptions: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, null, null, 'booking_disruptions: OA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, null, null, 'booking_disruptions: MA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, null, null, 'booking_disruptions: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, null, null, 'booking_disruptions: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, null, null, 'booking_disruptions: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, 'booking_disruptions: admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, null, null, 'booking_disruptions: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, 'booking_disruptions: super_admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, null, null, 'booking_disruptions: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disruptions (booking_id, reason_code, choice_deadline) values ('5ec90000-0000-0000-0000-000000000001', 'conditions_weather', now() + interval '1 day') $sql$, null, null, 'booking_disruptions: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: OA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: MA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) = 1, 'booking_disruptions: admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) = 1, 'booking_disruptions: super_admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disruptions set note = 'probe' where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: OA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: MA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) = 1, 'booking_disruptions: admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) = 1, 'booking_disruptions: super_admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disruptions where id = '5ee90000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disruptions: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 0, 'booking_disputes: anon select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 1, 'booking_disputes: T1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 0, 'booking_disputes: T2 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 1, 'booking_disputes: OA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 1, 'booking_disputes: MA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 1, 'booking_disputes: SA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 0, 'booking_disputes: OB select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 0, 'booking_disputes: OS select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 1, 'booking_disputes: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 0, 'booking_disputes: admin_aal1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 1, 'booking_disputes: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 1, 'booking_disputes: support select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001'), 0, 'booking_disputes: finance select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, null, null, 'booking_disputes: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, null, null, 'booking_disputes: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, null, null, 'booking_disputes: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, null, null, 'booking_disputes: OA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, null, null, 'booking_disputes: MA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, null, null, 'booking_disputes: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, null, null, 'booking_disputes: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, null, null, 'booking_disputes: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, 'booking_disputes: admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, null, null, 'booking_disputes: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, 'booking_disputes: super_admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, null, null, 'booking_disputes: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_disputes (booking_id, opened_by, kind, statement) values ('5ec90000-0000-0000-0000-000000000001', '5ec10000-0000-0000-0000-000000000001', 'no_show', 'Probe statement long enough to pass validation.') $sql$, null, null, 'booking_disputes: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: OA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: MA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) = 1, 'booking_disputes: admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) = 1, 'booking_disputes: super_admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_disputes set status = 'resolved' where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: OA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: MA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) = 1, 'booking_disputes: admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) = 1, 'booking_disputes: super_admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_disputes where id = '5eea0000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_disputes: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 0, 'agency_strikes: anon select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 0, 'agency_strikes: T1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 0, 'agency_strikes: T2 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 1, 'agency_strikes: OA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 1, 'agency_strikes: MA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 1, 'agency_strikes: SA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 0, 'agency_strikes: OB select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 0, 'agency_strikes: OS select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 1, 'agency_strikes: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 0, 'agency_strikes: admin_aal1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 1, 'agency_strikes: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 0, 'agency_strikes: support select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001'), 0, 'agency_strikes: finance select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, null, null, 'agency_strikes: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, null, null, 'agency_strikes: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, null, null, 'agency_strikes: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, null, null, 'agency_strikes: OA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, null, null, 'agency_strikes: MA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, null, null, 'agency_strikes: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, null, null, 'agency_strikes: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, null, null, 'agency_strikes: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, 'agency_strikes: admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, null, null, 'agency_strikes: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, 'agency_strikes: super_admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, null, null, 'agency_strikes: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_strikes (agency_id, booking_id, kind) values ('5ec00000-0000-0000-0000-00000000000a', '5ec90000-0000-0000-0000-000000000001', 'no_response') $sql$, null, null, 'agency_strikes: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: OA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: MA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_strikes: admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_strikes: super_admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_strikes set kind = 'no_response' where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: OA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: MA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_strikes: admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_strikes: super_admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_strikes where id = '5ee60000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_strikes: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: anon select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: T1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: T2 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: OA select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: MA select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: SA select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: OB select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: OS select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: admin select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: admin_aal1 select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: super_admin select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: support select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001'), 0, 'booking_action_tokens: finance select -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: OA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: MA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: admin insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: super_admin insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.booking_action_tokens (booking_id, token_hash, purpose, expires_at) values ('5ec90000-0000-0000-0000-000000000001', 'probe-token-hash', 'agency_accept_decline', now() + interval '1 day') $sql$, null, null, 'booking_action_tokens: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: OA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: MA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: admin update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: super_admin update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.booking_action_tokens set used_at = now() where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: OA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: MA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: admin delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: super_admin delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.booking_action_tokens where id = '5ee70000-0000-0000-0000-000000000001' $sql$) <= 0, 'booking_action_tokens: finance delete -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10601,7 +15317,7 @@ select set_config('request.jwt.claims', '', true);
 savepoint probe;
 set local role anon;
 select set_config('request.jwt.claims', '', true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: anon insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: anon insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10609,7 +15325,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: T1 insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: T1 insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10617,7 +15333,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: T2 insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: T2 insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10625,7 +15341,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: OA insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: OA insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10633,7 +15349,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: MA insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: MA insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10641,7 +15357,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: SA insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: SA insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10649,7 +15365,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: OB insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: OB insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10657,7 +15373,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: OS insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: OS insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10665,7 +15381,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: admin insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: admin insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10673,7 +15389,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: admin_aal1 insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: admin_aal1 insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10681,7 +15397,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: super_admin insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: super_admin insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10689,7 +15405,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: support insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: support insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -10697,7 +15413,7 @@ rollback to savepoint probe;
 savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
-select throws_ok($sql$ insert into public.platform_settings (key, value) values ('probe_setting', '1'::jsonb) $sql$, null, null, 'platform_settings: finance insert -> deny');
+select throws_ok($sql$ insert into public.platform_settings (key, value, value_type) values ('probe_setting', '1'::jsonb, 'number') $sql$, null, null, 'platform_settings: finance insert -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;
@@ -13922,6 +18638,786 @@ savepoint probe;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 select ok(pg_temp.probe_affected_rows($sql$ delete from public.reviews where id = '5ece0000-0000-0000-0000-000000000001' $sql$) <= 0, 'reviews: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: anon select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: T1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: T2 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: OA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: MA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: SA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: OB select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: OS select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: admin_aal1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: support select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001'), 1, 'season_templates: finance select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, null, null, 'season_templates: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, null, null, 'season_templates: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, null, null, 'season_templates: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, null, null, 'season_templates: OA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, null, null, 'season_templates: MA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, null, null, 'season_templates: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, null, null, 'season_templates: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, null, null, 'season_templates: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, 'season_templates: admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, null, null, 'season_templates: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, 'season_templates: super_admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, null, null, 'season_templates: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.season_templates (label, start_mmdd, end_mmdd) values ('Probe Season', '01-01', '01-31') $sql$, null, null, 'season_templates: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: OA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: MA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) = 1, 'season_templates: admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) = 1, 'season_templates: super_admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.season_templates set active = false where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: OA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: MA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) = 1, 'season_templates: admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) = 1, 'season_templates: super_admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.season_templates where id = '5eec0000-0000-0000-0000-000000000001' $sql$) <= 0, 'season_templates: finance delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: anon select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: T1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: T2 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: OA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: MA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: SA select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: OB select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: OS select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: admin_aal1 select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: super_admin select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: support select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select is((select count(*)::int from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001'), 1, 'agency_commitments: finance select -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select throws_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, null, null, 'agency_commitments: anon insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, null, null, 'agency_commitments: T1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, null, null, 'agency_commitments: T2 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, 'agency_commitments: OA insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, 'agency_commitments: MA insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, null, null, 'agency_commitments: SA insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, null, null, 'agency_commitments: OB insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, null, null, 'agency_commitments: OS insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, 'agency_commitments: admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select throws_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, null, null, 'agency_commitments: admin_aal1 insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select lives_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, 'agency_commitments: super_admin insert -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, null, null, 'agency_commitments: support insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select throws_ok($sql$ insert into public.agency_commitments (agency_id, commitment_key) values ('5ec00000-0000-0000-0000-00000000000a', 'probe_commitment') $sql$, null, null, 'agency_commitments: finance insert -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: anon update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: T1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: T2 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_commitments: OA update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_commitments: MA update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: SA update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: OB update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: OS update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_commitments: admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: admin_aal1 update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_commitments: super_admin update -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: support update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ update public.agency_commitments set commitment_key = 'probe_commitment_2' where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: finance update -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role anon;
+select set_config('request.jwt.claims', '', true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: anon delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: T1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec10000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: T2 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_commitments: OA delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_commitments: MA delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: SA delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: OB delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec20000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: OS delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_commitments: admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000002', 'role', 'authenticated', 'aal', 'aal1')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: admin_aal1 delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000003', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) = 1, 'agency_commitments: super_admin delete -> allow');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000004', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: support delete -> deny');
+reset role;
+select set_config('request.jwt.claims', '', true);
+rollback to savepoint probe;
+
+savepoint probe;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '5ec30000-0000-0000-0000-000000000005', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+select ok(pg_temp.probe_affected_rows($sql$ delete from public.agency_commitments where id = '5eed0000-0000-0000-0000-000000000001' $sql$) <= 0, 'agency_commitments: finance delete -> deny');
 reset role;
 select set_config('request.jwt.claims', '', true);
 rollback to savepoint probe;

@@ -30,14 +30,29 @@
 // recipient_id is a NOT NULL FK), so it's handled directly against
 // agency_invitations/sendEmail with its own small retry counter stashed in
 // the domain_event's own payload, instead of going through `notifications`.
+//
+// Phase 21 (post-payment booking events — BOOKING_AWAITING_AGENCY/
+// _AGENCY_REMINDER/_CONFIRMED/_DECLINED_BY_AGENCY/_AGENCY_TIMEOUT) is a
+// second exception, for a different reason: every channel (email, in_app,
+// and conditionally SMS/WhatsApp to the agency's own alert phone) is sent
+// INLINE within that event's own handler, with the `notifications` row
+// written AFTER the fact carrying its already-known outcome — never
+// 'queued'. See that section's own comment for why.
 
 import { serviceRoleClient } from "../_shared/auth.ts";
 import { sendEmail } from "../_shared/email.ts";
 import {
   agencyApplicationReceivedEmail, agencyApprovedEmail, agencyRejectedEmail,
   agencyMoreInfoRequiredEmail, agencySuspendedEmail, agencyReinstatedEmail,
-  agencyTeamInvitationEmail, opsDailyHealthEmail, type EmailTemplate,
+  agencyTeamInvitationEmail, opsDailyHealthEmail,
+  agencyBookingAwaitingConfirmationEmail, agencyBookingReminderEmail,
+  bookingConfirmedTravelerEmail, bookingConfirmedAgencyEmail,
+  bookingDeclinedOrTimeoutTravelerEmail,
+  bookingCancelledTravelerEmail, bookingDisruptedTravelerEmail, bookingRescheduledEmail,
+  bookingNoShowTravelerEmail, bookingDisputeOpenedAdminEmail, bookingCompletedTravelerEmail,
+  type EmailTemplate,
 } from "../_shared/emailTemplates.ts";
+import { messagingProvider, WHATSAPP_TEMPLATES, type MessagingResult } from "../_shared/messaging.ts";
 import { logError } from "../_shared/guards.ts";
 import { fail, handleOptions, ok, withRequestLog } from "../_shared/http.ts";
 import { randomTokenHex, sha256Hex } from "../_shared/tokens.ts";
@@ -47,6 +62,12 @@ const CRON_SECRET = Deno.env.get("NOTIFICATIONS_CRON_SECRET") ?? "";
 const SITE_URL = Deno.env.get("SITE_URL") ?? "https://intonepal.com";
 const OPS_ALERT_EMAIL = Deno.env.get("OPS_ALERT_EMAIL") ?? "";
 const MAX_ATTEMPTS = 5;
+
+// The prompt's own "https://partner.<domain>/r/<token>" is aspirational — no
+// separate partner subdomain exists anywhere else in this codebase (every
+// other link, e.g. agency invitations, is SITE_URL + a path on the same
+// SPA). /r/:token is a route on the main site, same as everywhere else.
+const PARTNER_LINK_BASE = SITE_URL;
 
 type SupabaseAdmin = ReturnType<typeof serviceRoleClient>;
 
@@ -246,6 +267,409 @@ async function handleNewMessage(admin: SupabaseAdmin, event: DomainEvent) {
   }
 }
 
+// ── Phase 21: booking post-payment events ───────────────────────────────────
+//
+// Unlike the agency-lifecycle events above (queued -> claimed -> sent, with
+// 5-attempt backoff), every booking notification below is sent INLINE,
+// synchronously, within this same handler call — the row inserted into
+// `notifications` already carries its final outcome (sent/failed/
+// not_configured), never 'queued'. This is a deliberate scope reduction:
+// a transient failure here does not get the agency-lifecycle path's retry
+// schedule, only the domain_event's own 2-minute reclaim-and-retry-the-
+// whole-handler lease. Accepted because the one real reason email
+// notifications normally need deferred sending — minting a one-tap token
+// that must still be valid whenever the email actually goes out — is
+// naturally satisfied by sending inline at mint time instead.
+
+async function resolveAgencyManagers(admin: SupabaseAdmin, agencyId: string): Promise<Array<{ userId: string; email: string }>> {
+  const { data: members } = await admin
+    .from("agency_users")
+    .select("user_id")
+    .eq("agency_id", agencyId)
+    .in("agency_role", ["owner", "manager"])
+    .is("removed_at", null)
+    .not("accepted_at", "is", null);
+
+  const result: Array<{ userId: string; email: string }> = [];
+  for (const m of members ?? []) {
+    const { data: authUser } = await admin.auth.admin.getUserById(m.user_id as string);
+    const email = authUser?.user?.email;
+    if (email) result.push({ userId: m.user_id as string, email });
+  }
+  return result;
+}
+
+/** Inserts a notification row with an already-known outcome (never 'queued') — idempotent via (event, recipient, channel). */
+async function recordSettledNotification(
+  admin: SupabaseAdmin,
+  eventId: string,
+  recipientId: string,
+  channel: "email" | "in_app" | "sms" | "whatsapp",
+  outcome: { status: "sent" | "failed" | "not_configured"; error?: string },
+) {
+  const { error } = await admin.from("notifications").insert({
+    domain_event_id: eventId,
+    recipient_id: recipientId,
+    channel,
+    status: outcome.status,
+    sent_at: outcome.status === "sent" ? new Date().toISOString() : null,
+    error_message: outcome.error ?? null,
+    idempotency_key: `${eventId}:${recipientId}:${channel}`,
+    // A 'failed' row normally means "retry me" to claim_pending_
+    // notifications (status='failed' AND attempts<5 AND next_attempt_at
+    // <= now(), all true by column default on a fresh insert) — but this
+    // row is already FINAL (never queued in the first place), so attempts
+    // is pinned to MAX_ATTEMPTS up front. Without this, the very same
+    // dispatch run's own step 2 immediately re-claims it and overwrites
+    // this outcome via sendQueuedNotification's agency-lifecycle-only
+    // renderer, which has never heard of a booking event type (discovered
+    // by this migration's own local testing: a deliberately-failed send
+    // here came back re-labeled "no template for event type ...").
+    attempts: outcome.status === "failed" ? MAX_ATTEMPTS : 0,
+  });
+  if (error && error.code !== "23505") {
+    logError("dispatch-notifications: failed to record settled notification", error, { eventId, recipientId, channel });
+  }
+}
+
+function messagingResultToOutcome(result: MessagingResult): { status: "sent" | "failed" | "not_configured"; error?: string } {
+  if (result.status === "sent") return { status: "sent" };
+  if (result.status === "not_configured") return { status: "not_configured" };
+  return { status: "failed", error: result.error };
+}
+
+interface BookingContext {
+  bookingId: string;
+  agencyId: string;
+  participantCount: number;
+  agencyConfirmDeadline: string | null;
+  listingTitle: string;
+  departureDateNpt: string;
+  travelerFirstName: string;
+  travelerId: string;
+  agency: { display_name: string; alert_phone_e164: string | null; alert_whatsapp_opt_in: boolean; alert_sms_opt_in: boolean };
+}
+
+async function loadBookingContext(admin: SupabaseAdmin, bookingId: string): Promise<BookingContext | null> {
+  const { data: booking } = await admin
+    .from("bookings")
+    .select("id, agency_id, participant_count, agency_confirm_deadline, listing_id, departure_id, traveler_id")
+    .eq("id", bookingId)
+    .maybeSingle();
+  if (!booking) return null;
+
+  const [{ data: listing }, { data: departure }, { data: guest }, { data: agency }] = await Promise.all([
+    admin.from("listings").select("title").eq("id", booking.listing_id).maybeSingle(),
+    admin.from("departures").select("departure_date").eq("id", booking.departure_id).maybeSingle(),
+    admin.from("booking_guests").select("full_name").eq("booking_id", bookingId).eq("is_primary", true).maybeSingle(),
+    admin.from("agencies").select("display_name, alert_phone_e164, alert_whatsapp_opt_in, alert_sms_opt_in").eq("id", booking.agency_id).maybeSingle(),
+  ]);
+  if (!listing || !departure || !agency) return null;
+
+  return {
+    bookingId: booking.id as string,
+    agencyId: booking.agency_id as string,
+    participantCount: booking.participant_count as number,
+    agencyConfirmDeadline: booking.agency_confirm_deadline as string | null,
+    listingTitle: listing.title as string,
+    departureDateNpt: new Date(departure.departure_date as string).toLocaleDateString("en-US", { timeZone: "Asia/Kathmandu", year: "numeric", month: "short", day: "numeric" }),
+    travelerFirstName: ((guest?.full_name as string | undefined) ?? "A traveler").split(" ")[0],
+    travelerId: booking.traveler_id as string,
+    agency: agency as BookingContext["agency"],
+  };
+}
+
+/** Reuses an unexpired, unused token for this booking if one already exists (handler retries shouldn't mint a fresh one every time), otherwise mints one. */
+async function ensureBookingActionToken(admin: SupabaseAdmin, bookingId: string, expiresAt: string): Promise<string | null> {
+  const { data: existing } = await admin
+    .from("booking_action_tokens")
+    .select("id")
+    .eq("booking_id", bookingId)
+    .eq("purpose", "agency_accept_decline")
+    .is("used_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .limit(1)
+    .maybeSingle();
+  // An existing valid token's raw value was only ever known at mint time and
+  // was never persisted (by design — only its hash is stored) — so it can't
+  // be re-sent here. A retry of this handler mints a fresh token instead;
+  // the stale one above simply expires unused. This only matters for a
+  // handler retry within the same lease window, which is rare.
+  if (existing) return null;
+
+  const rawToken = randomTokenHex(32);
+  const tokenHash = await sha256Hex(rawToken);
+  const { error } = await admin.from("booking_action_tokens").insert({
+    booking_id: bookingId, token_hash: tokenHash, purpose: "agency_accept_decline", expires_at: expiresAt,
+  });
+  if (error) {
+    logError("dispatch-notifications: failed to mint booking action token", error, { bookingId });
+    return null;
+  }
+  return rawToken;
+}
+
+async function handleBookingAwaitingAgency(admin: SupabaseAdmin, event: DomainEvent, reminder: boolean) {
+  const ctx = await loadBookingContext(admin, event.aggregate_id);
+  if (!ctx || !ctx.agencyConfirmDeadline) {
+    await markProcessed(admin, event.id);
+    return;
+  }
+
+  const deadlineNpt = new Date(ctx.agencyConfirmDeadline).toLocaleString("en-US", { timeZone: "Asia/Kathmandu", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const rawToken = await ensureBookingActionToken(admin, ctx.bookingId, ctx.agencyConfirmDeadline);
+  const actionUrl = `${PARTNER_LINK_BASE}/r/${rawToken ?? ""}`;
+
+  const template = reminder
+    ? agencyBookingReminderEmail({ activityTitle: ctx.listingTitle, departureDateNpt: ctx.departureDateNpt, participantCount: ctx.participantCount, travelerFirstName: ctx.travelerFirstName, deadlineNpt, actionUrl })
+    : agencyBookingAwaitingConfirmationEmail({ activityTitle: ctx.listingTitle, departureDateNpt: ctx.departureDateNpt, participantCount: ctx.participantCount, travelerFirstName: ctx.travelerFirstName, deadlineNpt, actionUrl });
+
+  const managers = await resolveAgencyManagers(admin, ctx.agencyId);
+  for (const m of managers) {
+    const { error: sendErr } = await sendEmail({ to: m.email, subject: template.subject, html: template.html, text: template.text });
+    await recordSettledNotification(admin, event.id, m.userId, "email", sendErr ? { status: "failed", error: sendErr } : { status: "sent" });
+    await recordSettledNotification(admin, event.id, m.userId, "in_app", { status: "sent" });
+  }
+
+  if (managers.length > 0 && ctx.agency.alert_phone_e164) {
+    const smsText = reminder
+      ? `Into Nepal: 12 hours left to respond to a booking for ${ctx.listingTitle} on ${ctx.departureDateNpt}. ${actionUrl}`
+      : `Into Nepal: New booking for ${ctx.listingTitle} on ${ctx.departureDateNpt} needs your confirmation by ${deadlineNpt}. ${actionUrl}`;
+
+    let result: MessagingResult | null = null;
+    let channel: "whatsapp" | "sms" | null = null;
+    if (ctx.agency.alert_whatsapp_opt_in) {
+      channel = "whatsapp";
+      const templateName = reminder ? WHATSAPP_TEMPLATES.bookingConfirmReminder : WHATSAPP_TEMPLATES.bookingConfirmRequest;
+      result = await messagingProvider.sendWhatsAppTemplate(ctx.agency.alert_phone_e164, templateName, [ctx.listingTitle, ctx.departureDateNpt, deadlineNpt, actionUrl]);
+    } else if (ctx.agency.alert_sms_opt_in) {
+      channel = "sms";
+      result = await messagingProvider.sendSms(ctx.agency.alert_phone_e164, smsText);
+    }
+
+    if (channel && result) {
+      await recordSettledNotification(admin, event.id, managers[0].userId, channel, messagingResultToOutcome(result));
+    }
+  }
+
+  await markProcessed(admin, event.id);
+}
+
+async function handleBookingConfirmed(admin: SupabaseAdmin, event: DomainEvent) {
+  const ctx = await loadBookingContext(admin, event.aggregate_id);
+  if (!ctx) {
+    await markProcessed(admin, event.id);
+    return;
+  }
+
+  const { data: booking } = await admin.from("bookings").select("booking_ref").eq("id", ctx.bookingId).maybeSingle();
+  const bookingRef = (booking?.booking_ref as string | undefined) ?? ctx.bookingId;
+
+  const { data: travelerAuth } = await admin.auth.admin.getUserById(ctx.travelerId);
+  const travelerEmail = travelerAuth?.user?.email;
+  if (travelerEmail) {
+    const template = bookingConfirmedTravelerEmail({
+      activityTitle: ctx.listingTitle, departureDateNpt: ctx.departureDateNpt, bookingRef,
+      myBookingsUrl: `${SITE_URL}/my-bookings`,
+    });
+    const { error: sendErr } = await sendEmail({ to: travelerEmail, subject: template.subject, html: template.html, text: template.text });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "email", sendErr ? { status: "failed", error: sendErr } : { status: "sent" });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "in_app", { status: "sent" });
+  }
+
+  const managers = await resolveAgencyManagers(admin, ctx.agencyId);
+  for (const m of managers) {
+    const template = bookingConfirmedAgencyEmail({
+      activityTitle: ctx.listingTitle, departureDateNpt: ctx.departureDateNpt, travelerFirstName: ctx.travelerFirstName,
+      bookingRef, dashboardUrl: `${SITE_URL}/agency/bookings`,
+    });
+    const { error: sendErr } = await sendEmail({ to: m.email, subject: template.subject, html: template.html, text: template.text });
+    await recordSettledNotification(admin, event.id, m.userId, "email", sendErr ? { status: "failed", error: sendErr } : { status: "sent" });
+    await recordSettledNotification(admin, event.id, m.userId, "in_app", { status: "sent" });
+  }
+
+  await markProcessed(admin, event.id);
+}
+
+async function handleBookingDeclinedOrTimeout(admin: SupabaseAdmin, event: DomainEvent, timedOut: boolean) {
+  const ctx = await loadBookingContext(admin, event.aggregate_id);
+  if (!ctx) {
+    await markProcessed(admin, event.id);
+    return;
+  }
+
+  const { data: travelerAuth } = await admin.auth.admin.getUserById(ctx.travelerId);
+  const travelerEmail = travelerAuth?.user?.email;
+  if (travelerEmail) {
+    const reason = (event.payload as { reason?: string })?.reason;
+    const template = bookingDeclinedOrTimeoutTravelerEmail({
+      activityTitle: ctx.listingTitle, reason, timedOut,
+      alternativesUrl: `${SITE_URL}/my-bookings`,
+    });
+    const { error: sendErr } = await sendEmail({ to: travelerEmail, subject: template.subject, html: template.html, text: template.text });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "email", sendErr ? { status: "failed", error: sendErr } : { status: "sent" });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "in_app", { status: "sent" });
+  }
+
+  await markProcessed(admin, event.id);
+}
+
+// ── Phase 22: cancellation / disruption / no-show / dispute lifecycle ──────
+// Same inline-send discipline as Phase 21's booking events above — these
+// are low-volume, and the one case needing a durable record either way is
+// in_app (sent immediately, not queued).
+
+async function handleBookingCancelled(admin: SupabaseAdmin, event: DomainEvent) {
+  const ctx = await loadBookingContext(admin, event.aggregate_id);
+  if (!ctx) { await markProcessed(admin, event.id); return; }
+
+  const payload = event.payload as { cancelled_by?: string; fee_refund_amount?: number; balance_refund_amount?: number; currency?: string };
+  const { data: travelerAuth } = await admin.auth.admin.getUserById(ctx.travelerId);
+  const travelerEmail = travelerAuth?.user?.email;
+  if (travelerEmail) {
+    const template = bookingCancelledTravelerEmail({
+      activityTitle: ctx.listingTitle,
+      cancelledBy: (payload.cancelled_by as "traveler" | "agency" | "admin" | "system" | undefined) ?? "system",
+      feeRefundAmount: payload.fee_refund_amount ?? 0,
+      balanceRefundAmount: payload.balance_refund_amount ?? 0,
+      currency: payload.currency ?? "NPR",
+      myBookingsUrl: `${SITE_URL}/my-bookings`,
+    });
+    const { error: sendErr } = await sendEmail({ to: travelerEmail, subject: template.subject, html: template.html, text: template.text });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "email", sendErr ? { status: "failed", error: sendErr } : { status: "sent" });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "in_app", { status: "sent" });
+  }
+
+  await markProcessed(admin, event.id);
+}
+
+async function handleBookingDisrupted(admin: SupabaseAdmin, event: DomainEvent) {
+  const ctx = await loadBookingContext(admin, event.aggregate_id);
+  if (!ctx) { await markProcessed(admin, event.id); return; }
+
+  const payload = event.payload as { reason_code?: string; note?: string };
+  const { data: disruption } = await admin
+    .from("booking_disruptions")
+    .select("choice_deadline")
+    .eq("booking_id", ctx.bookingId)
+    .is("resolved_at", null)
+    .order("offered_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const choiceDeadlineNpt = disruption?.choice_deadline
+    ? new Date(disruption.choice_deadline as string).toLocaleString("en-US", { timeZone: "Asia/Kathmandu", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "soon";
+
+  const { data: travelerAuth } = await admin.auth.admin.getUserById(ctx.travelerId);
+  const travelerEmail = travelerAuth?.user?.email;
+  if (travelerEmail) {
+    const template = bookingDisruptedTravelerEmail({
+      activityTitle: ctx.listingTitle, reasonCode: payload.reason_code ?? "conditions_weather", note: payload.note,
+      choiceDeadlineNpt, myBookingsUrl: `${SITE_URL}/my-bookings`,
+    });
+    const { error: sendErr } = await sendEmail({ to: travelerEmail, subject: template.subject, html: template.html, text: template.text });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "email", sendErr ? { status: "failed", error: sendErr } : { status: "sent" });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "in_app", { status: "sent" });
+  }
+
+  await markProcessed(admin, event.id);
+}
+
+async function handleBookingRescheduled(admin: SupabaseAdmin, event: DomainEvent) {
+  const ctx = await loadBookingContext(admin, event.aggregate_id);
+  if (!ctx) { await markProcessed(admin, event.id); return; }
+
+  const { data: booking } = await admin.from("bookings").select("booking_ref").eq("id", ctx.bookingId).maybeSingle();
+  const bookingRef = (booking?.booking_ref as string | undefined) ?? ctx.bookingId;
+
+  const { data: travelerAuth } = await admin.auth.admin.getUserById(ctx.travelerId);
+  const travelerEmail = travelerAuth?.user?.email;
+  if (travelerEmail) {
+    const template = bookingRescheduledEmail({
+      activityTitle: ctx.listingTitle, newDateNpt: ctx.departureDateNpt, recipientIsAgency: false,
+      bookingRef, linkUrl: `${SITE_URL}/my-bookings`,
+    });
+    const { error: sendErr } = await sendEmail({ to: travelerEmail, subject: template.subject, html: template.html, text: template.text });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "email", sendErr ? { status: "failed", error: sendErr } : { status: "sent" });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "in_app", { status: "sent" });
+  }
+
+  const managers = await resolveAgencyManagers(admin, ctx.agencyId);
+  for (const m of managers) {
+    const template = bookingRescheduledEmail({
+      activityTitle: ctx.listingTitle, newDateNpt: ctx.departureDateNpt, recipientIsAgency: true,
+      bookingRef, linkUrl: `${SITE_URL}/agency/bookings`,
+    });
+    const { error: sendErr } = await sendEmail({ to: m.email, subject: template.subject, html: template.html, text: template.text });
+    await recordSettledNotification(admin, event.id, m.userId, "email", sendErr ? { status: "failed", error: sendErr } : { status: "sent" });
+    await recordSettledNotification(admin, event.id, m.userId, "in_app", { status: "sent" });
+  }
+
+  await markProcessed(admin, event.id);
+}
+
+async function handleBookingNoShow(admin: SupabaseAdmin, event: DomainEvent) {
+  const ctx = await loadBookingContext(admin, event.aggregate_id);
+  if (!ctx) { await markProcessed(admin, event.id); return; }
+
+  const { data: travelerAuth } = await admin.auth.admin.getUserById(ctx.travelerId);
+  const travelerEmail = travelerAuth?.user?.email;
+  if (travelerEmail) {
+    const template = bookingNoShowTravelerEmail({ activityTitle: ctx.listingTitle, disputeUrl: `${SITE_URL}/my-bookings` });
+    const { error: sendErr } = await sendEmail({ to: travelerEmail, subject: template.subject, html: template.html, text: template.text });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "email", sendErr ? { status: "failed", error: sendErr } : { status: "sent" });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "in_app", { status: "sent" });
+  }
+
+  await markProcessed(admin, event.id);
+}
+
+async function handleBookingDisputeOpened(admin: SupabaseAdmin, event: DomainEvent) {
+  // No single "admin recipient" row to hang a notifications entry on (any
+  // number of admins/support staff may exist) — same special-casing as
+  // OPS_DAILY_HEALTH: a direct send to the shared ops inbox, self-managed
+  // processed_at, no `notifications` row.
+  if (!OPS_ALERT_EMAIL) {
+    await markProcessed(admin, event.id);
+    return;
+  }
+
+  const ctx = await loadBookingContext(admin, event.aggregate_id);
+  if (!ctx) { await markProcessed(admin, event.id); return; }
+
+  const payload = event.payload as { dispute_id?: string; kind?: "no_show" | "agency_no_show" };
+  const { data: booking } = await admin.from("bookings").select("booking_ref").eq("id", ctx.bookingId).maybeSingle();
+  const bookingRef = (booking?.booking_ref as string | undefined) ?? ctx.bookingId;
+
+  const template = bookingDisputeOpenedAdminEmail({
+    activityTitle: ctx.listingTitle, kind: payload.kind ?? "no_show", bookingRef,
+    disputesUrl: `${SITE_URL}/admin/disputes`,
+  });
+  const { error: sendErr } = await sendEmail({ to: OPS_ALERT_EMAIL, subject: template.subject, html: template.html, text: template.text });
+  if (sendErr) {
+    logError("dispatch-notifications: BOOKING_DISPUTE_OPENED send failed", sendErr, { eventId: event.id });
+    return; // reclaimed once the lease goes stale, same as other direct-send events
+  }
+
+  await markProcessed(admin, event.id);
+}
+
+async function handleBookingCompleted(admin: SupabaseAdmin, event: DomainEvent) {
+  const ctx = await loadBookingContext(admin, event.aggregate_id);
+  if (!ctx) { await markProcessed(admin, event.id); return; }
+
+  const { data: travelerAuth } = await admin.auth.admin.getUserById(ctx.travelerId);
+  const travelerEmail = travelerAuth?.user?.email;
+  if (travelerEmail) {
+    const template = bookingCompletedTravelerEmail({ activityTitle: ctx.listingTitle, reviewUrl: `${SITE_URL}/my-bookings` });
+    const { error: sendErr } = await sendEmail({ to: travelerEmail, subject: template.subject, html: template.html, text: template.text });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "email", sendErr ? { status: "failed", error: sendErr } : { status: "sent" });
+    await recordSettledNotification(admin, event.id, ctx.travelerId, "in_app", { status: "sent" });
+  }
+
+  await markProcessed(admin, event.id);
+}
+
 async function handleOpsDailyHealth(admin: SupabaseAdmin, event: DomainEvent) {
   // Same special-casing as AGENCY_INVITATION_SENT: no real recipient_id to
   // hang a `notifications` row on (this isn't about any one user), so it
@@ -286,11 +710,22 @@ async function handleDomainEvent(admin: SupabaseAdmin, event: DomainEvent) {
   if (event.event_type === "AGENCY_INVITATION_SENT") return handleAgencyInvitation(admin, event);
   if (event.event_type === "NEW_MESSAGE") return handleNewMessage(admin, event);
   if (event.event_type === "OPS_DAILY_HEALTH") return handleOpsDailyHealth(admin, event);
-
-  // Booking/payment events are explicitly deferred (not built yet), and
-  // any other unknown type has no handler here at all — finalize
-  // immediately rather than leaving it to be reclaimed forever waiting for
-  // logic that doesn't exist.
+  if (event.event_type === "BOOKING_AWAITING_AGENCY") return handleBookingAwaitingAgency(admin, event, false);
+  if (event.event_type === "BOOKING_AGENCY_REMINDER") return handleBookingAwaitingAgency(admin, event, true);
+  if (event.event_type === "BOOKING_CONFIRMED") return handleBookingConfirmed(admin, event);
+  if (event.event_type === "BOOKING_DECLINED_BY_AGENCY") return handleBookingDeclinedOrTimeout(admin, event, false);
+  if (event.event_type === "BOOKING_AGENCY_TIMEOUT") return handleBookingDeclinedOrTimeout(admin, event, true);
+  if (event.event_type === "BOOKING_CANCELLED") return handleBookingCancelled(admin, event);
+  if (event.event_type === "BOOKING_DISRUPTED") return handleBookingDisrupted(admin, event);
+  if (event.event_type === "BOOKING_RESCHEDULED") return handleBookingRescheduled(admin, event);
+  if (event.event_type === "BOOKING_NO_SHOW") return handleBookingNoShow(admin, event);
+  if (event.event_type === "BOOKING_DISPUTE_OPENED") return handleBookingDisputeOpened(admin, event);
+  if (event.event_type === "BOOKING_COMPLETED") return handleBookingCompleted(admin, event);
+  // BOOKING_HOLD_CREATED (Phase 20) is deliberately informational only — no
+  // handler, finalized immediately via the fallthrough below. Any other
+  // unknown type has no handler here at all — finalize immediately rather
+  // than leaving it to be reclaimed forever waiting for logic that doesn't
+  // exist.
   logError("dispatch-notifications: unhandled event type", null, { eventId: event.id, eventType: event.event_type });
   await markProcessed(admin, event.id);
 }

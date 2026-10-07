@@ -6,9 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { DURATION_RANGES } from "@/lib/catalog";
-
-const DIFFICULTIES = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
+import { DURATION_RANGES, DIFFICULTIES } from "@/lib/catalog";
 
 interface FilterPanelProps {
   priceMinInput: string;
@@ -34,7 +32,7 @@ export function FilterPanel({
     <div className="space-y-6">
       {/* Price Range */}
       <div>
-        <Label className="text-sm font-semibold mb-3 block">Price Range (USD)</Label>
+        <Label className="text-sm font-semibold mb-3 block">Price Range (NPR)</Label>
         <div className="flex gap-2 items-center">
           <Input
             type="number"

@@ -30,6 +30,8 @@ import { supabase } from "@/lib/supabase";
 import { useAgencyReviews, useMyReviewVotes } from "@/lib/queries";
 import { useStartConversation } from "@/hooks/useMessages";
 import { useAuthStore } from "@/stores/authStore";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import { useQuery } from "@tanstack/react-query";
 import type { Activity } from "@/components/activities/ActivityCard";
 import type { Listing } from "@/stores/listingsStore";
 import type { Review } from "@/lib/queries";
@@ -88,6 +90,21 @@ export default function AgencyProfile() {
   const { data: reviews = [], isLoading: reviewsLoading } = useAgencyReviews(agencyId);
   const { data: myVotes } = useMyReviewVotes(reviews.map((r) => r.id));
   const startConversation = useStartConversation();
+
+  const { commitments: commitmentDefs } = useSiteContent("community_impact", {
+    heading: "", body: "",
+    commitments: [] as { key: string; title: string; description: string }[],
+  });
+  const { data: committedKeys = new Set<string>() } = useQuery({
+    queryKey: ["agency-commitments", agencyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("agency_commitments").select("commitment_key").eq("agency_id", agencyId!);
+      if (error || !data) return new Set<string>();
+      return new Set(data.map((r) => r.commitment_key as string));
+    },
+    enabled: !!agencyId,
+  });
+  const committedCommitments = commitmentDefs.filter((c) => committedKeys.has(c.key));
 
   useEffect(() => {
     if (!agencyId) {
@@ -418,6 +435,15 @@ export default function AgencyProfile() {
                           </div>
                         </li>
                       )}
+                      {committedCommitments.map((c) => (
+                        <li key={c.key} className="flex items-start gap-3 text-sm">
+                          <BadgeCheck className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="block font-semibold text-foreground">{c.title}</span>
+                            <span className="text-muted-foreground">{c.description}</span>
+                          </div>
+                        </li>
+                      ))}
                       {agency.website && (
                         <li className="flex items-start gap-3 text-sm">
                           <Globe className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />

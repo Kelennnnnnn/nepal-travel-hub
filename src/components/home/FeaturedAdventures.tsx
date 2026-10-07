@@ -1,49 +1,31 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Star, Users, BadgeCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { usePublicAgencies, type PublishedListingRow } from "@/lib/queries";
+import { usePublicAgencies } from "@/lib/queries";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import { formatPrice } from "@/lib/currency";
+import type { HomeSections } from "@/hooks/useHomeSections";
 
-type TabKey = "all" | "best-sellers" | "remote" | "cultural";
+type TabKey = keyof HomeSections["tabs"];
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All Treks" },
-  { key: "best-sellers", label: "Best Sellers" },
+  { key: "best_sellers", label: "Best Sellers" },
   { key: "remote", label: "Remote & Untouched" },
   { key: "cultural", label: "Cultural Homestays" },
 ];
 
-function matchesTab(listing: PublishedListingRow, tab: TabKey): boolean {
-  switch (tab) {
-    case "best-sellers":
-      return listing.featured || listing.review_count >= 20;
-    case "remote":
-      return listing.category === "Wildlife" || listing.category === "Mountaineering" || listing.difficulty === "Expert";
-    case "cultural":
-      return listing.category === "Cultural";
-    default:
-      return true;
-  }
-}
-
 interface FeaturedAdventuresProps {
-  listings: PublishedListingRow[];
+  tabs: HomeSections["tabs"];
 }
 
-export function FeaturedAdventures({ listings }: FeaturedAdventuresProps) {
+export function FeaturedAdventures({ tabs }: FeaturedAdventuresProps) {
   const [tab, setTab] = useState<TabKey>("all");
-  const { data: agencyMap = {} } = usePublicAgencies(listings.map((l) => l.agency_id));
-
-  const filtered = useMemo(() => {
-    return listings
-      .filter((l) => matchesTab(l, tab))
-      .sort((a, b) => b.rating * b.review_count - a.rating * a.review_count)
-      .slice(0, 6);
-  }, [listings, tab]);
+  const filtered = tabs[tab];
+  const { data: agencyMap = {} } = usePublicAgencies(filtered.map((l) => l.agency_id));
 
   return (
     <section className="py-16 md:py-20">

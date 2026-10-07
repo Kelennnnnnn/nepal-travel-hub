@@ -27,7 +27,7 @@ const footerLinks = {
 };
 
 export function Footer() {
-  const { platformName } = usePlatformSettings();
+  const { platform_name: platformName } = usePlatformSettings();
   return (
     <footer className="bg-primary brand-texture text-white/80">
       <div className="container mx-auto px-4 py-16">

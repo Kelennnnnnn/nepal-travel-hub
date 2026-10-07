@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DIFFICULTIES } from "@/lib/catalog";
 
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -18,13 +19,17 @@ export const agencySignUpSchema = signUpSchema.extend({
 export const listingFormSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters"),
   description: z.string().min(50, "Description must be at least 50 characters"),
-  category: z.enum(["Trekking", "Adventure", "Cultural", "Wildlife", "Rafting", "Mountaineering", "Wellness", "Photography"]),
+  // Category is admin-managed (public.categories, Prompt 24) — validated
+  // against the live, active category list at the form layer (useCategories())
+  // and enforced server-side by the listings_category_fkey constraint, not
+  // by a fixed frontend enum.
+  category: z.string().min(1, "Category is required"),
   location: z.string().min(2, "Location is required"),
   base_price: z.coerce.number().positive("Price must be greater than 0"),
   duration_label: z.string().min(1, "Duration is required"),
   duration_days: z.coerce.number().positive("Duration in days is required"),
   max_participants: z.coerce.number().int().min(1, "At least 1 participant"),
-  difficulty: z.enum(["Easy", "Moderate", "Challenging", "Difficult", "Expert"]),
+  difficulty: z.enum(DIFFICULTIES),
   images: z.array(z.string()).min(1, "At least one image is required"),
   includes: z.array(z.string()),
   excludes: z.array(z.string()),

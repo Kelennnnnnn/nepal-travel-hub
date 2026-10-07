@@ -1,26 +1,73 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   MapPin, Clock, Users, Star, ChevronRight, Share2, Heart,
   Minus, Plus, Loader2, X, Check, ShieldCheck,
   CalendarDays, TrendingUp, CheckCircle2, Zap, LayoutGrid,
+  ChevronLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Layout } from "@/components/layout/Layout";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { createBookingHold, listingPolicyPreview } from "@/lib/api/bookings";
+import { useDayRender, type DayProps } from "react-day-picker";
+import { format, addMonths, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { ReviewsSection } from "@/components/reviews/ReviewsSection";
 import { useListing } from "@/lib/queries";
-import { availableCapacity, type Departure } from "@/stores/departuresStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useWishlistIds, useToggleWishlist } from "@/hooks/useWishlist";
+import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import { formatPrice } from "@/lib/currency";
+
+interface PricePreview {
+  unit_price: number;
+  product_value: number;
+  reservation_fee: number;
+  balance: number;
+  amount_due_now: number;
+  currency: string;
+  payment_requirement: string;
+}
+
+interface BookableDay { day: string; status: string; reason: string | null }
+
+const STATUS_LABELS: Record<string, string> = {
+  unavailable: "Not available right now",
+  paused: "Bookings are paused",
+  too_soon: "Inside the minimum notice period",
+  too_far: "Too far in advance",
+  closed_day: "Not an operating day",
+  blackout: "Blocked",
+  invalid_pax: "Group size not allowed",
+  full: "Fully booked",
+};
+
+function reserveErrorMessage(err: unknown): { title: string; action?: "my-bookings" } {
+  const code = (err as { message?: string })?.message ?? "";
+  const detail = (err as { details?: string })?.details;
+  switch (code) {
+    case "DATE_NOT_BOOKABLE":
+      return { title: `This date is no longer available${detail ? ` (${STATUS_LABELS[detail] ?? detail})` : ""}. Please pick another date.` };
+    case "ALREADY_BOOKED":
+      return { title: "You already have a booking for this date.", action: "my-bookings" };
+    case "TOO_MANY_HOLDS":
+      return { title: "You have too many pending reservations. Complete or release one in My Bookings before starting another.", action: "my-bookings" };
+    case "ROLE_CANNOT_BOOK":
+      return { title: "This account type can't make bookings." };
+    default:
+      return { title: "Something went wrong creating your reservation. Please try again." };
+  }
+}
 
 type Tab = "overview" | "itinerary" | "inclusions" | "reviews";
 
@@ -47,6 +94,7 @@ export default function ActivityDetail() {
 
   const { data: wishlistIds = new Set<string>() } = useWishlistIds();
   const toggleWishlist = useToggleWishlist();
+  const { fee_free_cancel_hours_day, fee_free_cancel_hours_multiday } = usePlatformSettings();
 
   // Whether the viewer can respond to this listing's reviews as its agency.
   // Checked server-side via has_agency_access — never a raw id comparison
@@ -66,12 +114,13 @@ export default function ActivityDetail() {
   });
 
   const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => startOfMonth(new Date()));
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [participants, setParticipants] = useState(2);
   const [agencyName, setAgencyName] = useState("");
   const [agencyId, setAgencyId] = useState("");
   const [relatedListings, setRelatedListings] = useState<RelatedListing[]>([]);
-  const [departures, setDepartures] = useState<Departure[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
@@ -105,29 +154,131 @@ export default function ActivityDetail() {
       });
   }, [listing?.id, listing?.category]);
 
-  // Real, bookable departure dates — replaces a free-typed date input.
-  // Phase 6: only scheduled, future departures with visible inventory
-  // (departures_public_select/inventory_public_select both already scope
-  // this to published listings only).
-  useEffect(() => {
-    if (!listing?.id) return;
-    const today = new Date().toISOString().split("T")[0];
-    supabase
-      .from("departures")
-      .select("*, inventory(*)")
-      .eq("listing_id", listing.id)
-      .eq("status", "scheduled")
-      .gte("departure_date", today)
-      .order("departure_date", { ascending: true })
-      .then(({ data, error }) => {
-        if (error) return;
-        const rows = (data ?? []).map((d) => ({
-          ...d,
-          inventory: Array.isArray(d.inventory) ? (d.inventory[0] ?? null) : d.inventory,
-        })) as Departure[];
-        setDepartures(rows.filter((d) => availableCapacity(d.inventory) > 0));
+  // Flexible-date booking (Phase 19): the traveler picks any open date —
+  // there's no pre-created departure to choose from anymore. Fetches the
+  // visible month and the next, re-querying whenever the viewed month or
+  // the group size changes (group size affects invalid_pax/full per day).
+  const rangeFrom = format(startOfMonth(calendarMonth), "yyyy-MM-dd");
+  const rangeTo = format(endOfMonth(addMonths(calendarMonth, 1)), "yyyy-MM-dd");
+
+  const { data: bookableDays = [] } = useQuery({
+    queryKey: ["bookable-dates", listing?.id, rangeFrom, rangeTo, participants],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_bookable_dates", {
+        p_listing_id: listing!.id,
+        p_from: rangeFrom,
+        p_to: rangeTo,
+        p_pax: participants,
       });
-  }, [listing?.id]);
+      if (error) throw error;
+      return (data ?? []) as BookableDay[];
+    },
+    enabled: !!listing?.id,
+  });
+
+  const dayStatusMap = useMemo(() => {
+    const map = new Map<string, BookableDay>();
+    for (const d of bookableDays) map.set(d.day, d);
+    return map;
+  }, [bookableDays]);
+
+  const isDayDisabled = (date: Date) => {
+    const status = dayStatusMap.get(format(date, "yyyy-MM-dd"))?.status;
+    return status !== undefined && status !== "open";
+  };
+
+  const dayReasonRef = useRef(dayStatusMap);
+  dayReasonRef.current = dayStatusMap;
+
+  function BookableDayCell(props: DayProps) {
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const dayRender = useDayRender(props.date, props.displayMonth, buttonRef);
+    if (dayRender.isHidden) return <></>;
+    const entry = dayReasonRef.current.get(format(props.date, "yyyy-MM-dd"));
+    const title = entry && entry.status !== "open" ? (entry.reason ?? STATUS_LABELS[entry.status] ?? entry.status) : undefined;
+    if (!dayRender.isButton) return <div {...dayRender.divProps} />;
+    return <button ref={buttonRef} {...dayRender.buttonProps} title={title} />;
+  }
+
+  const selectedDateStatus = selectedDate ? dayStatusMap.get(format(selectedDate, "yyyy-MM-dd")) : undefined;
+
+  const selectedDateKey = selectedDate ? format(selectedDate, "yyyy-MM-dd") : undefined;
+
+  // Resolves seasonal_pricing/price_overrides for the chosen date instead
+  // of always showing listings.base_price (price_preview, Prompt 25).
+  const { data: pricePreview } = useQuery({
+    queryKey: ["price-preview", listing?.id, selectedDateKey, participants],
+    queryFn: async (): Promise<PricePreview> => {
+      const { data, error } = await supabase.rpc("price_preview", {
+        p_listing_id: listing!.id,
+        p_date: selectedDateKey!,
+        p_pax: participants,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return row as unknown as PricePreview;
+    },
+    enabled: !!listing?.id && !!selectedDateKey,
+  });
+
+  // Exact cancellation/no-show wording for the chosen date (listing_policy_
+  // preview, Prompt 22/25) — replaces a hardcoded "cancel up to 7 days
+  // before" footer that was the same for every listing regardless of its
+  // actual free-cancel window, payment requirement, or cancellation tiers.
+  const { data: policySentences } = useQuery({
+    queryKey: ["listing-policy-preview", listing?.id, selectedDateKey, participants],
+    queryFn: () => listingPolicyPreview(listing!.id, selectedDateKey!, participants),
+    enabled: !!listing?.id && !!selectedDateKey,
+  });
+
+  useEffect(() => {
+    if (listing?.min_participants) setParticipants((p) => Math.max(p, listing.min_participants));
+  }, [listing?.min_participants]);
+
+  const [guestDialogOpen, setGuestDialogOpen] = useState(false);
+  const [guestFullName, setGuestFullName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [isReserving, setIsReserving] = useState(false);
+
+  const canReserve = !!selectedDate && !!listing && (!selectedDateStatus || selectedDateStatus.status === "open");
+
+  const handleReserveClick = () => {
+    if (!isAuthenticated) {
+      navigate(`/login?redirect=/activities/${id}`);
+      return;
+    }
+    setGuestFullName(user?.name ?? "");
+    setGuestEmail(user?.email ?? "");
+    if (user?.id) {
+      supabase.from("profiles").select("phone").eq("id", user.id).maybeSingle().then(({ data }) => {
+        if (data?.phone) setGuestPhone(data.phone);
+      });
+    }
+    setGuestDialogOpen(true);
+  };
+
+  const handleConfirmReserve = async () => {
+    if (!listing || !selectedDate) return;
+    setIsReserving(true);
+    try {
+      const hold = await createBookingHold(
+        listing.id,
+        format(selectedDate, "yyyy-MM-dd"),
+        participants,
+        { full_name: guestFullName.trim(), contact_email: guestEmail.trim(), contact_phone: guestPhone.trim() }
+      );
+      setGuestDialogOpen(false);
+      navigate(`/booking/${hold.booking_id}/checkout`);
+    } catch (err) {
+      const { title, action } = reserveErrorMessage(err);
+      toast.error(title, action === "my-bookings" ? {
+        action: { label: "My Bookings", onClick: () => navigate("/my-bookings") },
+      } : undefined);
+    } finally {
+      setIsReserving(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -152,15 +303,15 @@ export default function ActivityDetail() {
   }
 
   const price = Number(listing.price);
+  const displayPrice = pricePreview ? Number(pricePreview.unit_price) : price;
   const rating = Number(listing.rating);
-  const selectedDeparture = departures.find((d) => d.departure_date === selectedDate) ?? null;
-  const maxParticipants = Math.min(
-    listing.max_participants || 12,
-    selectedDeparture ? availableCapacity(selectedDeparture.inventory) : listing.max_participants || 12,
-  );
+  const minParticipants = listing.min_participants ?? 1;
+  const maxParticipants = listing.max_participants || 12;
   const listingImages = (listing.images ?? []) as string[];
   const imgs: string[] = listingImages.length ? listingImages : [FALLBACK_IMG];
   const itinerary = (listing.itinerary ?? []) as { day: number; title: string; description: string }[];
+  const isInstantBook = listing.confirmation_mode === "instant";
+  const genericFreeCancelHours = Number(listing.duration_days) <= 1 ? fee_free_cancel_hours_day : fee_free_cancel_hours_multiday;
 
   const handleShare = async () => {
     const url = window.location.href;
@@ -492,15 +643,15 @@ export default function ActivityDetail() {
                 <div className="px-7 pt-7 pb-5">
                   <div className="flex items-start justify-between mb-6">
                     <div>
-                      <p className="text-xs text-muted-foreground mb-0.5">Starts from</p>
+                      <p className="text-xs text-muted-foreground mb-0.5">{selectedDateKey ? "Price for your date" : "Starts from"}</p>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-4xl font-extrabold text-primary">{formatPrice(price)}</span>
+                        <span className="text-4xl font-extrabold text-primary">{formatPrice(displayPrice)}</span>
                         <span className="text-muted-foreground text-sm font-medium">/ person</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 bg-secondary/10 text-secondary px-3 py-1.5 rounded-full text-xs font-bold">
                       <Zap className="h-3.5 w-3.5 fill-current" />
-                      Instant Book
+                      {isInstantBook ? "Instant Book" : "Agency Confirms"}
                     </div>
                   </div>
 
@@ -510,33 +661,37 @@ export default function ActivityDetail() {
                       <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">
                         Departure Date
                       </Label>
-                      {departures.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No upcoming departures scheduled yet — check back soon.</p>
-                      ) : (
-                        <div className="flex items-center justify-between gap-2">
-                          <Select
-                            value={selectedDate}
-                            onValueChange={(v) => {
-                              setSelectedDate(v);
-                              const dep = departures.find((d) => d.departure_date === v);
-                              const avail = dep ? availableCapacity(dep.inventory) : listing.max_participants;
-                              setParticipants((p) => Math.min(p, Math.max(1, avail)));
+                      <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                        <PopoverTrigger asChild>
+                          <button type="button" className="flex items-center justify-between gap-2 w-full text-left">
+                            <span className="font-bold text-sm">
+                              {selectedDate
+                                ? selectedDate.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+                                : "Select a date"}
+                            </span>
+                            <CalendarDays className="h-4 w-4 text-primary flex-shrink-0" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={(d) => { setSelectedDate(d); setDatePickerOpen(false); }}
+                            month={calendarMonth}
+                            onMonthChange={setCalendarMonth}
+                            disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0)) || isDayDisabled(d)}
+                            components={{
+                              IconLeft: () => <ChevronLeft className="h-4 w-4" />,
+                              IconRight: () => <ChevronRight className="h-4 w-4" />,
+                              Day: BookableDayCell,
                             }}
-                          >
-                            <SelectTrigger className="border-0 p-0 h-auto bg-transparent font-bold text-sm focus:ring-0 shadow-none">
-                              <SelectValue placeholder="Select a date" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {departures.map((d) => (
-                                <SelectItem key={d.id} value={d.departure_date}>
-                                  {new Date(d.departure_date + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
-                                  {" — "}{availableCapacity(d.inventory)} spot{availableCapacity(d.inventory) === 1 ? "" : "s"} left
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <CalendarDays className="h-4 w-4 text-primary flex-shrink-0" />
-                        </div>
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      {selectedDate && selectedDateStatus && selectedDateStatus.status !== "open" && (
+                        <p className="text-xs text-destructive mt-1.5">
+                          {selectedDateStatus.reason ?? STATUS_LABELS[selectedDateStatus.status]}
+                        </p>
                       )}
                     </div>
 
@@ -551,8 +706,8 @@ export default function ActivityDetail() {
                         <div className="flex items-center gap-3">
                           <button
                             type="button"
-                            onClick={() => setParticipants((p) => Math.max(1, p - 1))}
-                            disabled={participants <= 1}
+                            onClick={() => setParticipants((p) => Math.max(minParticipants, p - 1))}
+                            disabled={participants <= minParticipants}
                             className="h-7 w-7 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-40"
                           >
                             <Minus className="h-3.5 w-3.5" />
@@ -567,34 +722,60 @@ export default function ActivityDetail() {
                           </button>
                         </div>
                       </div>
+                      {minParticipants > 1 && (
+                        <p className="text-xs text-muted-foreground mt-1.5">Minimum group size: {minParticipants}</p>
+                      )}
                     </div>
                   </div>
 
-                  {/* CTA — reservations aren't open yet; we're rolling out a
-                      new reservation-fee payment flow (replaces the old
-                      checkout this button used to call). */}
+                  {/* Selection summary — the "Reserve" action itself is
+                      Prompt 20's reservation-fee payment flow, not built
+                      yet; this just confirms what would be booked. */}
+                  {selectedDate && (!selectedDateStatus || selectedDateStatus.status === "open") && (
+                    <div className="mb-4 p-3 rounded-xl bg-primary/5 border border-primary/20 text-sm">
+                      <span className="font-semibold">
+                        {selectedDate.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                      </span>
+                      {" · "}
+                      {participants} {participants === 1 ? "traveler" : "travelers"}
+                    </div>
+                  )}
+
                   <Button
                     size="lg"
                     className="w-full h-14 text-base font-bold rounded-xl"
-                    disabled
+                    disabled={!canReserve}
+                    onClick={handleReserveClick}
                   >
-                    Reservations Coming Soon
+                    {selectedDate ? "Reserve" : "Select a date to reserve"}
                   </Button>
 
                   <p className="text-center text-xs text-muted-foreground mt-3">
-                    We're rolling out a new payment flow — check back shortly to book.
+                    {listing.payment_requirement === "full_online"
+                      ? "Full payment is required online to hold your spot for this activity."
+                      : "Pay a small reservation fee now to hold your spot — no full payment required yet."}
                   </p>
                 </div>
 
-                {/* Free cancellation footer */}
+                {/* Free cancellation footer — exact policy text (listing_
+                    policy_preview) once a date is picked; a generic,
+                    settings-derived version before that, never a hardcoded
+                    "7 days" that was the same for every listing regardless
+                    of its own free-cancel window. */}
                 <div className="px-7 py-5 bg-muted/30 border-t border-border/20">
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                     <div>
                       <h4 className="font-bold text-sm">Free Cancellation</h4>
-                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                        Cancel up to 7 days before the trip starts for a full refund minus processing fees.
-                      </p>
+                      {policySentences && policySentences.length > 0 ? (
+                        <ul className="text-xs text-muted-foreground mt-0.5 leading-relaxed space-y-1">
+                          {policySentences.map((s, i) => <li key={i}>{s}</li>)}
+                        </ul>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          Free cancellation up to {genericFreeCancelHours} hours before your trip starts — your reservation fee is refunded in full. Select a date to see the exact policy.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -712,6 +893,32 @@ export default function ActivityDetail() {
           </div>
         </div>
       )}
+
+      <Dialog open={guestDialogOpen} onOpenChange={setGuestDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Who's going?</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Full name</Label>
+              <Input value={guestFullName} onChange={(e) => setGuestFullName(e.target.value)} placeholder="As it appears on your ID" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email</Label>
+              <Input type="email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} placeholder="you@example.com" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Phone</Label>
+              <Input value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} placeholder="+977 9812345678" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGuestDialogOpen(false)} disabled={isReserving}>Cancel</Button>
+            <Button onClick={handleConfirmReserve} disabled={isReserving || !guestFullName.trim() || !guestEmail.trim() || !guestPhone.trim()}>
+              {isReserving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Hold My Spot
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

@@ -31,8 +31,20 @@ values
 insert into public.listings (id, agency_id, slug, title, description, category, location, duration_label, duration_days, base_price, max_participants, difficulty, status)
 values ('b2100000-0000-0000-0000-000000000001', 'b2a00000-0000-0000-0000-000000000001', 'h2-test-listing', 'H2 Test Listing', 'A test listing with a long enough description to satisfy the schema check constraint here.', 'Trekking', 'Solukhumbu', '7 days', 7, 500, 10, 'Easy', 'published');
 
+-- Phase 20's idx_bookings_one_active_per_traveler_departure allows at most
+-- one "live" booking per (traveler, listing, departure) — this fixture
+-- deliberately keeps several simultaneously-active bookings for the SAME
+-- traveler+listing to isolate different RPC/transition behaviors, so each
+-- one below gets its own departure (same listing, different date) purely
+-- to stay outside that constraint's scope; nothing about what's actually
+-- being tested (cancellation/trip-status/check-constraint behavior) is
+-- keyed to a specific departure.
 insert into public.departures (id, listing_id, agency_id, departure_date, status)
-values ('b2200000-0000-0000-0000-000000000001', 'b2100000-0000-0000-0000-000000000001', 'b2a00000-0000-0000-0000-000000000001', current_date + 30, 'scheduled');
+values
+  ('b2200000-0000-0000-0000-000000000001', 'b2100000-0000-0000-0000-000000000001', 'b2a00000-0000-0000-0000-000000000001', current_date + 30, 'scheduled'),
+  ('b2200000-0000-0000-0000-000000000002', 'b2100000-0000-0000-0000-000000000001', 'b2a00000-0000-0000-0000-000000000001', current_date + 31, 'scheduled'),
+  ('b2200000-0000-0000-0000-000000000003', 'b2100000-0000-0000-0000-000000000001', 'b2a00000-0000-0000-0000-000000000001', current_date + 32, 'scheduled'),
+  ('b2200000-0000-0000-0000-000000000004', 'b2100000-0000-0000-0000-000000000001', 'b2a00000-0000-0000-0000-000000000001', current_date + 33, 'scheduled');
 
 insert into public.inventory (id, departure_id, capacity_total)
 values ('b2300000-0000-0000-0000-000000000001', 'b2200000-0000-0000-0000-000000000001', 10);
@@ -40,8 +52,8 @@ values ('b2300000-0000-0000-0000-000000000001', 'b2200000-0000-0000-0000-0000000
 insert into public.inventory_reservations (id, inventory_id, quantity, status, expires_at, confirmed_at)
 values ('b2400000-0000-0000-0000-000000000001', 'b2300000-0000-0000-0000-000000000001', 2, 'confirmed', now() + interval '1 hour', now());
 
-insert into public.booking_quotes (id, listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at)
-values ('b2500000-0000-0000-0000-000000000001', 'b2100000-0000-0000-0000-000000000001', 'b2200000-0000-0000-0000-000000000001', 'b2a00000-0000-0000-0000-000000000001', 'b2000000-0000-0000-0000-000000000001', 2, 1000.00, 10.00, 100.00, 900.00, 'NPR', '{}'::jsonb, 'b2400000-0000-0000-0000-000000000001', 'consumed', now() + interval '1 hour');
+insert into public.booking_quotes (id, listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at, confirmation_mode, payment_requirement, amount_due_now, start_at, end_at, no_show_grace_minutes, fee_refund_rule)
+values ('b2500000-0000-0000-0000-000000000001', 'b2100000-0000-0000-0000-000000000001', 'b2200000-0000-0000-0000-000000000001', 'b2a00000-0000-0000-0000-000000000001', 'b2000000-0000-0000-0000-000000000001', 2, 1000.00, 10.00, 100.00, 900.00, 'NPR', '{}'::jsonb, 'b2400000-0000-0000-0000-000000000001', 'consumed', now() + interval '1 hour', 'instant', 'fee_only', 100.00, now() + interval '30 days', now() + interval '31 days', 30, '{"free_cancel_hours": 24}'::jsonb);
 
 -- Booking A: confirmed + paid — for cancellation and trip-status tests.
 insert into public.bookings (id, quote_id, listing_id, departure_id, agency_id, traveler_id, participant_count, booking_status, payment_status)
@@ -49,14 +61,14 @@ values ('b2600000-0000-0000-0000-000000000001', 'b2500000-0000-0000-0000-0000000
 
 -- Booking B: pending_payment + unpaid — for the NOT_CANCELLABLE case.
 insert into public.bookings (id, quote_id, listing_id, departure_id, agency_id, traveler_id, participant_count, booking_status, payment_status)
-values ('b2600000-0000-0000-0000-000000000002', 'b2500000-0000-0000-0000-000000000001', 'b2100000-0000-0000-0000-000000000001', 'b2200000-0000-0000-0000-000000000001', 'b2a00000-0000-0000-0000-000000000001', 'b2000000-0000-0000-0000-000000000001', 2, 'pending_payment', 'unpaid');
+values ('b2600000-0000-0000-0000-000000000002', 'b2500000-0000-0000-0000-000000000001', 'b2100000-0000-0000-0000-000000000001', 'b2200000-0000-0000-0000-000000000002', 'b2a00000-0000-0000-0000-000000000001', 'b2000000-0000-0000-0000-000000000001', 2, 'pending_payment', 'unpaid');
 
 -- Booking C: payment_processing + unpaid — for the check-constraint test
 -- (payment_processing -> confirmed IS a legal edge in guard_booking_status_
 -- transition, isolating the check constraint as the thing that blocks it,
 -- not the transition graph).
 insert into public.bookings (id, quote_id, listing_id, departure_id, agency_id, traveler_id, participant_count, booking_status, payment_status)
-values ('b2600000-0000-0000-0000-000000000003', 'b2500000-0000-0000-0000-000000000001', 'b2100000-0000-0000-0000-000000000001', 'b2200000-0000-0000-0000-000000000001', 'b2a00000-0000-0000-0000-000000000001', 'b2000000-0000-0000-0000-000000000001', 2, 'payment_processing', 'unpaid');
+values ('b2600000-0000-0000-0000-000000000003', 'b2500000-0000-0000-0000-000000000001', 'b2100000-0000-0000-0000-000000000001', 'b2200000-0000-0000-0000-000000000003', 'b2a00000-0000-0000-0000-000000000001', 'b2000000-0000-0000-0000-000000000001', 2, 'payment_processing', 'unpaid');
 
 select set_config('request.jwt.claims', '', true);
 
@@ -136,7 +148,7 @@ reset role;
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated', 'app_metadata', json_build_object('role', 'admin'), 'aal', 'aal2')::text, true);
 insert into public.bookings (id, quote_id, listing_id, departure_id, agency_id, traveler_id, participant_count, booking_status, payment_status)
-values ('b2600000-0000-0000-0000-000000000004', 'b2500000-0000-0000-0000-000000000001', 'b2100000-0000-0000-0000-000000000001', 'b2200000-0000-0000-0000-000000000001', 'b2a00000-0000-0000-0000-000000000001', 'b2000000-0000-0000-0000-000000000001', 2, 'confirmed', 'paid');
+values ('b2600000-0000-0000-0000-000000000004', 'b2500000-0000-0000-0000-000000000001', 'b2100000-0000-0000-0000-000000000001', 'b2200000-0000-0000-0000-000000000004', 'b2a00000-0000-0000-0000-000000000001', 'b2000000-0000-0000-0000-000000000001', 2, 'confirmed', 'paid');
 select set_config('request.jwt.claims', '', true);
 
 set local role authenticated;

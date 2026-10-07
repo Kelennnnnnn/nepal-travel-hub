@@ -8,15 +8,11 @@ import type { Json } from "../../supabase/schema.types";
 // amended by Phase 5 (category/difficulty casing aligned to the shipped
 // frontend taxonomy, featured added, duration_days made required).
 
-export type ListingCategory =
-  | "Trekking"
-  | "Adventure"
-  | "Cultural"
-  | "Wildlife"
-  | "Rafting"
-  | "Mountaineering"
-  | "Wellness"
-  | "Photography";
+// Category is admin-managed (public.categories, Prompt 24) rather than a
+// fixed set of frontend-known strings — a plain string that must match an
+// active categories.slug, enforced by the listings_category_fkey
+// constraint server-side and by useCategories()-driven selects client-side.
+export type ListingCategory = string;
 
 export type ListingDifficulty =
   | "Easy"
@@ -39,6 +35,9 @@ export interface ItineraryDay {
   title: string;
   description: string;
 }
+
+export type ConfirmationMode = "instant" | "agency_confirm";
+export type PaymentRequirement = "fee_only" | "full_online";
 
 export interface Listing {
   id: string;
@@ -64,6 +63,34 @@ export interface Listing {
   review_count: number;
   created_at: string;
   updated_at: string;
+  // Booking rules (supabase/migrations/20260918000001_booking_rules.sql) —
+  // flexible-date booking: the traveler picks any open date, rather than
+  // the agency pre-creating departures by hand.
+  confirmation_mode: ConfirmationMode;
+  restricted_area: boolean;
+  min_participants: number;
+  min_advance_hours: number;
+  max_advance_days: number;
+  default_start_time: string;
+  operating_days: number[] | null;
+  daily_booking_limit: number | null;
+  bookings_paused: boolean;
+  no_show_grace_minutes: number;
+  payment_requirement: PaymentRequirement;
+}
+
+export interface BookingRulesFormData {
+  confirmation_mode: ConfirmationMode;
+  min_participants: number;
+  max_participants: number;
+  min_advance_hours: number;
+  max_advance_days: number;
+  default_start_time: string;
+  operating_days: number[] | null;
+  daily_booking_limit: number | null;
+  bookings_paused: boolean;
+  no_show_grace_minutes: number;
+  payment_requirement: PaymentRequirement;
 }
 
 export interface ListingImageRecord {
@@ -118,6 +145,7 @@ interface ListingsStore {
   fetchMyListings: () => Promise<void>;
   createListing: (data: ListingFormData) => Promise<{ data: Listing | null; error: string | null }>;
   updateListing: (id: string, data: Partial<ListingFormData> & { images?: string[] }) => Promise<{ error: string | null }>;
+  updateBookingRules: (id: string, data: Partial<BookingRulesFormData>) => Promise<{ error: string | null }>;
   deleteListing: (id: string) => Promise<{ error: string | null }>;
   setOwnStatus: (id: string, status: ListingStatus) => Promise<{ error: string | null }>;
   submitForReview: (id: string) => Promise<{ error: string | null }>;
@@ -257,6 +285,21 @@ export const useListingsStore = create<ListingsStore>((set, get) => ({
     set({
       myListings: get().myListings.map((listing) =>
         listing.id === id ? { ...listing, ...formData } : listing
+      ),
+    });
+    return { error: null };
+  },
+
+  // ── Agency: booking rules (confirmation mode, notice period, operating
+  //    days, group size, daily limit, pause, payment requirement) —
+  //    restricted_area is deliberately NOT settable here (admin-only; see
+  //    guard_listing_protected_fields). ──────────────────────────────────
+  updateBookingRules: async (id, data) => {
+    const { error } = await supabase.from("listings").update(data).eq("id", id);
+    if (error) return { error: error.message };
+    set({
+      myListings: get().myListings.map((listing) =>
+        listing.id === id ? { ...listing, ...data } : listing
       ),
     });
     return { error: null };

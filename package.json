@@ -23,6 +23,7 @@
     "lint": "eslint .",
     "test:anon-probe": "node --env-file=.env.local --import tsx scripts/anon-rpc-probe.ts",
     "test:db": "tsx scripts/generate-security-tests.ts && supabase test db",
+    "test:concurrency": "bash scripts/concurrency/daily-limit-concurrency.sh && bash scripts/concurrency/unlimited-capacity-concurrency.sh",
     "test:edge": "deno test --allow-net --allow-env --allow-run=psql supabase/functions/tests/",
     "preview": "vite preview"
   },

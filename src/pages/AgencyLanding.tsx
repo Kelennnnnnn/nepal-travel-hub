@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   Check,
   Globe,
@@ -13,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/SEO";
+import { usePlatformSettings } from "@/hooks/usePlatformSettings";
+import { supabase } from "@/lib/supabase";
 
 const benefits = [
   {
@@ -23,9 +26,9 @@ const benefits = [
   },
   {
     icon: CreditCard,
-    title: "Secure Payments",
+    title: "Zero Commission",
     description:
-      "Receive payments directly to your account with transparent commission structure.",
+      "You keep 100% of your listed price. Travelers pay a reservation fee on top, directly to Into Nepal — it's never deducted from what you earn.",
   },
   {
     icon: BarChart3,
@@ -80,24 +83,21 @@ const steps = [
   },
 ];
 
-const testimonials = [
-  {
-    quote:
-      "Into Nepal has transformed our business. We now reach customers we never could before.",
-    author: "Ram Thapa",
-    role: "Owner, Everest Trail Guides",
-    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
-  },
-  {
-    quote:
-      "The platform is easy to use and the support team is always there when we need help.",
-    author: "Sunita Gurung",
-    role: "Manager, Sky Riders Nepal",
-    image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
-  },
-];
-
 export default function AgencyLanding() {
+  const { reservation_fee_percent } = usePlatformSettings();
+  // Live count of publicly-visible (approved) agencies — agencies_public_
+  // select_approved RLS already scopes this to exactly that set for an
+  // anon/unauthenticated caller, same guarantee usePublicAgencies() relies
+  // on elsewhere. Replaces a hardcoded "150+ agencies" claim.
+  const { data: agencyCount } = useQuery({
+    queryKey: ["agencies", "public-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase.from("agencies").select("id", { count: "exact", head: true });
+      if (error) return null;
+      return count ?? 0;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
   return (
     <Layout>
       <SEO title="Partner With Us" description="Join Into Nepal as a verified travel agency partner and reach travelers looking for authentic Nepal experiences." />
@@ -162,38 +162,38 @@ export default function AgencyLanding() {
         </div>
       </section>
 
-      {/* Commission Structure */}
+      {/* Pricing */}
       <section className="py-16 md:py-24 bg-muted/30">
         <div className="container mx-auto px-4">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                Transparent Commission Structure
+                Keep 100% of Your Listed Price
               </h2>
               <p className="text-muted-foreground mb-8">
-                We believe in fair and transparent pricing. Our commission is simple
-                and straightforward - you keep most of what you earn.
+                We don't take a cut of your price. Travelers pay a small reservation fee on top of
+                what you list, at checkout — you receive the full amount you set.
               </p>
               <div className="space-y-4">
                 <div className="flex items-center gap-4 p-4 bg-card rounded-xl border border-border">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xl font-bold text-primary">15%</span>
+                    <span className="text-xl font-bold text-primary">{reservation_fee_percent}%</span>
                   </div>
                   <div>
-                    <p className="font-semibold">Standard Commission</p>
+                    <p className="font-semibold">Traveler Reservation Fee</p>
                     <p className="text-sm text-muted-foreground">
-                      For all confirmed bookings
+                      Paid by the traveler at checkout, on top of your listed price — not deducted from it
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 p-4 bg-card rounded-xl border border-border">
                   <div className="w-12 h-12 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xl font-bold text-secondary">12%</span>
+                    <span className="text-xl font-bold text-secondary">0%</span>
                   </div>
                   <div>
-                    <p className="font-semibold">Premium Partners</p>
+                    <p className="font-semibold">Your Commission</p>
                     <p className="text-sm text-muted-foreground">
-                      For agencies with 50+ bookings/month
+                      You keep 100% of the price you set for every booking
                     </p>
                   </div>
                 </div>
@@ -256,41 +256,6 @@ export default function AgencyLanding() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="py-16 md:py-24 bg-primary text-primary-foreground">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              What Our Partners Say
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {testimonials.map((testimonial) => (
-              <div
-                key={testimonial.author}
-                className="p-8 rounded-2xl bg-primary-foreground/10"
-              >
-                <p className="text-lg mb-6 italic">"{testimonial.quote}"</p>
-                <div className="flex items-center gap-4">
-                  <img
-                    src={testimonial.image}
-                    alt={testimonial.author}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                  <div>
-                    <p className="font-semibold">{testimonial.author}</p>
-                    <p className="text-sm text-primary-foreground/70">
-                      {testimonial.role}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* CTA */}
       <section className="py-16 md:py-24">
         <div className="container mx-auto px-4">
@@ -300,8 +265,9 @@ export default function AgencyLanding() {
                 Ready to Grow Your Business?
               </h2>
               <p className="text-primary-foreground/80 mb-8 max-w-2xl mx-auto">
-                Join 150+ verified agencies already growing their business with
-                Into Nepal. Apply today and start receiving bookings.
+                {agencyCount != null && agencyCount > 0
+                  ? `Join ${agencyCount} verified agencies already growing their business with Into Nepal. Apply today and start receiving bookings.`
+                  : "Apply today and start receiving bookings from travelers looking for authentic Nepal experiences."}
               </p>
               <Link to="/agency/onboarding">
                 <Button variant="hero" size="xl">

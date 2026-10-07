@@ -5,20 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Plus, Loader2, Pencil, Trash2, Ban, PlayCircle, PauseCircle, CalendarOff, Tag } from "lucide-react";
+import { Trash2, CalendarOff, Tag, PartyPopper, Lock, Loader2, Plus, PauseCircle } from "lucide-react";
 import { toast } from "sonner";
-import { useListingsStore } from "@/stores/listingsStore";
-import { useDeparturesStore, availableCapacity, type Departure, type DepartureStatus } from "@/stores/departuresStore";
+import { useListingsStore, type ConfirmationMode, type PaymentRequirement } from "@/stores/listingsStore";
+import { useDeparturesStore } from "@/stores/departuresStore";
+import { useBookingRulesStore } from "@/stores/bookingRulesStore";
 import { formatPrice } from "@/lib/currency";
+import { supabase } from "@/lib/supabase";
 
 const SEASON_TEMPLATES = [
   { label: "Autumn Peak (Oct – Nov)", start: "10-01", end: "11-30", mult: 1.5 },
@@ -27,11 +22,10 @@ const SEASON_TEMPLATES = [
   { label: "Monsoon Off-Peak (Jun – Aug)", start: "06-01", end: "08-31", mult: 0.8 },
 ];
 
-const statusBadge: Record<DepartureStatus, { label: string; className: string }> = {
-  scheduled: { label: "Scheduled", className: "bg-primary/10 text-primary" },
-  closed: { label: "Closed", className: "bg-warning text-warning-foreground" },
-  cancelled: { label: "Cancelled", className: "bg-destructive/10 text-destructive" },
-};
+const WEEKDAYS = [
+  { iso: 1, label: "Mon" }, { iso: 2, label: "Tue" }, { iso: 3, label: "Wed" },
+  { iso: 4, label: "Thu" }, { iso: 5, label: "Fri" }, { iso: 6, label: "Sat" }, { iso: 7, label: "Sun" },
+];
 
 function formatDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
@@ -40,39 +34,58 @@ function formatDate(d: string) {
 const currentYear = new Date().getFullYear();
 
 export default function AgencyAvailability() {
-  const { myListings, fetchMyListings } = useListingsStore();
+  const { myListings, myAgencyId, fetchMyListings, updateBookingRules } = useListingsStore();
   const {
-    departures, seasonalPricing, blackoutDates, isLoading,
-    fetchDepartures, createDeparture, setCapacity, setDepartureStatus, deleteDeparture,
+    seasonalPricing, isLoading,
     fetchSeasonalPricing, addSeasonalPricing, deleteSeasonalPricing,
-    fetchBlackoutDates, addBlackoutDate, deleteBlackoutDate,
   } = useDeparturesStore();
+  const {
+    blackoutPeriods, presets,
+    fetchBlackoutPeriods, addBlackoutPeriod, deleteBlackoutPeriod, closeDate,
+    fetchPresets, applyPreset,
+  } = useBookingRulesStore();
 
   const [selectedListing, setSelectedListing] = useState("");
   const activeListing = useMemo(() => myListings.find((l) => l.id === selectedListing), [myListings, selectedListing]);
 
-  const [addOpen, setAddOpen] = useState(false);
-  const [newDate, setNewDate] = useState("");
-  const [newCapacity, setNewCapacity] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+  const [rules, setRules] = useState({
+    confirmation_mode: "instant" as ConfirmationMode,
+    min_participants: 1,
+    max_participants: 10,
+    min_advance_hours: 24,
+    max_advance_days: 365,
+    default_start_time: "07:00",
+    operating_days: null as number[] | null,
+    daily_booking_limit: "" as string,
+    no_show_grace_minutes: 30,
+    payment_requirement: "fee_only" as PaymentRequirement,
+    bookings_paused: false,
+  });
+  const [isSavingRules, setIsSavingRules] = useState(false);
 
-  const [editCapacityFor, setEditCapacityFor] = useState<Departure | null>(null);
-  const [editCapacityValue, setEditCapacityValue] = useState("");
+  const [closeSingleDate, setCloseSingleDate] = useState("");
+  const [closeSingleReason, setCloseSingleReason] = useState("");
+  const [rangeStart, setRangeStart] = useState("");
+  const [rangeEnd, setRangeEnd] = useState("");
+  const [rangeReason, setRangeReason] = useState("");
+  const [rangeAllListings, setRangeAllListings] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState("");
+  const [isSavingBlackout, setIsSavingBlackout] = useState(false);
 
-  const [deleteTarget, setDeleteTarget] = useState<Departure | null>(null);
-
-  const [blackoutDate, setBlackoutDate] = useState("");
-  const [blackoutReason, setBlackoutReason] = useState("");
+  const [agencyPaused, setAgencyPaused] = useState(false);
+  const [agencyPauseSaving, setAgencyPauseSaving] = useState(false);
 
   const [seasonOpen, setSeasonOpen] = useState(false);
   const [seasonName, setSeasonName] = useState("");
   const [seasonStart, setSeasonStart] = useState("");
   const [seasonEnd, setSeasonEnd] = useState("");
   const [seasonPrice, setSeasonPrice] = useState("");
+  const [isSavingSeason, setIsSavingSeason] = useState(false);
 
   useEffect(() => {
     if (myListings.length === 0) fetchMyListings();
-  }, [fetchMyListings, myListings.length]);
+    fetchPresets();
+  }, [fetchMyListings, myListings.length, fetchPresets]);
 
   useEffect(() => {
     if (!selectedListing && myListings.length > 0) setSelectedListing(myListings[0].id);
@@ -80,72 +93,117 @@ export default function AgencyAvailability() {
 
   useEffect(() => {
     if (!selectedListing) return;
-    fetchDepartures(selectedListing);
     fetchSeasonalPricing(selectedListing);
-    fetchBlackoutDates(selectedListing);
-  }, [selectedListing, fetchDepartures, fetchSeasonalPricing, fetchBlackoutDates]);
+  }, [selectedListing, fetchSeasonalPricing]);
 
   useEffect(() => {
-    setNewCapacity(String(activeListing?.max_participants ?? ""));
+    if (myAgencyId) fetchBlackoutPeriods(myAgencyId);
+  }, [myAgencyId, fetchBlackoutPeriods]);
+
+  useEffect(() => {
+    if (!myAgencyId) return;
+    supabase.from("agencies").select("bookings_paused").eq("id", myAgencyId).maybeSingle().then(({ data }) => {
+      if (data) setAgencyPaused(data.bookings_paused);
+    });
+  }, [myAgencyId]);
+
+  const handleAgencyPauseToggle = async (checked: boolean) => {
+    if (!myAgencyId) return;
+    setAgencyPauseSaving(true);
+    const { error } = await supabase.from("agencies").update({ bookings_paused: checked }).eq("id", myAgencyId);
+    setAgencyPauseSaving(false);
+    if (error) { toast.error(error.message); return; }
+    setAgencyPaused(checked);
+    toast.success(checked ? "All bookings paused agency-wide." : "Bookings resumed agency-wide.");
+  };
+
+  useEffect(() => {
+    if (!activeListing) return;
+    setRules({
+      confirmation_mode: activeListing.confirmation_mode,
+      min_participants: activeListing.min_participants,
+      max_participants: activeListing.max_participants,
+      min_advance_hours: activeListing.min_advance_hours,
+      max_advance_days: activeListing.max_advance_days,
+      default_start_time: activeListing.default_start_time?.slice(0, 5) ?? "07:00",
+      operating_days: activeListing.operating_days,
+      daily_booking_limit: activeListing.daily_booking_limit?.toString() ?? "",
+      no_show_grace_minutes: activeListing.no_show_grace_minutes,
+      payment_requirement: activeListing.payment_requirement,
+      bookings_paused: activeListing.bookings_paused,
+    });
   }, [activeListing]);
 
-  const handleAddDeparture = async () => {
-    if (!activeListing || !newDate) return;
-    const capacity = Number(newCapacity);
-    if (!capacity || capacity < 1) { toast.error("Enter a valid capacity."); return; }
-    setIsSaving(true);
-    const { data, error } = await createDeparture(activeListing.id, activeListing.agency_id, newDate);
-    if (error || !data) {
-      toast.error(error ?? "Failed to create departure.");
-      setIsSaving(false);
+  const toggleOperatingDay = (iso: number) => {
+    setRules((prev) => {
+      const current = prev.operating_days ?? [1, 2, 3, 4, 5, 6, 7];
+      const next = current.includes(iso) ? current.filter((d) => d !== iso) : [...current, iso].sort();
+      return { ...prev, operating_days: next.length === 7 ? null : next };
+    });
+  };
+
+  const handleSaveRules = async () => {
+    if (!activeListing) return;
+    if (rules.min_participants < 1 || rules.min_participants > rules.max_participants) {
+      toast.error("Min group size must be at least 1 and no more than the max.");
       return;
     }
-    const { error: capError } = await setCapacity(data.id, capacity);
-    setIsSaving(false);
-    if (capError) { toast.error(capError); return; }
-    toast.success("Departure added.");
-    setAddOpen(false);
-    setNewDate("");
-  };
-
-  const openEditCapacity = (d: Departure) => {
-    setEditCapacityFor(d);
-    setEditCapacityValue(String(d.inventory?.capacity_total ?? activeListing?.max_participants ?? ""));
-  };
-
-  const handleSaveCapacity = async () => {
-    if (!editCapacityFor) return;
-    const capacity = Number(editCapacityValue);
-    if (!capacity || capacity < 0) { toast.error("Enter a valid capacity."); return; }
-    setIsSaving(true);
-    const { error } = await setCapacity(editCapacityFor.id, capacity);
-    setIsSaving(false);
+    setIsSavingRules(true);
+    const { error } = await updateBookingRules(activeListing.id, {
+      confirmation_mode: rules.confirmation_mode,
+      min_participants: rules.min_participants,
+      max_participants: rules.max_participants,
+      min_advance_hours: rules.min_advance_hours,
+      max_advance_days: rules.max_advance_days,
+      default_start_time: rules.default_start_time,
+      operating_days: rules.operating_days,
+      daily_booking_limit: rules.daily_booking_limit === "" ? null : Number(rules.daily_booking_limit),
+      no_show_grace_minutes: rules.no_show_grace_minutes,
+      payment_requirement: rules.payment_requirement,
+      bookings_paused: rules.bookings_paused,
+    });
+    setIsSavingRules(false);
     if (error) { toast.error(error); return; }
-    toast.success("Capacity updated.");
-    setEditCapacityFor(null);
+    toast.success("Booking rules saved.");
   };
 
-  const handleStatusChange = async (d: Departure, status: DepartureStatus) => {
-    const { error } = await setDepartureStatus(d.id, status);
-    if (error) toast.error(error);
-    else toast.success(`Departure ${status === "cancelled" ? "cancelled" : status === "closed" ? "closed" : "reopened"}.`);
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    const { error } = await deleteDeparture(deleteTarget.id);
-    setDeleteTarget(null);
-    if (error) toast.error(error);
-    else toast.success("Departure removed.");
-  };
-
-  const handleAddBlackout = async () => {
-    if (!selectedListing || !blackoutDate) return;
-    const { error } = await addBlackoutDate(selectedListing, blackoutDate, blackoutReason);
+  const handleCloseSingleDate = async () => {
+    if (!activeListing || !closeSingleDate) return;
+    setIsSavingBlackout(true);
+    const { error } = await closeDate(activeListing.id, closeSingleDate, closeSingleReason || undefined);
+    setIsSavingBlackout(false);
     if (error) { toast.error(error); return; }
-    toast.success("Blackout date added.");
-    setBlackoutDate("");
-    setBlackoutReason("");
+    if (myAgencyId) fetchBlackoutPeriods(myAgencyId);
+    toast.success("Date closed.");
+    setCloseSingleDate("");
+    setCloseSingleReason("");
+  };
+
+  const handleAddRange = async () => {
+    if (!myAgencyId || !rangeStart || !rangeEnd) return;
+    setIsSavingBlackout(true);
+    const { error } = await addBlackoutPeriod({
+      agency_id: myAgencyId,
+      start_date: rangeStart,
+      end_date: rangeEnd,
+      reason: rangeReason || undefined,
+      listing_ids: rangeAllListings ? null : (activeListing ? [activeListing.id] : null),
+    });
+    setIsSavingBlackout(false);
+    if (error) { toast.error(error); return; }
+    toast.success("Blackout period added.");
+    setRangeStart(""); setRangeEnd(""); setRangeReason("");
+  };
+
+  const handleApplyPreset = async () => {
+    if (!selectedPreset) return;
+    setIsSavingBlackout(true);
+    const { error } = await applyPreset(selectedPreset);
+    setIsSavingBlackout(false);
+    if (error) { toast.error(error); return; }
+    if (myAgencyId) fetchBlackoutPeriods(myAgencyId);
+    toast.success("Festival preset applied.");
+    setSelectedPreset("");
   };
 
   const applyTemplate = (tpl: (typeof SEASON_TEMPLATES)[number]) => {
@@ -160,7 +218,7 @@ export default function AgencyAvailability() {
       toast.error("Fill in all fields.");
       return;
     }
-    setIsSaving(true);
+    setIsSavingSeason(true);
     const { error } = await addSeasonalPricing({
       listing_id: selectedListing,
       season_name: seasonName,
@@ -168,7 +226,7 @@ export default function AgencyAvailability() {
       end_date: seasonEnd,
       price: Number(seasonPrice),
     });
-    setIsSaving(false);
+    setIsSavingSeason(false);
     if (error) { toast.error(error); return; }
     toast.success("Seasonal price added.");
     setSeasonOpen(false);
@@ -176,116 +234,208 @@ export default function AgencyAvailability() {
   };
 
   return (
-    <AgencyLayout title="Availability">
+    <AgencyLayout title="Availability & Booking Rules">
       <div className="space-y-6">
-        <div className="w-64">
-          <Label className="text-xs text-muted-foreground mb-1.5 block">Activity</Label>
-          <Select value={selectedListing} onValueChange={setSelectedListing}>
-            <SelectTrigger><SelectValue placeholder="Select a listing" /></SelectTrigger>
-            <SelectContent>
-              {myListings.map((l) => <SelectItem key={l.id} value={l.id}>{l.title}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <Card>
+          <CardContent className="flex items-center justify-between gap-4 pt-6">
+            <div className="flex items-center gap-3">
+              <PauseCircle className="h-5 w-5 text-primary flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium">Pause bookings agency-wide</p>
+                <p className="text-xs text-muted-foreground">Stops new bookings across every listing, instantly.</p>
+              </div>
+            </div>
+            <Switch checked={agencyPaused} disabled={agencyPauseSaving} onCheckedChange={handleAgencyPauseToggle} />
+          </CardContent>
+        </Card>
+
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div className="w-64">
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Activity</Label>
+            <Select value={selectedListing} onValueChange={setSelectedListing}>
+              <SelectTrigger><SelectValue placeholder="Select a listing" /></SelectTrigger>
+              <SelectContent>
+                {myListings.map((l) => <SelectItem key={l.id} value={l.id}>{l.title}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {!activeListing ? (
           <div className="text-center py-16 text-muted-foreground">
-            {isLoading ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : "Create a listing first to manage its departures."}
+            {isLoading ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : "Create a listing first to manage its booking rules."}
           </div>
         ) : (
           <>
-            {/* Departures */}
+            {/* Booking rules */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-base">Departures</CardTitle>
-                <Button size="sm" className="gap-2" onClick={() => setAddOpen(true)}>
-                  <Plus className="h-4 w-4" /> Add Departure
-                </Button>
-              </CardHeader>
-              <CardContent className="p-0">
-                {isLoading ? (
-                  <div className="p-8 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /></div>
-                ) : departures.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground text-sm">
-                    No departures scheduled yet. Add one so travelers can book a real date.
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Capacity</TableHead>
-                        <TableHead>Available</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {departures.map((d) => (
-                        <TableRow key={d.id}>
-                          <TableCell className="font-medium">{formatDate(d.departure_date)}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {d.inventory ? `${d.inventory.capacity_total} total (${d.inventory.capacity_held} held, ${d.inventory.capacity_confirmed} confirmed)` : "Not set"}
-                          </TableCell>
-                          <TableCell className="font-medium">{availableCapacity(d.inventory)}</TableCell>
-                          <TableCell><Badge className={statusBadge[d.status].className}>{statusBadge[d.status].label}</Badge></TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-end gap-1">
-                              <Button variant="ghost" size="icon" title="Edit capacity" onClick={() => openEditCapacity(d)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              {d.status === "scheduled" && (
-                                <Button variant="ghost" size="icon" title="Close (stop new bookings)" onClick={() => handleStatusChange(d, "closed")}>
-                                  <PauseCircle className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {d.status === "closed" && (
-                                <Button variant="ghost" size="icon" title="Reopen" onClick={() => handleStatusChange(d, "scheduled")}>
-                                  <PlayCircle className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {d.status !== "cancelled" && (
-                                <Button variant="ghost" size="icon" title="Cancel departure" onClick={() => handleStatusChange(d, "cancelled")}>
-                                  <Ban className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {!d.inventory || (d.inventory.capacity_held === 0 && d.inventory.capacity_confirmed === 0) ? (
-                                <Button variant="ghost" size="icon" className="text-destructive" title="Delete" onClick={() => setDeleteTarget(d)}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              ) : null}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                <CardTitle className="text-base">Booking Rules</CardTitle>
+                {activeListing.restricted_area && (
+                  <Badge variant="secondary" className="gap-1.5">
+                    <Lock className="h-3 w-3" /> Restricted area
+                  </Badge>
                 )}
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Confirmation mode</Label>
+                    <Select value={rules.confirmation_mode} onValueChange={(v: ConfirmationMode) => setRules((p) => ({ ...p, confirmation_mode: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="instant">Instant — confirms automatically</SelectItem>
+                        <SelectItem value="agency_confirm">Agency confirms each booking</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Default start time</Label>
+                    <Input type="time" value={rules.default_start_time} onChange={(e) => setRules((p) => ({ ...p, default_start_time: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Minimum notice (hours)</Label>
+                    <Input type="number" min={2} value={rules.min_advance_hours} onChange={(e) => setRules((p) => ({ ...p, min_advance_hours: Number(e.target.value) }))} />
+                    {activeListing.restricted_area && <p className="text-xs text-muted-foreground">Restricted-area listings require at least 336 hours (14 days).</p>}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Max advance booking (days)</Label>
+                    <Input type="number" min={1} max={540} value={rules.max_advance_days} onChange={(e) => setRules((p) => ({ ...p, max_advance_days: Number(e.target.value) }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Min group size</Label>
+                    <Input type="number" min={1} value={rules.min_participants} onChange={(e) => setRules((p) => ({ ...p, min_participants: Number(e.target.value) }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Max group size</Label>
+                    <Input type="number" min={1} value={rules.max_participants} onChange={(e) => setRules((p) => ({ ...p, max_participants: Number(e.target.value) }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Daily booking limit</Label>
+                    <Input type="number" min={1} placeholder="Unlimited" value={rules.daily_booking_limit} onChange={(e) => setRules((p) => ({ ...p, daily_booking_limit: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">No-show grace (minutes)</Label>
+                    <Input type="number" min={15} max={60} value={rules.no_show_grace_minutes} onChange={(e) => setRules((p) => ({ ...p, no_show_grace_minutes: Number(e.target.value) }))} />
+                  </div>
+                  {Number(activeListing.duration_days) <= 1 && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Payment requirement</Label>
+                      <Select value={rules.payment_requirement} onValueChange={(v: PaymentRequirement) => setRules((p) => ({ ...p, payment_requirement: v }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fee_only">Reservation fee only</SelectItem>
+                          <SelectItem value="full_online">Full price online</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Operating days</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {WEEKDAYS.map((d) => {
+                      const active = !rules.operating_days || rules.operating_days.includes(d.iso);
+                      return (
+                        <button
+                          key={d.iso}
+                          type="button"
+                          onClick={() => toggleOperatingDay(d.iso)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                            active ? "bg-primary/15 text-primary border-primary/50" : "bg-muted/40 text-muted-foreground border-border"
+                          }`}
+                        >
+                          {d.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Every day selected = runs every day.</p>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40">
+                  <div>
+                    <p className="text-sm font-medium">Pause bookings for this listing</p>
+                    <p className="text-xs text-muted-foreground">Travelers will see it as unavailable until you resume.</p>
+                  </div>
+                  <Switch checked={rules.bookings_paused} onCheckedChange={(v) => setRules((p) => ({ ...p, bookings_paused: v }))} />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={handleSaveRules} disabled={isSavingRules}>
+                    {isSavingRules ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Save Rules
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
-            {/* Blackout dates */}
+            {/* Blackout calendar */}
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><CalendarOff className="h-4 w-4 text-primary" /> Blackout Dates</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><CalendarOff className="h-4 w-4 text-primary" /> Blackout Calendar</CardTitle></CardHeader>
+              <CardContent className="space-y-5">
                 <div className="flex flex-wrap items-end gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Date</Label>
-                    <Input type="date" value={blackoutDate} onChange={(e) => setBlackoutDate(e.target.value)} />
+                    <Label className="text-xs">Close a single date</Label>
+                    <Input type="date" value={closeSingleDate} onChange={(e) => setCloseSingleDate(e.target.value)} />
                   </div>
-                  <div className="space-y-1.5 flex-1 min-w-[180px]">
+                  <div className="space-y-1.5 flex-1 min-w-[160px]">
                     <Label className="text-xs">Reason (optional)</Label>
-                    <Input value={blackoutReason} onChange={(e) => setBlackoutReason(e.target.value)} placeholder="e.g. Public holiday" />
+                    <Input value={closeSingleReason} onChange={(e) => setCloseSingleReason(e.target.value)} placeholder="e.g. Guide unavailable" />
                   </div>
-                  <Button onClick={handleAddBlackout} disabled={!blackoutDate}>Add</Button>
+                  <Button onClick={handleCloseSingleDate} disabled={!closeSingleDate || isSavingBlackout}>Close Date</Button>
                 </div>
-                {blackoutDates.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {blackoutDates.map((b) => (
-                      <span key={b.id} className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-sm">
-                        {formatDate(b.blackout_date)}{b.reason ? ` — ${b.reason}` : ""}
-                        <button onClick={() => deleteBlackoutDate(b.id)} className="text-muted-foreground hover:text-destructive">×</button>
-                      </span>
+
+                <div className="flex flex-wrap items-end gap-3 pt-2 border-t border-border/50">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">From</Label>
+                    <Input type="date" value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">To</Label>
+                    <Input type="date" value={rangeEnd} min={rangeStart} onChange={(e) => setRangeEnd(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5 flex-1 min-w-[160px]">
+                    <Label className="text-xs">Reason (optional)</Label>
+                    <Input value={rangeReason} onChange={(e) => setRangeReason(e.target.value)} placeholder="e.g. Dashain holiday" />
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground pb-2.5">
+                    <input type="checkbox" checked={rangeAllListings} onChange={(e) => setRangeAllListings(e.target.checked)} />
+                    All my listings
+                  </label>
+                  <Button variant="outline" onClick={handleAddRange} disabled={!rangeStart || !rangeEnd || isSavingBlackout}>Add Range</Button>
+                </div>
+
+                <div className="flex flex-wrap items-end gap-3 pt-2 border-t border-border/50">
+                  <div className="space-y-1.5 min-w-[220px]">
+                    <Label className="text-xs flex items-center gap-1.5"><PartyPopper className="h-3.5 w-3.5" /> Apply festival preset</Label>
+                    <Select value={selectedPreset} onValueChange={setSelectedPreset}>
+                      <SelectTrigger><SelectValue placeholder="Select a festival" /></SelectTrigger>
+                      <SelectContent>
+                        {presets.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name} ({formatDate(p.start_date)} – {formatDate(p.end_date)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button variant="outline" onClick={handleApplyPreset} disabled={!selectedPreset || isSavingBlackout}>Apply</Button>
+                </div>
+
+                {blackoutPeriods.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-border/50">
+                    {blackoutPeriods.map((b) => (
+                      <div key={b.id} className="flex items-center justify-between text-sm p-2 rounded-lg bg-muted/40">
+                        <span>
+                          {formatDate(b.start_date)} – {formatDate(b.end_date)}
+                          {b.reason ? ` — ${b.reason}` : ""}
+                          <span className="text-muted-foreground"> ({b.listing_ids ? `${b.listing_ids.length} listing${b.listing_ids.length === 1 ? "" : "s"}` : "all listings"})</span>
+                        </span>
+                        <button onClick={() => deleteBlackoutPeriod(b.id)} className="text-muted-foreground hover:text-destructive">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -296,11 +446,11 @@ export default function AgencyAvailability() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2"><Tag className="h-4 w-4 text-primary" /> Seasonal Pricing</CardTitle>
-                <Button size="sm" variant="outline" className="gap-2" onClick={() => setSeasonOpen(true)}>
+                <Button size="sm" variant="outline" className="gap-2" onClick={() => setSeasonOpen((v) => !v)}>
                   <Plus className="h-4 w-4" /> Add Season
                 </Button>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 {seasonalPricing.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No seasonal pricing rules yet — the base price applies year-round.</p>
                 ) : (
@@ -318,118 +468,52 @@ export default function AgencyAvailability() {
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground mt-3">
-                  Note: which price actually applies to a given departure (base vs. seasonal, when ranges overlap) is resolved at quote time — not shown live here yet.
+
+                {seasonOpen && (
+                  <div className="space-y-4 p-4 rounded-xl bg-muted/30 border border-border/50">
+                    <div className="flex flex-wrap gap-1.5">
+                      {SEASON_TEMPLATES.map((tpl) => (
+                        <button key={tpl.label} type="button" onClick={() => applyTemplate(tpl)}
+                          className="px-2.5 py-1 rounded-full text-xs font-medium border bg-muted/40 text-muted-foreground border-border hover:border-primary/40 hover:text-foreground">
+                          {tpl.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Season name</Label>
+                      <Input value={seasonName} onChange={(e) => setSeasonName(e.target.value)} placeholder="e.g. Autumn Peak" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label>Start date</Label>
+                        <Input type="date" value={seasonStart} onChange={(e) => setSeasonStart(e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>End date</Label>
+                        <Input type="date" value={seasonEnd} onChange={(e) => setSeasonEnd(e.target.value)} min={seasonStart} />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Price per person (NPR)</Label>
+                      <Input type="number" min={0} step="0.01" value={seasonPrice} onChange={(e) => setSeasonPrice(e.target.value)} />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setSeasonOpen(false)}>Cancel</Button>
+                      <Button onClick={handleAddSeason} disabled={isSavingSeason}>
+                        {isSavingSeason ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Add
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  Note: which price actually applies to a given date (base vs. seasonal, when ranges overlap) is resolved at quote time — not shown live here yet.
                 </p>
               </CardContent>
             </Card>
           </>
         )}
       </div>
-
-      {/* Add departure dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Add Departure</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Date</Label>
-              <Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} min={new Date().toISOString().split("T")[0]} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Capacity</Label>
-              <Input type="number" min={1} value={newCapacity} onChange={(e) => setNewCapacity(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={handleAddDeparture} disabled={isSaving || !newDate}>
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Add
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit capacity dialog */}
-      <Dialog open={!!editCapacityFor} onOpenChange={(open) => !open && setEditCapacityFor(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Edit Capacity — {editCapacityFor && formatDate(editCapacityFor.departure_date)}</DialogTitle></DialogHeader>
-          <div className="space-y-1.5">
-            <Label>Total capacity</Label>
-            <Input type="number" min={0} value={editCapacityValue} onChange={(e) => setEditCapacityValue(e.target.value)} />
-            {editCapacityFor?.inventory && (editCapacityFor.inventory.capacity_held > 0 || editCapacityFor.inventory.capacity_confirmed > 0) && (
-              <p className="text-xs text-muted-foreground">
-                Cannot go below {editCapacityFor.inventory.capacity_held + editCapacityFor.inventory.capacity_confirmed} (already held/confirmed).
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditCapacityFor(null)}>Cancel</Button>
-            <Button onClick={handleSaveCapacity} disabled={isSaving}>
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add season dialog */}
-      <Dialog open={seasonOpen} onOpenChange={setSeasonOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Add Seasonal Price</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="flex flex-wrap gap-1.5">
-              {SEASON_TEMPLATES.map((tpl) => (
-                <button key={tpl.label} type="button" onClick={() => applyTemplate(tpl)}
-                  className="px-2.5 py-1 rounded-full text-xs font-medium border bg-muted/40 text-muted-foreground border-border hover:border-primary/40 hover:text-foreground">
-                  {tpl.label}
-                </button>
-              ))}
-            </div>
-            <div className="space-y-1.5">
-              <Label>Season name</Label>
-              <Input value={seasonName} onChange={(e) => setSeasonName(e.target.value)} placeholder="e.g. Autumn Peak" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Start date</Label>
-                <Input type="date" value={seasonStart} onChange={(e) => setSeasonStart(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>End date</Label>
-                <Input type="date" value={seasonEnd} onChange={(e) => setSeasonEnd(e.target.value)} min={seasonStart} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Price per person (NPR)</Label>
-              <Input type="number" min={0} step="0.01" value={seasonPrice} onChange={(e) => setSeasonPrice(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSeasonOpen(false)}>Cancel</Button>
-            <Button onClick={handleAddSeason} disabled={isSaving}>
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Add
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete confirmation */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this departure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget && formatDate(deleteTarget.departure_date)} will be permanently removed. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </AgencyLayout>
   );
 }

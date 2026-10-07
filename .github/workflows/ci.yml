@@ -86,6 +86,12 @@ jobs:
       - name: SQL regression suite (RLS/function matrix + exploit tests)
         run: npm run test:db
 
+      # Genuinely parallel background-psql-process tests for create_booking_
+      # hold()'s per-listing+date advisory lock -- pgTAP itself only ever
+      # drives one connection sequentially, so these run as a separate step.
+      - name: Concurrency acceptance tests (daily limit + unlimited capacity)
+        run: npm run test:concurrency
+
       - name: Edge function tests (Deno)
         run: npm run test:edge
 

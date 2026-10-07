@@ -1,11 +1,12 @@
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/SEO";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
+import { LegalReviewBanner } from "@/components/legal/LegalReviewBanner";
 
 const LAST_UPDATED = "April 8, 2026";
 
 export default function TermsOfService() {
-  const { platformName } = usePlatformSettings();
+  const { platform_name: platformName, legal_email: legalEmail, reservation_fee_percent, fee_free_cancel_hours_day, fee_free_cancel_hours_multiday } = usePlatformSettings();
   return (
     <Layout>
       <SEO title="Terms of Service" description={`Review the terms for using ${platformName} to discover, book, and manage Nepal travel experiences.`} />
@@ -14,6 +15,8 @@ export default function TermsOfService() {
           <h1 className="text-4xl font-bold mb-3">Terms of Service</h1>
           <p className="text-muted-foreground">Last updated: {LAST_UPDATED}</p>
         </div>
+
+        <LegalReviewBanner />
 
         <div className="space-y-10 text-[15px] leading-relaxed">
           <section>
@@ -63,14 +66,16 @@ export default function TermsOfService() {
                 otherwise stated and include applicable taxes where required.
               </li>
               <li>
-                Payment is processed securely through our payment provider.
-                Into Nepal does not store your full card details.
-                {/* TODO: update once the new NPR reservation-fee payment
-                    model and provider are finalized. */}
+                To secure a booking, you pay a reservation fee of{" "}
+                <span className="font-medium text-foreground">{reservation_fee_percent}%</span> of
+                the total booking value at checkout. Depending on the listing's payment terms, the
+                remaining balance is either paid to the agency directly or collected through the
+                Platform before the trip starts. Payment is processed securely through our payment
+                provider; we do not store your full card details.
               </li>
               <li>
-                A booking is confirmed only once payment is successfully
-                processed and you receive a confirmation email.
+                A booking is confirmed only once the reservation fee is successfully processed and
+                you receive a confirmation email.
               </li>
               <li>
                 Agencies are responsible for delivering the services described
@@ -84,49 +89,51 @@ export default function TermsOfService() {
               4. Cancellation Policy
             </h2>
             <p className="text-muted-foreground mb-3">
-              Cancellation policies are set by individual agencies and are
-              displayed on each listing page before booking. Refund eligibility
-              depends on when the cancellation is made relative to the trip
-              date:
+              Refund eligibility for the reservation fee depends on when you cancel, relative to
+              the activity's start time:
             </p>
             <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
               <li>
                 <span className="font-medium text-foreground">
-                  More than 14 days before departure:
+                  Single-day activities:
                 </span>{" "}
-                Full refund (minus payment processing fees).
+                the reservation fee is fully refundable if you cancel more than{" "}
+                {fee_free_cancel_hours_day} hours before the activity starts.
               </li>
               <li>
                 <span className="font-medium text-foreground">
-                  7–14 days before departure:
+                  Multi-day trips:
                 </span>{" "}
-                50% refund at agency's discretion.
+                the reservation fee is fully refundable if you cancel more than{" "}
+                {fee_free_cancel_hours_multiday} hours ({Math.round(fee_free_cancel_hours_multiday / 24)} days)
+                before the trip starts.
               </li>
               <li>
                 <span className="font-medium text-foreground">
-                  Less than 7 days before departure:
+                  After the free-cancellation window:
                 </span>{" "}
-                No refund, unless the agency cancels.
+                the reservation fee is non-refundable. If you paid the remaining balance in
+                advance, any refund of that balance follows the agency's own cancellation policy,
+                shown on the listing before you book.
               </li>
             </ul>
             <p className="text-muted-foreground mt-3">
-              If an agency cancels a confirmed booking, you will receive a full
-              refund within 5–10 business days.
+              If an agency cancels a confirmed booking, you receive a full refund of everything
+              you paid.
             </p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold mb-3">
-              5. Commission Structure
+              5. Reservation Fee
             </h2>
             <p className="text-muted-foreground">
-              Into Nepal charges travel agencies a platform commission of
-              between <span className="font-medium text-foreground">12% and 15%</span>{" "}
-              of the total booking value. This commission covers platform
-              maintenance, payment processing, customer support, and marketing.
-              Agencies receive their net payout within 5 business days following
-              the completion of the trip. Travelers are not charged any
-              additional platform fees beyond the advertised price.
+              {platformName} charges travelers a reservation fee of{" "}
+              <span className="font-medium text-foreground">{reservation_fee_percent}%</span> of
+              the total booking value, paid at checkout to secure the booking. This fee compensates
+              the Platform for payment processing, customer support, and the booking
+              infrastructure connecting you with the agency. It is separate from, and does not
+              reduce, the price the agency charges for the activity itself.
             </p>
           </section>
 
@@ -206,10 +213,10 @@ export default function TermsOfService() {
             <p className="text-muted-foreground">
               If you have any questions about these Terms, please contact us at{" "}
               <a
-                href="mailto:legal@intonepal.com"
+                href={`mailto:${legalEmail}`}
                 className="text-primary hover:underline"
               >
-                legal@intonepal.com
+                {legalEmail}
               </a>
               .
             </p>

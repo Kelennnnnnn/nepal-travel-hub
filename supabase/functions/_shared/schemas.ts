@@ -117,3 +117,19 @@ export const agencyInvitationsSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("accept"), token: z.string().trim().min(32).max(256) }),
   z.object({ action: z.literal("revoke"), invitation_id: uuidField }),
 ]);
+
+// ── booking-token-response ───────────────────────────────────────────────
+// token is the raw one-time value emailed/texted to the agency (32 random
+// bytes, hex-encoded = 64 characters) — never the hash stored server-side.
+
+export const bookingTokenResponseSchema = z.object({
+  token: z.string().trim().min(32).max(256),
+  accept: z.boolean(),
+  reason: z.string().trim().min(10).max(500).optional(),
+});
+
+// ── verify-password ──────────────────────────────────────────────────────
+
+export const verifyPasswordSchema = z.object({
+  password: z.string().min(1).max(200),
+});

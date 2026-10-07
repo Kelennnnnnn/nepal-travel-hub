@@ -361,22 +361,22 @@ insert into public.inventory_reservations (id, inventory_id, quantity, status, e
   ('e5700000-0000-0000-0000-000000000001', 'e5600000-0000-0000-0000-000000000001', 1, 'confirmed', now() + interval '1 hour', now());
 
 select throws_ok(
-  $$ insert into public.booking_quotes (listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at)
-     values ('e5100000-0000-0000-0000-000000000001', 'e5300000-0000-0000-0000-000000000005', 'e5a00000-0000-0000-0000-000000000001', 'e5000000-0000-0000-0000-000000000003', 1, 1000.00, 15.00, 150.00, 850.00, 'USD', '{}'::jsonb, 'e5700000-0000-0000-0000-000000000001', 'active', now() + interval '1 hour') $$,
+  $$ insert into public.booking_quotes (listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at, confirmation_mode, payment_requirement, amount_due_now, start_at, end_at, no_show_grace_minutes, fee_refund_rule)
+     values ('e5100000-0000-0000-0000-000000000001', 'e5300000-0000-0000-0000-000000000005', 'e5a00000-0000-0000-0000-000000000001', 'e5000000-0000-0000-0000-000000000003', 1, 1000.00, 15.00, 150.00, 850.00, 'USD', '{}'::jsonb, 'e5700000-0000-0000-0000-000000000001', 'active', now() + interval '1 hour', 'instant', 'fee_only', 150.00, now() + interval '30 days', now() + interval '31 days', 30, '{"free_cancel_hours": 24}'::jsonb) $$,
   '23514', null,
   'booking_quotes: currency other than NPR is rejected'
 );
 
 select throws_ok(
-  $$ insert into public.booking_quotes (listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at)
-     values ('e5100000-0000-0000-0000-000000000001', 'e5300000-0000-0000-0000-000000000005', 'e5a00000-0000-0000-0000-000000000001', 'e5000000-0000-0000-0000-000000000003', 1, 1000.00, 15.00, 100.00, 900.00, 'NPR', '{}'::jsonb, 'e5700000-0000-0000-0000-000000000001', 'active', now() + interval '1 hour') $$,
+  $$ insert into public.booking_quotes (listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at, confirmation_mode, payment_requirement, amount_due_now, start_at, end_at, no_show_grace_minutes, fee_refund_rule)
+     values ('e5100000-0000-0000-0000-000000000001', 'e5300000-0000-0000-0000-000000000005', 'e5a00000-0000-0000-0000-000000000001', 'e5000000-0000-0000-0000-000000000003', 1, 1000.00, 15.00, 100.00, 900.00, 'NPR', '{}'::jsonb, 'e5700000-0000-0000-0000-000000000001', 'active', now() + interval '1 hour', 'instant', 'fee_only', 100.00, now() + interval '30 days', now() + interval '31 days', 30, '{"free_cancel_hours": 24}'::jsonb) $$,
   '23514', null,
   'booking_quotes: platform_fee not matching round(product_value * platform_fee_percent / 100, 2) is rejected'
 );
 
 select lives_ok(
-  $$ insert into public.booking_quotes (listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at)
-     values ('e5100000-0000-0000-0000-000000000001', 'e5300000-0000-0000-0000-000000000005', 'e5a00000-0000-0000-0000-000000000001', 'e5000000-0000-0000-0000-000000000003', 1, 1000.00, 15.00, 150.00, 850.00, 'NPR', '{}'::jsonb, 'e5700000-0000-0000-0000-000000000001', 'active', now() + interval '1 hour') $$,
+  $$ insert into public.booking_quotes (listing_id, departure_id, agency_id, traveler_id, participant_count, product_value, platform_fee_percent, platform_fee, agency_balance, currency, cancellation_policy_snapshot, inventory_reservation_id, status, expires_at, confirmation_mode, payment_requirement, amount_due_now, start_at, end_at, no_show_grace_minutes, fee_refund_rule)
+     values ('e5100000-0000-0000-0000-000000000001', 'e5300000-0000-0000-0000-000000000005', 'e5a00000-0000-0000-0000-000000000001', 'e5000000-0000-0000-0000-000000000003', 1, 1000.00, 15.00, 150.00, 850.00, 'NPR', '{}'::jsonb, 'e5700000-0000-0000-0000-000000000001', 'active', now() + interval '1 hour', 'instant', 'fee_only', 150.00, now() + interval '30 days', now() + interval '31 days', 30, '{"free_cancel_hours": 24}'::jsonb) $$,
   'booking_quotes: platform_fee correctly matching the percentage is accepted'
 );
 

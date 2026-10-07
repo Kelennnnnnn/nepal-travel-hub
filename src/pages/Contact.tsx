@@ -11,9 +11,13 @@ import { toast } from "sonner";
 import { invokeEdge } from "@/lib/edge";
 import { TurnstileWidget } from "@/components/TurnstileWidget";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
+import { useSiteContent } from "@/hooks/useSiteContent";
 
 export default function Contact() {
-  const { platformName, supportEmail } = usePlatformSettings();
+  const { platform_name: platformName, support_email: supportEmail, support_phone: supportPhone, support_hours: supportHours } = usePlatformSettings();
+  const { intro } = useSiteContent("contact_page", {
+    intro: "Have a question or need help planning your trip? We're here for you.",
+  });
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [sending, setSending] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
@@ -53,7 +57,7 @@ export default function Contact() {
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold mb-3">Contact Us</h1>
             <p className="text-muted-foreground max-w-xl mx-auto">
-              Have a question or need help planning your trip? We're here for you.
+              {intro}
             </p>
           </div>
 
@@ -121,7 +125,7 @@ export default function Contact() {
               <div>
                 <h2 className="text-xl font-semibold mb-5">Get in Touch</h2>
                 <p className="text-muted-foreground mb-6">
-                  Our support team is available Sunday–Friday, 9am–6pm NPT. We typically
+                  Our support team is available {supportHours}. We typically
                   respond to all enquiries within one business day.
                 </p>
               </div>
@@ -142,16 +146,18 @@ export default function Contact() {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                    <Phone className="h-5 w-5 text-primary" />
+                {supportPhone && (
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <Phone className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Phone</p>
+                      <p className="text-muted-foreground">{supportPhone}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{supportHours}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium">Phone</p>
-                    <p className="text-muted-foreground">+977 1-XXXXXXX</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Sun–Fri, 9am–6pm NPT</p>
-                  </div>
-                </div>
+                )}
 
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">

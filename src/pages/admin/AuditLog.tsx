@@ -41,12 +41,11 @@ interface AdminUser {
 
 const PAGE_SIZE = 25;
 
-const ENTITY_TYPES = ["agency", "listing", "booking", "user", "payout", "settings"];
-
 // ── Page ─────────────────────────────────────────────────────────────
 
 export default function AuditLogPage() {
   const [entries, setEntries]       = useState<AuditEntry[]>([]);
+  const [entityTypes, setEntityTypes] = useState<string[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading]   = useState(true);
   const [page, setPage]             = useState(1);
@@ -86,6 +85,19 @@ export default function AuditLogPage() {
         const admins = (data ?? []).map((u) => ({ id: u.id, email: u.email }));
         setAdminUsers(admins);
       });
+  }, []);
+
+  // ── Entity types (for filter) ──────────────────────────────────────
+
+  useEffect(() => {
+    // admin_audit_entity_types() (supabase/migrations/20260923000001_
+    // admin_managed_data.sql) returns the distinct resource_type values
+    // actually present in audit_logs, instead of a hardcoded list that
+    // drifts from reality (the old list still had "payout" long after
+    // that entity type was removed).
+    supabase.rpc("admin_audit_entity_types").then(({ data }) => {
+      setEntityTypes(data ?? []);
+    });
   }, []);
 
   // ── Fetch entries ──────────────────────────────────────────────────
@@ -227,7 +239,7 @@ export default function AuditLogPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All types</SelectItem>
-                    {ENTITY_TYPES.map((t) => (
+                    {entityTypes.map((t) => (
                       <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
                     ))}
                   </SelectContent>

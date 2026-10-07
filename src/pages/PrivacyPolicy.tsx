@@ -5,7 +5,7 @@ import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 const LAST_UPDATED = "April 8, 2026";
 
 export default function PrivacyPolicy() {
-  const { platformName } = usePlatformSettings();
+  const { platform_name: platformName, privacy_email: privacyEmail } = usePlatformSettings();
   return (
     <Layout>
       <SEO title="Privacy Policy" description={`Read ${platformName}'s privacy policy and learn how traveler, booking, payment, and communication data is handled.`} />
@@ -236,10 +236,10 @@ export default function PrivacyPolicy() {
             <p className="text-muted-foreground mt-3">
               To exercise any of these rights, contact us at{" "}
               <a
-                href="mailto:privacy@intonepal.com"
+                href={`mailto:${privacyEmail}`}
                 className="text-primary hover:underline"
               >
-                privacy@intonepal.com
+                {privacyEmail}
               </a>
               . We will respond within 30 days.
             </p>
@@ -264,10 +264,10 @@ export default function PrivacyPolicy() {
               If you have any questions or concerns about this Privacy Policy or
               how we handle your data, please contact us at{" "}
               <a
-                href="mailto:privacy@intonepal.com"
+                href={`mailto:${privacyEmail}`}
                 className="text-primary hover:underline"
               >
-                privacy@intonepal.com
+                {privacyEmail}
               </a>
               .
             </p>

@@ -13,7 +13,7 @@ const DEFAULT_DESC = "Discover authentic Nepal travel experiences — trekking, 
 const DEFAULT_IMAGE = "https://intonepal.com/og-image.jpg";
 
 export function SEO({ title, description, image, url, type = "website" }: SEOProps) {
-  const { platformName } = usePlatformSettings();
+  const { platform_name: platformName } = usePlatformSettings();
   const fullTitle = `${title} | ${platformName}`;
   const desc = description ?? DEFAULT_DESC;
   const img = image ?? DEFAULT_IMAGE;

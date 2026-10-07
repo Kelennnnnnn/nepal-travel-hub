@@ -48,6 +48,7 @@ const AgencyEarnings = lazy(() => import("./pages/agency/AgencyEarnings"));
 const AgencySettings = lazy(() => import("./pages/agency/AgencySettings"));
 const AgencyAnalytics = lazy(() => import("./pages/agency/AgencyAnalytics"));
 const AcceptAgencyInvite = lazy(() => import("./pages/agency/AcceptAgencyInvite"));
+const PartnerBookingResponse = lazy(() => import("./pages/PartnerBookingResponse"));
 
 // Admin pages
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
@@ -62,6 +63,10 @@ const AdminAuditLog = lazy(() => import("./pages/admin/AuditLog"));
 const AdminReviews    = lazy(() => import("./pages/admin/Reviews"));
 const AdminMFASetup   = lazy(() => import("./pages/admin/MFASetup"));
 const AdminMFAVerify  = lazy(() => import("./pages/admin/MFAVerify"));
+const AdminBlackoutPresets = lazy(() => import("./pages/admin/BlackoutPresets"));
+const AdminDisputes = lazy(() => import("./pages/admin/Disputes"));
+const AdminCategories = lazy(() => import("./pages/admin/Categories"));
+const AdminDestinations = lazy(() => import("./pages/admin/Destinations"));
 
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -133,6 +138,7 @@ const App = () => (
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/agency/profile/:agencyId" element={<AgencyProfile />} />
               <Route path="/agency/invite/:token" element={<AcceptAgencyInvite />} />
+              <Route path="/r/:token" element={<PartnerBookingResponse />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/about" element={<About />} />
@@ -146,7 +152,7 @@ const App = () => (
                 <Route path="/my-bookings" element={<MyBookings />} />
                 <Route path="/wishlist" element={<Wishlist />} />
                 <Route path="/messages" element={<Messages />} />
-                <Route path="/booking/payment" element={<BookingPayment />} />
+                <Route path="/booking/:id/checkout" element={<BookingPayment />} />
                 <Route path="/booking/confirmation" element={<BookingConfirmation />} />
               </Route>
 
@@ -181,6 +187,10 @@ const App = () => (
                 <Route path="/admin/settings" element={<AdminSettings />} />
                 <Route path="/admin/audit" element={<AdminAuditLog />} />
                 <Route path="/admin/reviews" element={<AdminReviews />} />
+                <Route path="/admin/blackout-presets" element={<AdminBlackoutPresets />} />
+                <Route path="/admin/disputes" element={<AdminDisputes />} />
+                <Route path="/admin/categories" element={<AdminCategories />} />
+                <Route path="/admin/destinations" element={<AdminDestinations />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

@@ -66,7 +66,7 @@ export default function AdminLogin() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@intonepal.com"
+                placeholder="you@intonepal.com"
                 className="pl-10 bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-500"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

@@ -249,7 +249,7 @@ export default function Account() {
                     </div>
                     <div className="space-y-2">
                       <Label>Phone</Label>
-                      <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+977 98XXXXXXXX" />
+                      <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+977 9812345678" />
                     </div>
                   </div>
 

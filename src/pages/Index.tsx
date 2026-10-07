@@ -13,9 +13,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Layout } from "@/components/layout/Layout";
-import { usePublishedListings } from "@/lib/queries";
-import { categories } from "@/lib/catalog";
-import type { PublishedListingRow } from "@/lib/queries";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import { useHomeSections } from "@/hooks/useHomeSections";
+import { useCategories } from "@/hooks/useCategories";
+import { DIFFICULTIES } from "@/lib/catalog";
 import heroImage from "@/assets/hero-nepal.jpg";
 
 const HERO_SLIDES = [
@@ -24,24 +25,27 @@ const HERO_SLIDES = [
   { src: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1600&h=900&fit=crop", alt: "Wide alpine valley beneath snow-covered mountains" },
 ];
 
-const DIFFICULTIES = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
-
-const QUICK_PICKS = [
+const DEFAULT_QUICK_PICKS = [
   { label: "High Passes", href: "/activities?difficulty=Challenging,Difficult,Expert" },
   { label: "Teahouse Treks", href: "/activities?category=Trekking" },
   { label: "Summit Peaks", href: "/activities?category=Mountaineering" },
-  { label: "Sherpa Homestays", href: "/activities?category=Cultural" },
-  { label: "Sun Kosi Rivers", href: "/activities?category=Rafting" },
+  { label: "Cultural Tours", href: "/activities?category=Cultural" },
+  { label: "Rafting Trips", href: "/activities?category=Rafting" },
 ];
 
 export default function Index() {
   const navigate = useNavigate();
+  const { data: categories = [] } = useCategories();
+  const heroContent = useSiteContent("home_hero", {
+    heading: "Epic, Responsible Adventures in the High Himalayas",
+    subheading: "Join small, expert-led expeditions and authentic cultural treks crafted exclusively by verified local Nepali agencies.",
+  });
   const [destination, setDestination] = useState("");
   const [activityCategory, setActivityCategory] = useState("all");
   const [difficulty, setDifficulty] = useState("all");
 
-  const { data: listingsData } = usePublishedListings({ pageSize: 100 });
-  const allListings: PublishedListingRow[] = listingsData?.listings ?? [];
+  const { tabs, difficulty_counts: difficultyCounts } = useHomeSections();
+  const quickPicks = useSiteContent("home_quick_picks", DEFAULT_QUICK_PICKS);
 
   const handleHeroSearch = () => {
     const params = new URLSearchParams();
@@ -69,10 +73,10 @@ export default function Index() {
               Authentic · Low Impact · Expert Sherpa Guides
             </span>
             <h1 className="font-serif italic text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 max-w-3xl">
-              Epic, Responsible Adventures in the High Himalayas
+              {heroContent.heading}
             </h1>
             <p className="text-white/85 text-base md:text-lg max-w-xl mb-2">
-              Join small, expert-led expeditions and authentic cultural treks crafted exclusively by verified local Nepali agencies.
+              {heroContent.subheading}
             </p>
           </div>
         </div>
@@ -110,8 +114,9 @@ export default function Index() {
                     <SelectValue placeholder="All Activities" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">All Activities</SelectItem>
                     {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      <SelectItem key={c.slug} value={c.slug}>{c.icon} {c.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -145,7 +150,7 @@ export default function Index() {
 
             {/* Quick picks */}
             <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-5">
-              {QUICK_PICKS.map((pick) => (
+              {quickPicks.map((pick) => (
                 <a
                   key={pick.label}
                   href={pick.href}
@@ -160,9 +165,9 @@ export default function Index() {
         </div>
       </section>
 
-      <AdventureFramework listings={allListings} />
+      <AdventureFramework difficultyCounts={difficultyCounts} />
 
-      <FeaturedAdventures listings={allListings} />
+      <FeaturedAdventures tabs={tabs} />
 
       <CommunityImpact />
 
