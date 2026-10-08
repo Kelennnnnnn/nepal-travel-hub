@@ -25,6 +25,7 @@ import {
   travelerDisputeNoShow, travelerReportAgencyNoShow,
 } from "@/lib/api/bookings";
 import { supabase } from "@/lib/supabase";
+import { formatTripDate as formatDate, formatDateTimeNpt } from "@/lib/dates";
 
 const STATUS_BADGE: Record<BookingStatus, { label: string; className: string }> = {
   draft: { label: "Draft", className: "bg-muted text-muted-foreground" },
@@ -40,14 +41,6 @@ const STATUS_BADGE: Record<BookingStatus, { label: string; className: string }> 
   disputed: { label: "Disputed", className: "bg-destructive/10 text-destructive" },
   expired: { label: "Hold expired", className: "bg-muted text-muted-foreground" },
 };
-
-function formatDate(d: string) {
-  return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-}
-
-function formatDateTimeNpt(d: string) {
-  return new Date(d).toLocaleString("en-US", { timeZone: "Asia/Kathmandu", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) + " (Nepal time)";
-}
 
 function HoldCountdown({ expiresAt }: { expiresAt: string }) {
   const [secondsLeft, setSecondsLeft] = useState(() => Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)));

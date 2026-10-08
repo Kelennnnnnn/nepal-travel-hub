@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { Helmet } from "react-helmet-async";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { logger } from "@/lib/logger";
@@ -13,6 +14,7 @@ const NotFound = () => {
 
   return (
     <Layout>
+      <Helmet><meta name="robots" content="noindex" /></Helmet>
       <div className="min-h-[70vh] flex items-center justify-center py-16">
         <div className="text-center px-4 max-w-md mx-auto">
           {/* Mountain illustration */}

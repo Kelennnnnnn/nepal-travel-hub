@@ -639,6 +639,10 @@ functions:
   revoke_user_sessions(p_user_id uuid): { security_definer: true,  execute: [] }
   save_agency_draft(p_fields jsonb): { security_definer: true,  execute: [authenticated] }
   search_listings(p_query text, p_category text, p_location text, p_price_min numeric, p_price_max numeric, p_difficulties text[], p_duration_range text, p_sort text, p_limit integer, p_offset integer): { security_definer: true,  execute: [anon, authenticated] }
+  seo_listing(p_slug text): { security_definer: true,  execute: [anon, authenticated] }
+  seo_agency(p_slug text): { security_definer: true,  execute: [anon, authenticated] }
+  sitemap_entries(): { security_definer: true,  execute: [anon, authenticated] }
+  generate_listing_slug(): { security_definer: false, execute: [anon, authenticated] }
   set_default_role_on_signup(): { security_definer: true,  execute: [anon, authenticated] }
   set_departure_capacity(p_departure_id uuid, p_capacity_total integer): { security_definer: true,  execute: [authenticated] }
   set_updated_at(): { security_definer: false, execute: [anon, authenticated] }

@@ -1549,7 +1549,7 @@ export type Database = {
           restricted_area?: boolean
           review_count?: number
           search_vector?: unknown
-          slug: string
+          slug?: string
           status?: string
           title: string
           updated_at?: string
@@ -2868,12 +2868,51 @@ export type Database = {
         }
         Returns: Json
       }
+      seo_agency: {
+        Args: { p_slug: string }
+        Returns: {
+          city: string
+          description: string
+          display_name: string
+          district: string
+          id: string
+          listing_count: number
+          slug: string
+          website: string
+        }[]
+      }
+      seo_listing: {
+        Args: { p_slug: string }
+        Returns: {
+          agency_name: string
+          base_price: number
+          category: string
+          currency: string
+          description: string
+          duration_label: string
+          id: string
+          image: string
+          location: string
+          rating: number
+          review_count: number
+          slug: string
+          title: string
+          updated_at: string
+        }[]
+      }
       set_departure_capacity: {
         Args: { p_capacity_total: number; p_departure_id: string }
         Returns: undefined
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      sitemap_entries: {
+        Args: never
+        Returns: {
+          lastmod: string
+          path: string
+        }[]
+      }
       start_conversation: {
         Args: {
           p_agency_id: string

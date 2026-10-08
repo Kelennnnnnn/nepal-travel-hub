@@ -10,6 +10,7 @@ import { formatPrice } from "@/lib/currency";
 
 export interface Activity {
   id: string;
+  slug: string;
   title: string;
   description: string;
   image: string;
@@ -46,7 +47,7 @@ export function ActivityCard({ activity, className }: ActivityCardProps) {
   };
 
   return (
-    <Link to={`/activities/${activity.id}`} className="block h-full">
+    <Link to={`/activities/${activity.slug}`} className="block h-full">
       <Card variant="activity" className={cn("h-full flex flex-col", className)}>
         {/* Image — 16:9 keeps the card compact */}
         <div className="relative aspect-video overflow-hidden flex-shrink-0">

@@ -16,6 +16,7 @@ import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/SEO";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 import { supabase } from "@/lib/supabase";
+import heroBackground from "@/assets/fallback-activity.jpg";
 
 const benefits = [
   {
@@ -84,7 +85,7 @@ const steps = [
 ];
 
 export default function AgencyLanding() {
-  const { reservation_fee_percent } = usePlatformSettings();
+  const { reservation_fee_percent, support_hours } = usePlatformSettings();
   // Live count of publicly-visible (approved) agencies — agencies_public_
   // select_approved RLS already scopes this to exactly that set for an
   // anon/unauthenticated caller, same guarantee usePublicAgencies() relies
@@ -104,7 +105,7 @@ export default function AgencyLanding() {
       {/* Hero */}
       <section className="relative pt-32 pb-20 md:pt-40 md:pb-32 bg-primary text-primary-foreground overflow-hidden">
         <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=1920')] bg-cover bg-center" />
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${heroBackground})` }} />
         </div>
         <div className="container relative z-10 mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center">
@@ -208,7 +209,7 @@ export default function AgencyLanding() {
                   "Customer communication tools",
                   "Analytics and reporting",
                   "Secure payment processing",
-                  "24/7 partner support",
+                  `Partner support, ${support_hours}`,
                   "Marketing and promotion",
                   "Training resources",
                 ].map((item) => (

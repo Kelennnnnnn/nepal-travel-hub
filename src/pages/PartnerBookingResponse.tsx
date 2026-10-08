@@ -1,34 +1,31 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import { Loader2, CalendarDays, Users, Clock, CheckCircle2, XCircle, Mountain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { bookingSummaryForToken, respondToBookingViaToken } from "@/lib/api/bookings";
+import { formatTripDate as formatDate, formatDateTimeNpt as formatDeadline } from "@/lib/dates";
 
 // Public route, no login required — the token itself is the credential
 // (booking_summary_for_token/respond_via_token, migration
 // 20260920000001). Deliberately minimal: no site header/footer, nothing
 // beyond what an agency needs to decide and act, reachable from a one-tap
-// email/SMS/WhatsApp link on a phone.
+// email/SMS/WhatsApp link on a phone. Also disallowed in robots.txt (/r/)
+// — the noindex meta here is defense-in-depth for any crawler that
+// ignores that.
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-muted/30">
+      <Helmet><meta name="robots" content="noindex, nofollow" /></Helmet>
       <div className="w-full max-w-md bg-card rounded-2xl border border-border/40 shadow-sm p-6 space-y-5">
         {children}
       </div>
     </div>
   );
-}
-
-function formatDate(d: string) {
-  return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-}
-
-function formatDeadline(d: string) {
-  return new Date(d).toLocaleString("en-US", { timeZone: "Asia/Kathmandu", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) + " (Nepal time)";
 }
 
 export default function PartnerBookingResponse() {

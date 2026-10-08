@@ -15,10 +15,7 @@ import { Plus, Trash2, Pencil, Loader2, PartyPopper } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import { useBookingRulesStore, type BlackoutPreset } from "@/stores/bookingRulesStore";
-
-function formatDate(d: string) {
-  return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-}
+import { formatTripDate as formatDate } from "@/lib/dates";
 
 const emptyForm = {
   name: "", start_date: "", end_date: "", year: new Date().getFullYear(), description: "", active: true,

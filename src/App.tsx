@@ -8,6 +8,7 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useAuthStore } from "./stores/authStore";
 import { CookieConsent } from "./components/CookieConsent";
 import { supabase } from "./lib/supabase";
+import { detectPortal } from "./lib/sentry";
 
 // Lazy-loaded pages
 const Account = lazy(() => import("./pages/Account"));
@@ -21,6 +22,7 @@ const ActivityDetail = lazy(() => import("./pages/ActivityDetail"));
 const Login = lazy(() => import("./pages/Login"));
 const AgencyLanding = lazy(() => import("./pages/AgencyLanding"));
 const AgencyProfile = lazy(() => import("./pages/AgencyProfile"));
+const AgencyProfileRedirect = lazy(() => import("./pages/AgencyProfileRedirect"));
 const BookingPayment = lazy(() => import("./pages/BookingPayment"));
 const BookingConfirmation = lazy(() => import("./pages/BookingConfirmation"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
@@ -87,6 +89,35 @@ function AuthInitializer() {
   return null;
 }
 
+// Only enforced in production — detectPortal() falls back to "www" for
+// any host it doesn't recognize, which includes localhost and every
+// Vercel preview deployment (neither has the admin./partner. subdomain
+// structure at all). Gating by portal there would just hide admin/agency
+// routes from local dev and previews with no way to reach them. In
+// production, where the subdomain split is actually deployed, this is
+// real isolation: the admin/agency route chunks are only ever requested
+// (React.lazy) when their routes actually render, so a traveler on the
+// bare/www host never downloads them at all.
+const IS_PRODUCTION = import.meta.env.VITE_APP_ENV === "production";
+
+function useHostGatedPortal() {
+  const portal = detectPortal();
+  return {
+    showAdminRoutes: !IS_PRODUCTION || portal === "admin",
+    showPartnerRoutes: !IS_PRODUCTION || portal === "partner",
+  };
+}
+
+/** On the www host in production, /admin/* has nothing to render — bounce to the admin subdomain instead of a dead end. */
+function AdminHostRedirect() {
+  useEffect(() => {
+    if (!IS_PRODUCTION) return;
+    const host = window.location.hostname.replace(/^(www\.)?/, "admin.");
+    window.location.replace(`${window.location.protocol}//${host}${window.location.pathname}${window.location.search}`);
+  }, []);
+  return null;
+}
+
 function MaintenanceBanner() {
   const [show, setShow] = useState(false);
 
@@ -111,7 +142,10 @@ function MaintenanceBanner() {
   );
 }
 
-const App = () => (
+const App = () => {
+  const { showAdminRoutes, showPartnerRoutes } = useHostGatedPortal();
+
+  return (
   <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
@@ -125,18 +159,31 @@ const App = () => (
               {/* Public Routes */}
               <Route path="/" element={<Index />} />
               <Route path="/activities" element={<Activities />} />
-              <Route path="/activities/:id" element={<ActivityDetail />} />
+              <Route path="/activities/:slugOrId" element={<ActivityDetail />} />
               <Route path="/login" element={<Login />} />
               <Route path="/agency" element={<AgencyLanding />} />
               <Route path="/agency/login" element={<AgencyLogin />} />
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route path="/admin/mfa-setup" element={<AdminMFASetup />} />
-              <Route path="/admin/mfa-verify" element={<AdminMFAVerify />} />
+              {showAdminRoutes ? (
+                <>
+                  <Route path="/admin/login" element={<AdminLogin />} />
+                  <Route path="/admin/mfa-setup" element={<AdminMFASetup />} />
+                  <Route path="/admin/mfa-verify" element={<AdminMFAVerify />} />
+                </>
+              ) : (
+                IS_PRODUCTION && (
+                  <>
+                    <Route path="/admin/login" element={<AdminHostRedirect />} />
+                    <Route path="/admin/mfa-setup" element={<AdminHostRedirect />} />
+                    <Route path="/admin/mfa-verify" element={<AdminHostRedirect />} />
+                  </>
+                )
+              )}
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/terms" element={<TermsOfService />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
-              <Route path="/agency/profile/:agencyId" element={<AgencyProfile />} />
+              <Route path="/agencies/:slugOrId" element={<AgencyProfile />} />
+              <Route path="/agency/profile/:agencyId" element={<AgencyProfileRedirect />} />
               <Route path="/agency/invite/:token" element={<AcceptAgencyInvite />} />
               <Route path="/r/:token" element={<PartnerBookingResponse />} />
               <Route path="/contact" element={<Contact />} />
@@ -162,36 +209,42 @@ const App = () => (
                 <Route path="/agency/onboarding/status" element={<AgencyVerificationStatus />} />
               </Route>
 
-              {/* Agency Routes (verified agency only) */}
-              <Route element={<ProtectedRoute allowedRoles={["agency"]} />}>
-                <Route path="/agency/messages" element={<AgencyMessages />} />
-                <Route path="/agency/dashboard" element={<AgencyDashboard />} />
-                <Route path="/agency/listings" element={<AgencyListings />} />
-                <Route path="/agency/listings/new" element={<AgencyListingForm />} />
-                <Route path="/agency/listings/:id/edit" element={<AgencyListingForm />} />
-                <Route path="/agency/bookings" element={<AgencyBookings />} />
-                <Route path="/agency/availability" element={<AgencyAvailability />} />
-                <Route path="/agency/earnings" element={<AgencyEarnings />} />
-                <Route path="/agency/settings" element={<AgencySettings />} />
-                <Route path="/agency/analytics" element={<AgencyAnalytics />} />
-              </Route>
+              {/* Agency Routes (verified agency only — partner host only in production) */}
+              {showPartnerRoutes && (
+                <Route element={<ProtectedRoute allowedRoles={["agency"]} />}>
+                  <Route path="/agency/messages" element={<AgencyMessages />} />
+                  <Route path="/agency/dashboard" element={<AgencyDashboard />} />
+                  <Route path="/agency/listings" element={<AgencyListings />} />
+                  <Route path="/agency/listings/new" element={<AgencyListingForm />} />
+                  <Route path="/agency/listings/:id/edit" element={<AgencyListingForm />} />
+                  <Route path="/agency/bookings" element={<AgencyBookings />} />
+                  <Route path="/agency/availability" element={<AgencyAvailability />} />
+                  <Route path="/agency/earnings" element={<AgencyEarnings />} />
+                  <Route path="/agency/settings" element={<AgencySettings />} />
+                  <Route path="/agency/analytics" element={<AgencyAnalytics />} />
+                </Route>
+              )}
 
-              {/* Admin Routes (Protected) */}
-              <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
-                <Route path="/admin" element={<AdminDashboard />} />
-                <Route path="/admin/agencies" element={<AdminAgencies />} />
-                <Route path="/admin/listings" element={<AdminListings />} />
-                <Route path="/admin/users" element={<AdminUsers />} />
-                <Route path="/admin/bookings" element={<AdminBookings />} />
-                <Route path="/admin/payments" element={<AdminPayments />} />
-                <Route path="/admin/settings" element={<AdminSettings />} />
-                <Route path="/admin/audit" element={<AdminAuditLog />} />
-                <Route path="/admin/reviews" element={<AdminReviews />} />
-                <Route path="/admin/blackout-presets" element={<AdminBlackoutPresets />} />
-                <Route path="/admin/disputes" element={<AdminDisputes />} />
-                <Route path="/admin/categories" element={<AdminCategories />} />
-                <Route path="/admin/destinations" element={<AdminDestinations />} />
-              </Route>
+              {/* Admin Routes (Protected — admin host only in production) */}
+              {showAdminRoutes ? (
+                <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+                  <Route path="/admin" element={<AdminDashboard />} />
+                  <Route path="/admin/agencies" element={<AdminAgencies />} />
+                  <Route path="/admin/listings" element={<AdminListings />} />
+                  <Route path="/admin/users" element={<AdminUsers />} />
+                  <Route path="/admin/bookings" element={<AdminBookings />} />
+                  <Route path="/admin/payments" element={<AdminPayments />} />
+                  <Route path="/admin/settings" element={<AdminSettings />} />
+                  <Route path="/admin/audit" element={<AdminAuditLog />} />
+                  <Route path="/admin/reviews" element={<AdminReviews />} />
+                  <Route path="/admin/blackout-presets" element={<AdminBlackoutPresets />} />
+                  <Route path="/admin/disputes" element={<AdminDisputes />} />
+                  <Route path="/admin/categories" element={<AdminCategories />} />
+                  <Route path="/admin/destinations" element={<AdminDestinations />} />
+                </Route>
+              ) : (
+                IS_PRODUCTION && <Route path="/admin/*" element={<AdminHostRedirect />} />
+              )}
 
               <Route path="*" element={<NotFound />} />
             </Routes>
@@ -199,6 +252,7 @@ const App = () => (
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
-);
+  );
+};
 
 export default App;

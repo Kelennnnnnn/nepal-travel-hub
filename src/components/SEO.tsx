@@ -10,7 +10,7 @@ interface SEOProps {
 }
 
 const DEFAULT_DESC = "Discover authentic Nepal travel experiences — trekking, rafting, cultural tours and more with verified local agencies.";
-const DEFAULT_IMAGE = "https://intonepal.com/og-image.jpg";
+const DEFAULT_IMAGE = "/api/og";
 
 export function SEO({ title, description, image, url, type = "website" }: SEOProps) {
   const { platform_name: platformName } = usePlatformSettings();

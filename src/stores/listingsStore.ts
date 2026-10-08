@@ -118,16 +118,6 @@ export interface ListingFormData {
   itinerary: ItineraryDay[];
 }
 
-function slugify(title: string): string {
-  const base = title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-  const suffix = Math.random().toString(36).slice(2, 8);
-  return `${base || "listing"}-${suffix}`;
-}
-
 // ── Store interface ────────────────────────────────────────
 
 interface ListingsStore {
@@ -251,7 +241,10 @@ export const useListingsStore = create<ListingsStore>((set, get) => ({
       .from("listings")
       .insert({
         agency_id: agencyId,
-        slug: slugify(formData.title),
+        // slug is generated server-side by generate_listing_slug_trigger
+        // (supabase/migrations/20260925000001_seo_and_slugs.sql) — never
+        // client-supplied, so a slug can't collide, be empty, or be
+        // offensive just because a client sent one.
         title: formData.title,
         description: formData.description,
         category: formData.category,

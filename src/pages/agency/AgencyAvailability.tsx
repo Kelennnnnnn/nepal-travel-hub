@@ -14,24 +14,13 @@ import { useDeparturesStore } from "@/stores/departuresStore";
 import { useBookingRulesStore } from "@/stores/bookingRulesStore";
 import { formatPrice } from "@/lib/currency";
 import { supabase } from "@/lib/supabase";
-
-const SEASON_TEMPLATES = [
-  { label: "Autumn Peak (Oct – Nov)", start: "10-01", end: "11-30", mult: 1.5 },
-  { label: "Spring Peak (Mar – May)", start: "03-01", end: "05-31", mult: 1.4 },
-  { label: "Winter (Dec – Feb)", start: "12-01", end: "02-28", mult: 1.2 },
-  { label: "Monsoon Off-Peak (Jun – Aug)", start: "06-01", end: "08-31", mult: 0.8 },
-];
+import { useSeasonTemplates, resolveTemplateDates, type SeasonTemplate } from "@/hooks/useSeasonTemplates";
+import { formatTripDate as formatDate } from "@/lib/dates";
 
 const WEEKDAYS = [
   { iso: 1, label: "Mon" }, { iso: 2, label: "Tue" }, { iso: 3, label: "Wed" },
   { iso: 4, label: "Thu" }, { iso: 5, label: "Fri" }, { iso: 6, label: "Sat" }, { iso: 7, label: "Sun" },
 ];
-
-function formatDate(d: string) {
-  return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-}
-
-const currentYear = new Date().getFullYear();
 
 export default function AgencyAvailability() {
   const { myListings, myAgencyId, fetchMyListings, updateBookingRules } = useListingsStore();
@@ -81,6 +70,8 @@ export default function AgencyAvailability() {
   const [seasonEnd, setSeasonEnd] = useState("");
   const [seasonPrice, setSeasonPrice] = useState("");
   const [isSavingSeason, setIsSavingSeason] = useState(false);
+  const [appliedTemplate, setAppliedTemplate] = useState<SeasonTemplate | null>(null);
+  const { data: seasonTemplates = [] } = useSeasonTemplates();
 
   useEffect(() => {
     if (myListings.length === 0) fetchMyListings();
@@ -206,11 +197,23 @@ export default function AgencyAvailability() {
     setSelectedPreset("");
   };
 
-  const applyTemplate = (tpl: (typeof SEASON_TEMPLATES)[number]) => {
+  // Defaults the price field to the listing's own base price — the
+  // template's suggested_multiplier is offered as a one-click suggestion
+  // (below) the agency can apply, never auto-applied. A plain multiplier
+  // silently changing an agency's price was exactly the problem with the
+  // old hardcoded SEASON_TEMPLATES.
+  const applyTemplate = (tpl: SeasonTemplate) => {
+    const { startDate, endDate } = resolveTemplateDates(tpl);
     setSeasonName(tpl.label);
-    setSeasonStart(`${currentYear}-${tpl.start}`);
-    setSeasonEnd(`${currentYear}-${tpl.end}`);
-    if (activeListing) setSeasonPrice(String(Math.round(Number(activeListing.base_price) * tpl.mult)));
+    setSeasonStart(startDate);
+    setSeasonEnd(endDate);
+    setSeasonPrice(activeListing ? String(activeListing.base_price) : "");
+    setAppliedTemplate(tpl);
+  };
+
+  const applySuggestedMultiplier = () => {
+    if (!activeListing || !appliedTemplate?.suggested_multiplier) return;
+    setSeasonPrice(String(Math.round(Number(activeListing.base_price) * appliedTemplate.suggested_multiplier)));
   };
 
   const handleAddSeason = async () => {
@@ -472,8 +475,8 @@ export default function AgencyAvailability() {
                 {seasonOpen && (
                   <div className="space-y-4 p-4 rounded-xl bg-muted/30 border border-border/50">
                     <div className="flex flex-wrap gap-1.5">
-                      {SEASON_TEMPLATES.map((tpl) => (
-                        <button key={tpl.label} type="button" onClick={() => applyTemplate(tpl)}
+                      {seasonTemplates.map((tpl) => (
+                        <button key={tpl.id} type="button" onClick={() => applyTemplate(tpl)}
                           className="px-2.5 py-1 rounded-full text-xs font-medium border bg-muted/40 text-muted-foreground border-border hover:border-primary/40 hover:text-foreground">
                           {tpl.label}
                         </button>
@@ -496,6 +499,15 @@ export default function AgencyAvailability() {
                     <div className="space-y-1.5">
                       <Label>Price per person (NPR)</Label>
                       <Input type="number" min={0} step="0.01" value={seasonPrice} onChange={(e) => setSeasonPrice(e.target.value)} />
+                      {appliedTemplate?.suggested_multiplier != null && (
+                        <button
+                          type="button"
+                          onClick={applySuggestedMultiplier}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Suggested for {appliedTemplate.label}: {appliedTemplate.suggested_multiplier}× base price — click to apply
+                        </button>
+                      )}
                     </div>
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" onClick={() => setSeasonOpen(false)}>Cancel</Button>

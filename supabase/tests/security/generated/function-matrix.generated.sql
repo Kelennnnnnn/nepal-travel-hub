@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap;
 
-select plan(366);
+select plan(378);
 
 select is(has_function_privilege('anon', 'public.add_agency_member_to_conversation(uuid, uuid)', 'EXECUTE'), false, 'public.add_agency_member_to_conversation(p_conversation_id uuid, p_user_id uuid): anon EXECUTE -> deny [SECURITY DEFINER]');
 select is(has_function_privilege('authenticated', 'public.add_agency_member_to_conversation(uuid, uuid)', 'EXECUTE'), true, 'public.add_agency_member_to_conversation(p_conversation_id uuid, p_user_id uuid): authenticated EXECUTE -> allow [SECURITY DEFINER]');
@@ -328,6 +328,18 @@ select is(has_function_privilege('service_role', 'public.save_agency_draft(jsonb
 select is(has_function_privilege('anon', 'public.search_listings(text, text, text, numeric, numeric, text[], text, text, integer, integer)', 'EXECUTE'), true, 'public.search_listings(p_query text, p_category text, p_location text, p_price_min numeric, p_price_max numeric, p_difficulties text[], p_duration_range text, p_sort text, p_limit integer, p_offset integer): anon EXECUTE -> allow [SECURITY DEFINER]');
 select is(has_function_privilege('authenticated', 'public.search_listings(text, text, text, numeric, numeric, text[], text, text, integer, integer)', 'EXECUTE'), true, 'public.search_listings(p_query text, p_category text, p_location text, p_price_min numeric, p_price_max numeric, p_difficulties text[], p_duration_range text, p_sort text, p_limit integer, p_offset integer): authenticated EXECUTE -> allow [SECURITY DEFINER]');
 select is(has_function_privilege('service_role', 'public.search_listings(text, text, text, numeric, numeric, text[], text, text, integer, integer)', 'EXECUTE'), true, 'public.search_listings(p_query text, p_category text, p_location text, p_price_min numeric, p_price_max numeric, p_difficulties text[], p_duration_range text, p_sort text, p_limit integer, p_offset integer): service_role EXECUTE -> allow [SECURITY DEFINER]');
+select is(has_function_privilege('anon', 'public.seo_listing(text)', 'EXECUTE'), true, 'public.seo_listing(p_slug text): anon EXECUTE -> allow [SECURITY DEFINER]');
+select is(has_function_privilege('authenticated', 'public.seo_listing(text)', 'EXECUTE'), true, 'public.seo_listing(p_slug text): authenticated EXECUTE -> allow [SECURITY DEFINER]');
+select is(has_function_privilege('service_role', 'public.seo_listing(text)', 'EXECUTE'), true, 'public.seo_listing(p_slug text): service_role EXECUTE -> allow [SECURITY DEFINER]');
+select is(has_function_privilege('anon', 'public.seo_agency(text)', 'EXECUTE'), true, 'public.seo_agency(p_slug text): anon EXECUTE -> allow [SECURITY DEFINER]');
+select is(has_function_privilege('authenticated', 'public.seo_agency(text)', 'EXECUTE'), true, 'public.seo_agency(p_slug text): authenticated EXECUTE -> allow [SECURITY DEFINER]');
+select is(has_function_privilege('service_role', 'public.seo_agency(text)', 'EXECUTE'), true, 'public.seo_agency(p_slug text): service_role EXECUTE -> allow [SECURITY DEFINER]');
+select is(has_function_privilege('anon', 'public.sitemap_entries()', 'EXECUTE'), true, 'public.sitemap_entries(): anon EXECUTE -> allow [SECURITY DEFINER]');
+select is(has_function_privilege('authenticated', 'public.sitemap_entries()', 'EXECUTE'), true, 'public.sitemap_entries(): authenticated EXECUTE -> allow [SECURITY DEFINER]');
+select is(has_function_privilege('service_role', 'public.sitemap_entries()', 'EXECUTE'), true, 'public.sitemap_entries(): service_role EXECUTE -> allow [SECURITY DEFINER]');
+select is(has_function_privilege('anon', 'public.generate_listing_slug()', 'EXECUTE'), true, 'public.generate_listing_slug(): anon EXECUTE -> allow');
+select is(has_function_privilege('authenticated', 'public.generate_listing_slug()', 'EXECUTE'), true, 'public.generate_listing_slug(): authenticated EXECUTE -> allow');
+select is(has_function_privilege('service_role', 'public.generate_listing_slug()', 'EXECUTE'), true, 'public.generate_listing_slug(): service_role EXECUTE -> allow');
 select is(has_function_privilege('anon', 'public.set_default_role_on_signup()', 'EXECUTE'), true, 'public.set_default_role_on_signup(): anon EXECUTE -> allow [SECURITY DEFINER]');
 select is(has_function_privilege('authenticated', 'public.set_default_role_on_signup()', 'EXECUTE'), true, 'public.set_default_role_on_signup(): authenticated EXECUTE -> allow [SECURITY DEFINER]');
 select is(has_function_privilege('service_role', 'public.set_default_role_on_signup()', 'EXECUTE'), true, 'public.set_default_role_on_signup(): service_role EXECUTE -> allow [SECURITY DEFINER]');

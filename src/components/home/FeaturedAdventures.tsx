@@ -56,7 +56,7 @@ export function FeaturedAdventures({ tabs }: FeaturedAdventuresProps) {
               return (
                 <Link
                   key={listing.id}
-                  to={`/activities/${listing.id}`}
+                  to={`/activities/${listing.slug}`}
                   className="group rounded-2xl overflow-hidden border border-border bg-card hover:-translate-y-[3px] hover:border-border/60 hover:shadow-[0_4px_12px_rgba(23,34,46,.08)] transition-all duration-200 flex flex-col"
                 >
                   <div className="relative aspect-[4/3] overflow-hidden">

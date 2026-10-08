@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const FALLBACK = "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&h=600&fit=crop";
+import { FALLBACK_IMAGE_URL as FALLBACK } from "@/lib/constants";
 
 interface ImageGalleryProps {
   images: string[];

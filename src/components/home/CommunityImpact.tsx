@@ -1,5 +1,6 @@
 import { CheckCircle2 } from "lucide-react";
 import { useSiteContent } from "@/hooks/useSiteContent";
+import coverImage from "@/assets/community-impact-cover.jpg";
 
 interface Commitment {
   key: string;
@@ -13,7 +14,7 @@ const DEFAULT_COMMITMENTS: Commitment[] = [
   { key: "local_lodging", title: "Local, Family-Run Lodging", description: "We ask partner agencies to prioritise independent, family-run teahouses and lodges over large chains when they have a choice." },
 ];
 
-const COVER_IMAGE = "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=1000&h=1200&fit=crop";
+const COVER_IMAGE = coverImage;
 
 export function CommunityImpact() {
   const content = useSiteContent("community_impact", {

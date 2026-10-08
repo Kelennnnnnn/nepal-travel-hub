@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "./supabase";
+import { isUuid } from "@/lib/slug";
 import type { ListingCategory, ListingDifficulty } from "@/stores/listingsStore";
 
 // Shape returned by usePublishedListings()'s select — a deliberate subset
@@ -9,6 +10,7 @@ import type { ListingCategory, ListingDifficulty } from "@/stores/listingsStore"
 // the full Listing type from listingsStore — do not use interchangeably.
 export interface PublishedListingRow {
   id: string;
+  slug: string;
   title: string;
   description: string;
   images: string[];
@@ -80,13 +82,13 @@ function mapReviewRow(row: Record<string, unknown>): Review {
   };
 }
 
-// Published listings with filters.
-//
-// Phase 5 note: durationRange now filters server-side on the real numeric
-// duration_days column (supabase/migrations/20260916000004_catalog.sql,
-// made required in Phase 5) instead of fetching up to 2000 rows and
-// parsing free-text duration in JS — this was AUDIT_REPORT.md FE-01, a
-// concrete, named audit finding, not just incidental cleanup.
+// Published listings with filters — delegates to the search_listings() RPC
+// (supabase/migrations/20260924000001_frontend_accuracy.sql) instead of
+// building a PostgREST .or() filter by string interpolation. The old
+// `query.or(\`title.ilike.%${search}%,...\`)` broke or silently changed
+// which clauses PostgREST parsed out of the string whenever `search`
+// contained a comma, parenthesis, or dot — every argument to the RPC is a
+// bound parameter instead.
 //
 // availableOnDate is dropped for now: the old system's listings_available_
 // on_date RPC read the old flat `availability` table directly, which no
@@ -111,50 +113,30 @@ export function usePublishedListings(filters?: {
     queryFn: async () => {
       const page = filters?.page ?? 1;
       const pageSize = filters?.pageSize ?? 20;
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
+      const offset = (page - 1) * pageSize;
 
-      let query = supabase
-        .from("listings")
-        .select(
-          "id, title, description, images, location, duration:duration_label, duration_days, price:base_price, rating, review_count, category, agency_id, max_participants, featured, status, difficulty, created_at",
-          { count: "estimated" }
-        )
-        .eq("status", "published");
+      const sort =
+        filters?.sortBy === "price_asc" ? "price_asc"
+        : filters?.sortBy === "price_desc" ? "price_desc"
+        : filters?.sortBy === "rating" ? "rating"
+        : "newest";
 
-      if (filters?.category) query = query.eq("category", filters.category);
-      if (filters?.location) query = query.ilike("location", `%${filters.location}%`);
-      if (filters?.search) {
-        query = query.or(
-          `title.ilike.%${filters.search}%,description.ilike.%${filters.search}%,location.ilike.%${filters.search}%`
-        );
-      }
-      if (filters?.priceMin != null) query = query.gte("base_price", filters.priceMin);
-      if (filters?.priceMax != null) query = query.lte("base_price", filters.priceMax);
-      if (filters?.difficulties && filters.difficulties.length > 0) {
-        query = query.in("difficulty", filters.difficulties);
-      }
-      switch (filters?.durationRange) {
-        case "1": query = query.eq("duration_days", 1); break;
-        case "2-3": query = query.gte("duration_days", 2).lte("duration_days", 3); break;
-        case "4-7": query = query.gte("duration_days", 4).lte("duration_days", 7); break;
-        case "8+": query = query.gte("duration_days", 8); break;
-        default: break;
-      }
-
-      switch (filters?.sortBy) {
-        case "price_asc": query = query.order("base_price", { ascending: true }); break;
-        case "price_desc": query = query.order("base_price", { ascending: false }); break;
-        case "rating": query = query.order("rating", { ascending: false }); break;
-        default: query = query.order("created_at", { ascending: false });
-      }
-
-      query = query.range(from, to);
-
-      const { data, error, count } = await query;
+      const { data, error } = await supabase.rpc("search_listings", {
+        p_query: filters?.search || null,
+        p_category: filters?.category || null,
+        p_location: filters?.location || null,
+        p_price_min: filters?.priceMin ?? null,
+        p_price_max: filters?.priceMax ?? null,
+        p_difficulties: filters?.difficulties && filters.difficulties.length > 0 ? filters.difficulties : null,
+        p_duration_range: filters?.durationRange || null,
+        p_sort: sort,
+        p_limit: pageSize,
+        p_offset: offset,
+      });
       if (error) throw error;
 
-      return { listings: (data ?? []) as unknown as PublishedListingRow[], total: count ?? 0, page, pageSize };
+      const result = data as unknown as { listings: PublishedListingRow[]; total: number };
+      return { listings: result?.listings ?? [], total: result?.total ?? 0, page, pageSize };
     },
     staleTime: 60_000,
   });
@@ -205,20 +187,22 @@ export function usePublicAgencies(agencyIds: string[]) {
 // Single listing. Aliases price/duration alongside the real base_price/
 // duration_label columns (via `*`) so ActivityDetail.tsx's existing field
 // references keep working unchanged.
-export function useListing(id: string | undefined) {
+// Accepts either the listing's slug (canonical) or its id (legacy links) —
+// ActivityDetail.tsx decides which column to match on via isUuid().
+export function useListing(slugOrId: string | undefined) {
   return useQuery({
-    queryKey: ["listing", id],
+    queryKey: ["listing", slugOrId],
     queryFn: async () => {
-      if (!id) throw new Error("No listing ID");
+      if (!slugOrId) throw new Error("No listing slug or ID");
       const { data, error } = await supabase
         .from("listings")
         .select("*, price:base_price, duration:duration_label")
-        .eq("id", id)
+        .eq(isUuid(slugOrId) ? "id" : "slug", slugOrId)
         .single();
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!slugOrId,
   });
 }
 

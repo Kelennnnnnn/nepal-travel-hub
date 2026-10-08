@@ -18,11 +18,15 @@ import { useHomeSections } from "@/hooks/useHomeSections";
 import { useCategories } from "@/hooks/useCategories";
 import { DIFFICULTIES } from "@/lib/catalog";
 import heroImage from "@/assets/hero-nepal.jpg";
+import heroImage2 from "@/assets/hero-nepal-2.jpg";
+import heroImage3 from "@/assets/hero-nepal-3.jpg";
 
+// Self-hosted (docs/IMAGE_CREDITS.md) instead of hotlinked from a
+// third-party CDN.
 const HERO_SLIDES = [
-  { src: heroImage, alt: "Himalayan mountains at sunrise with prayer flags" },
-  { src: "https://images.unsplash.com/photo-1486911278844-a81c5267e227?w=1600&h=900&fit=crop", alt: "Dramatic snow-capped Himalayan peak" },
-  { src: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1600&h=900&fit=crop", alt: "Wide alpine valley beneath snow-covered mountains" },
+  { src: heroImage, alt: "Himalayan mountains at sunrise with prayer flags", width: 1920, height: 1080 },
+  { src: heroImage2, alt: "Dramatic snow-capped Himalayan peak", width: 1600, height: 900 },
+  { src: heroImage3, alt: "Wide alpine valley beneath snow-covered mountains", width: 1600, height: 900 },
 ];
 
 const DEFAULT_QUICK_PICKS = [

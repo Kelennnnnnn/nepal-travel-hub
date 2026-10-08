@@ -73,6 +73,7 @@ type Tab = "overview" | "itinerary" | "inclusions" | "reviews";
 
 interface RelatedListing {
   id: string;
+  slug: string;
   title: string;
   location: string;
   price: number;
@@ -87,9 +88,17 @@ interface RelatedListing {
 const FALLBACK_IMG = FALLBACK_IMAGE_URL;
 
 export default function ActivityDetail() {
-  const { id } = useParams();
+  const { slugOrId } = useParams();
   const navigate = useNavigate();
-  const { data: listing, isLoading } = useListing(id);
+  const { data: listing, isLoading } = useListing(slugOrId);
+
+  // A legacy UUID link is canonicalized to the slug URL in place, same
+  // pattern as AgencyProfile.tsx.
+  useEffect(() => {
+    if (listing?.slug && slugOrId !== listing.slug) {
+      navigate(`/activities/${listing.slug}`, { replace: true });
+    }
+  }, [listing?.slug, slugOrId, navigate]);
   const { user, isAuthenticated } = useAuthStore();
 
   const { data: wishlistIds = new Set<string>() } = useWishlistIds();
@@ -120,6 +129,7 @@ export default function ActivityDetail() {
   const [participants, setParticipants] = useState(2);
   const [agencyName, setAgencyName] = useState("");
   const [agencyId, setAgencyId] = useState("");
+  const [agencySlug, setAgencySlug] = useState("");
   const [relatedListings, setRelatedListings] = useState<RelatedListing[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -132,11 +142,15 @@ export default function ActivityDetail() {
     // would silently return nothing.
     supabase
       .from("agencies")
-      .select("id, display_name")
+      .select("id, slug, display_name")
       .eq("id", listing.agency_id)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (!error && data?.display_name) { setAgencyName(data.display_name); setAgencyId(data.id); }
+        if (!error && data?.display_name) {
+          setAgencyName(data.display_name);
+          setAgencyId(data.id);
+          setAgencySlug(data.slug);
+        }
       });
   }, [listing?.agency_id]);
 
@@ -144,7 +158,7 @@ export default function ActivityDetail() {
     if (!listing?.id || !listing?.category) return;
     supabase
       .from("listings")
-      .select("id, title, location, price:base_price, duration:duration_label, difficulty, images, category, rating, review_count")
+      .select("id, slug, title, location, price:base_price, duration:duration_label, difficulty, images, category, rating, review_count")
       .eq("status", "published")
       .eq("category", listing.category)
       .neq("id", listing.id)
@@ -245,7 +259,7 @@ export default function ActivityDetail() {
 
   const handleReserveClick = () => {
     if (!isAuthenticated) {
-      navigate(`/login?redirect=/activities/${id}`);
+      navigate(`/login?redirect=/activities/${listing?.slug ?? slugOrId}`);
       return;
     }
     setGuestFullName(user?.name ?? "");
@@ -331,7 +345,7 @@ export default function ActivityDetail() {
   const handleWishlistToggle = () => {
     if (!isAuthenticated) {
       toast.error("Please log in to save activities");
-      navigate(`/login?redirect=/activities/${id}`);
+      navigate(`/login?redirect=/activities/${listing?.slug ?? slugOrId}`);
       return;
     }
     toggleWishlist.mutate({ listingId: listing.id, isSaved: wishlistIds.has(listing.id) });
@@ -490,7 +504,7 @@ export default function ActivityDetail() {
                 </div>
                 {agencyId && (
                   <Link
-                    to={`/agency/profile/${listing.agency_id}`}
+                    to={`/agencies/${agencySlug}`}
                     className="text-primary font-bold text-sm hover:underline underline-offset-2"
                   >
                     View Profile
@@ -796,7 +810,7 @@ export default function ActivityDetail() {
                 {relatedListings.map((rel) => (
                   <Link
                     key={rel.id}
-                    to={`/activities/${rel.id}`}
+                    to={`/activities/${rel.slug}`}
                     className="group bg-card rounded-2xl overflow-hidden border border-border/20 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
                   >
                     <div className="relative h-48 overflow-hidden">

@@ -32,12 +32,14 @@ import { useStartConversation } from "@/hooks/useMessages";
 import { useAuthStore } from "@/stores/authStore";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { useQuery } from "@tanstack/react-query";
+import { isUuid } from "@/lib/slug";
 import type { Activity } from "@/components/activities/ActivityCard";
 import type { Listing } from "@/stores/listingsStore";
 import type { Review } from "@/lib/queries";
 
 interface AgencyPublicProfile {
   id: string;
+  slug: string;
   display_name: string;
   description: string;
   city: string;
@@ -54,6 +56,7 @@ type ReviewFilter = "all" | "5" | "4" | "3-";
 function listingToActivity(l: Listing, agencyName: string): Activity {
   return {
     id: l.id,
+    slug: l.slug,
     title: l.title,
     description: l.description,
     image: l.images?.[0] || FALLBACK_IMAGE_URL,
@@ -77,7 +80,7 @@ function filterReviews(reviews: Review[], filter: ReviewFilter): Review[] {
 }
 
 export default function AgencyProfile() {
-  const { agencyId } = useParams<{ agencyId: string }>();
+  const { slugOrId } = useParams<{ slugOrId: string }>();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
 
@@ -86,6 +89,11 @@ export default function AgencyProfile() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
+
+  // The agency's real id, resolved from the route param once loaded below —
+  // every id-keyed query past this point uses THIS, never the raw param
+  // (which may be a legacy UUID link or the canonical slug).
+  const agencyId = agency?.id;
 
   const { data: reviews = [], isLoading: reviewsLoading } = useAgencyReviews(agencyId);
   const { data: myVotes } = useMyReviewVotes(reviews.map((r) => r.id));
@@ -107,7 +115,7 @@ export default function AgencyProfile() {
   const committedCommitments = commitmentDefs.filter((c) => committedKeys.has(c.key));
 
   useEffect(() => {
-    if (!agencyId) {
+    if (!slugOrId) {
       setError("Agency not found.");
       setIsLoading(false);
       return;
@@ -123,12 +131,13 @@ export default function AgencyProfile() {
       // and silently returns nothing even for a genuinely approved agency
       // (see src/lib/queries.ts's usePublicAgencies comment for the full
       // diagnosis — found and fixed in Phase 5 testing).
+      const lookupColumn = isUuid(slugOrId) ? "id" : "slug";
       const { data: agencyData, error: agencyErr } = await supabase
         .from("agencies")
         .select(
-          "id, display_name, description, city, district, address, phone, email, website, created_at"
+          "id, slug, display_name, description, city, district, address, phone, email, website, created_at"
         )
-        .eq("id", agencyId)
+        .eq(lookupColumn, slugOrId)
         .single();
 
       if (agencyErr || !agencyData) {
@@ -137,13 +146,20 @@ export default function AgencyProfile() {
         return;
       }
 
+      // A legacy UUID link (or any access that didn't already land on the
+      // slug) is canonicalized in place — the URL bar updates, but no extra
+      // navigation/history entry.
+      if (slugOrId !== agencyData.slug) {
+        navigate(`/agencies/${agencyData.slug}`, { replace: true });
+      }
+
       setAgency(agencyData as AgencyPublicProfile);
 
       // Fetch their published listings
       const { data: listingData } = await supabase
         .from("listings")
         .select("*")
-        .eq("agency_id", agencyId)
+        .eq("agency_id", agencyData.id)
         .eq("status", "published")
         .order("created_at", { ascending: false });
 
@@ -152,7 +168,7 @@ export default function AgencyProfile() {
     };
 
     void load();
-  }, [agencyId]);
+  }, [slugOrId, navigate]);
 
   // Compute aggregate stats from listings
   const totalActivities = listings.length;

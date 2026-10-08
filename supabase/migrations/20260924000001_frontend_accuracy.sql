@@ -170,7 +170,7 @@ begin
   select jsonb_build_object(
     'listings', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'id', m.id, 'title', m.title, 'description', m.description, 'images', m.images,
+        'id', m.id, 'slug', m.slug, 'title', m.title, 'description', m.description, 'images', m.images,
         'location', m.location, 'duration', m.duration_label, 'duration_days', m.duration_days,
         'price', m.base_price, 'rating', m.rating, 'review_count', m.review_count,
         'category', m.category, 'agency_id', m.agency_id, 'max_participants', m.max_participants,
@@ -224,7 +224,7 @@ as $$
   row_json as (
     select b.id, b.featured, b.review_count, b.rating, b.category, b.difficulty,
       jsonb_build_object(
-        'id', b.id, 'title', b.title, 'description', b.description, 'images', b.images,
+        'id', b.id, 'slug', b.slug, 'title', b.title, 'description', b.description, 'images', b.images,
         'location', b.location, 'duration', b.duration_label, 'duration_days', b.duration_days,
         'price', b.base_price, 'rating', b.rating, 'review_count', b.review_count,
         'category', b.category, 'agency_id', b.agency_id, 'max_participants', b.max_participants,

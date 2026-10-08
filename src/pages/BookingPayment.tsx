@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { getBookingHoldStatus, releaseBookingHold, bookingPolicySummary } from "@/lib/api/bookings";
 import { formatPrice } from "@/lib/currency";
 import { FALLBACK_IMAGE_URL } from "@/lib/constants";
+import { formatDateTimeNpt } from "@/lib/dates";
 
 interface CheckoutBooking {
   id: string;
@@ -187,11 +188,7 @@ export default function BookingPayment() {
                 <CardContent className="space-y-3 text-sm">
                   <div className="flex items-center gap-2.5">
                     <CalendarDays className="h-4 w-4 text-primary" />
-                    <span>
-                      {quote && new Date(quote.start_at).toLocaleString("en-US", {
-                        timeZone: "Asia/Kathmandu", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-                      })} (Nepal time)
-                    </span>
+                    <span>{quote && formatDateTimeNpt(quote.start_at)}</span>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <Users className="h-4 w-4 text-primary" />

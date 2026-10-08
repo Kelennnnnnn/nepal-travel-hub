@@ -31,12 +31,14 @@ import { FALLBACK_IMAGE_URL } from "@/lib/constants";
 import { FilterPanel } from "@/components/activities/FilterPanel";
 import type { Activity } from "@/components/activities/ActivityCard";
 import { formatPrice } from "@/lib/currency";
+import { formatTripDate } from "@/lib/dates";
 
 const PAGE_SIZE = 20;
 
 function listingToActivity(listing: PublishedListingRow, agencyName?: string): Activity {
   return {
     id: listing.id,
+    slug: listing.slug,
     title: listing.title,
     description: listing.description,
     image: listing.images?.[0] || FALLBACK_IMAGE_URL,
@@ -341,7 +343,7 @@ export default function Activities() {
               )}
               {availableOnDate && (
                 <Badge variant="secondary" className="gap-1 text-xs">
-                  {new Date(availableOnDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  {formatTripDate(availableOnDate)}
                   <button onClick={() => updateParam("date", null)}><X className="h-3 w-3" /></button>
                 </Badge>
               )}

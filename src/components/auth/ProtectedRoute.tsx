@@ -1,5 +1,11 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { useAuthStore, ELEVATED_ROLES, type Role } from "@/stores/authStore";
+
+// Every route behind this guard is an authenticated dashboard/account page
+// — never something a search result or link preview should surface. One
+// tag here covers all of them instead of adding it to each page file.
+const NoIndex = () => <Helmet><meta name="robots" content="noindex, nofollow" /></Helmet>;
 
 interface ProtectedRouteProps {
   allowedRoles?: Role[];
@@ -45,11 +51,11 @@ export const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
     // itself (both mfa-verify and mfa-setup are NOT behind ProtectedRoute
     // in App.tsx, so this branch only matters if a future change moves
     // them behind it; kept as a safety net).
-    if (location.pathname.startsWith("/admin/mfa-")) return <Outlet />;
+    if (location.pathname.startsWith("/admin/mfa-")) return <><NoIndex /><Outlet /></>;
     return <Navigate to={hasVerifiedMfaFactor ? "/admin/mfa-verify" : "/admin/mfa-setup"} replace />;
   }
 
-  return <Outlet />;
+  return <><NoIndex /><Outlet /></>;
 };
 
 function homeForRoleFallback(role: Role): string {

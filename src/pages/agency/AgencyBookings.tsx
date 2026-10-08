@@ -21,6 +21,7 @@ import { agencyRespondToBooking, agencyCancelBooking, agencyMarkNoShow, agencySe
 import { formatPrice } from "@/lib/currency";
 import { useAuthStore } from "@/stores/authStore";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
+import { formatTripDate as formatDate } from "@/lib/dates";
 
 const STATUS_BADGE: Record<BookingStatus, { label: string; className: string }> = {
   draft: { label: "Draft", className: "bg-muted text-muted-foreground" },
@@ -50,10 +51,6 @@ const STATUS_OPTIONS: { value: "all" | BookingStatus; label: string }[] = [
   { value: "pending_payment", label: "Payment pending (holds)" },
   { value: "expired", label: "Expired holds" },
 ];
-
-function formatDate(d: string) {
-  return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-}
 
 const CANCEL_REASON_OPTIONS: { value: AgencyCancelReasonCode; label: string }[] = [
   { value: "agency_unavailable", label: "We can't run this trip (full refund, counts as a strike)" },

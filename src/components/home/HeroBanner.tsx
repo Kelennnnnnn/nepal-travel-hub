@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 interface HeroSlide {
   src: string;
   alt: string;
+  width: number;
+  height: number;
 }
 
 interface HeroBannerProps {
@@ -29,6 +31,13 @@ export function HeroBanner({ slides, intervalMs = 6000 }: HeroBannerProps) {
           key={slide.src}
           src={slide.src}
           alt={slide.alt}
+          width={slide.width}
+          height={slide.height}
+          // Slide 0 is the page's LCP element — fetched eagerly at high
+          // priority. The others sit behind it (opacity: 0) and aren't
+          // needed until the carousel rotates, so they're lazy.
+          loading={i === 0 ? "eager" : "lazy"}
+          fetchPriority={i === 0 ? "high" : "auto"}
           className={cn(
             "absolute inset-0 w-full h-full object-cover transition-opacity duration-[1500ms] ease-in-out motion-reduce:transition-none",
             i === index ? "opacity-100 animate-hero-zoom" : "opacity-0"

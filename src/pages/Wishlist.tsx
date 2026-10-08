@@ -14,6 +14,7 @@ import type { Activity } from "@/components/activities/ActivityCard";
 function listingToActivity(listing: Listing): Activity {
   return {
     id: listing.id,
+    slug: listing.slug,
     title: listing.title,
     description: listing.description,
     image: listing.images?.[0] || FALLBACK_IMAGE_URL,
